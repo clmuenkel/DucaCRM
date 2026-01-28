@@ -165,17 +165,10 @@ export async function POST(request: NextRequest) {
   
   try {
     const body: BulkRequest = await request.json();
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulk/route.ts:167',message:'REQUEST_BODY_RECEIVED',data:{body},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     
     const { industries, locations, maxCompanies = 50 } = body;
     // Calculate maxContacts from maxCompanies (3 contacts per company)
     const maxContacts = maxCompanies * 3;
-
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulk/route.ts:175',message:'PARAMS_PARSED',data:{industries,locations,maxCompanies,maxContacts},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     if (!industries || industries.length === 0) {
       return NextResponse.json(
@@ -196,10 +189,6 @@ export async function POST(request: NextRequest) {
 
     const apolloKey = settings?.apollo_api_key || process.env.APOLLO_API_KEY;
     const placesKey = process.env.GOOGLE_PLACES_API_KEY;
-
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulk/route.ts:210',message:'API_KEYS_CHECK',data:{hasApollo:!!apolloKey,hasPlaces:!!placesKey,apolloKeyLen:apolloKey?.length,placesKeyLen:placesKey?.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
 
     if (!apolloKey) {
       return NextResponse.json(
@@ -337,10 +326,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Bulk] Found ${allCompanies.length} unique companies (searching for ${targetCompanies} with contacts)`);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulk/route.ts:320',message:'GOOGLE_PLACES_COMPLETE',data:{companiesFound:allCompanies.length,targetCompanies,firstThree:allCompanies.slice(0,3).map(c=>({name:c.name,domain:c.domain})),locationsSearched:stats.locationsSearched},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
 
     // Step 2: Enrich each company via Apollo - get TOP 3 decision makers
     // KEEP GOING until we have the requested number of successful companies
@@ -364,9 +349,6 @@ export async function POST(request: NextRequest) {
           webhookUrl
         );
 
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulk/route.ts:340',message:'APOLLO_RESULT',data:{companyName:company.name,peopleFound:people.length,source,creditsUsed,firstPerson:people[0]?{name:people[0].first_name,title:people[0].title,email:people[0].email,phones:people[0].phone_numbers?.length}:null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
 
         stats.creditsUsed += creditsUsed;
 
@@ -455,9 +437,6 @@ export async function POST(request: NextRequest) {
 
             if (contactError) {
               console.error(`[Bulk] Contact insert error: ${contactError.message}`);
-              // #region agent log
-              fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'bulk/route.ts:420',message:'DB_INSERT_ERROR',data:{error:contactError.message,personEmail:person.email,companyName:company.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-              // #endregion
               stats.failed++;
               continue;
             }

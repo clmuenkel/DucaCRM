@@ -1587,10 +1587,10 @@ export default function LeadGenPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {(contact.phone || contact.mobile) && (
+                            {contact.phone && (
                               <div className="flex items-center gap-1 text-sm font-mono">
                                 <Phone className="h-3 w-3 text-muted-foreground" />
-                                {(contact.phone || contact.mobile)!.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
+                                {contact.phone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")}
                               </div>
                             )}
                           </TableCell>

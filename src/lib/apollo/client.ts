@@ -334,9 +334,6 @@ export async function searchByOrganizationName(
   if (!response.ok) {
     const errorText = await response.text();
     console.error(`Apollo org name search failed: ${response.status} - ${errorText}`);
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apollo/client.ts:220',message:'SEARCH_ERROR',data:{status:response.status,error:errorText.substring(0,300),orgName:params.organization_name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     return [];
   }
 
@@ -344,13 +341,6 @@ export async function searchByOrganizationName(
   const people = data.people || [];
   
   console.log(`[Apollo] Found ${people.length} people at "${params.organization_name}"`);
-  
-  // Log first few people for debugging
-  if (people.length > 0) {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'apollo/client.ts:235',message:'SEARCH_FOUND_PEOPLE',data:{orgName:params.organization_name,count:people.length,sample:people.slice(0,3).map((p:any)=>({name:`${p.first_name} ${p.last_name}`,title:p.title,hasEmail:p.has_email,hasPhone:p.has_direct_phone,org:p.organization?.name}))},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-  }
   
   // Return simplified info - caller should enrich to get full details
   return people.map((p: any) => ({

@@ -402,10 +402,6 @@ export function CSVImport() {
       const row = toImport[i];
       console.log(`[Apollo Import] Processing ${i + 1}/${toImport.length}: ${row.firstName} ${row.lastName}`);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Starting contact import',data:{index:i+1,total:toImport.length,firstName:row.firstName,lastName:row.lastName,email:row.email},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
-      
       try {
         // 1. Find or create company
         let companyId: string | null = null;
@@ -523,10 +519,6 @@ export function CSVImport() {
           source_list: sourceList,
         };
 
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Contact data prepared',data:{index:i+1,firstName:contactData.first_name,firstNameEmpty:!contactData.first_name,hasExistingContact:!!existingContactId,companyId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-        // #endregion
-
         if (existingContactId) {
           // Update existing contact - but don't overwrite phone/mobile with empty values
           const updateData: Record<string, unknown> = { ...contactData };
@@ -535,22 +527,10 @@ export function CSVImport() {
           if (!updateData.phone) delete updateData.phone;
           if (!updateData.mobile) delete updateData.mobile;
           
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Before update query',data:{index:i+1,contactId:existingContactId,updateDataKeys:Object.keys(updateData)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Before update query',data:{index:i+1,contactId:existingContactId,updateDataKeys:Object.keys(updateData)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
-          
           const { error: updateError } = await supabase
             .from("contacts")
             .update(updateData)
             .eq("id", existingContactId);
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'After update query',data:{index:i+1,hasError:!!updateError,errorName:updateError?.name,errorMessage:updateError?.message,errorCode:updateError?.code,errorDetails:updateError?.details,errorHint:updateError?.hint},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
           
           if (updateError) {
             console.error("Update error:", updateError);
@@ -582,19 +562,11 @@ export function CSVImport() {
           }
         } else {
           // Insert new contact
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Before insert query',data:{index:i+1,contactDataKeys:Object.keys(contactData),firstName:contactData.first_name,firstNameEmpty:!contactData.first_name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
-          
           const { data: newContact, error: insertError } = await supabase
             .from("contacts")
             .insert(contactData)
             .select("id")
             .single();
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'After insert query',data:{index:i+1,hasError:!!insertError,errorName:insertError?.name,errorMessage:insertError?.message,errorCode:insertError?.code,errorDetails:insertError?.details,errorHint:insertError?.hint,hasData:!!newContact},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
           
           if (insertError) {
             console.error("Insert error:", insertError);
@@ -627,16 +599,6 @@ export function CSVImport() {
         }
       } catch (error) {
         console.error("Import error for row:", row, error);
-        
-        // #region agent log
-        const errorDetails = error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-          cause: (error as any).cause,
-        } : { type: typeof error, value: String(error) };
-        fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Caught exception',data:{index:i+1,errorDetails,firstName:row.firstName,lastName:row.lastName},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
-        // #endregion
         
         failures.push({
           row,

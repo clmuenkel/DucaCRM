@@ -32,11 +32,6 @@ export function useCompanies(filters?: CompanyFilters) {
   return useQuery({
     queryKey: ["companies", filters],
     queryFn: async () => {
-      // #region agent log
-      const startTime = Date.now();
-      fetch('http://127.0.0.1:7242/ingest/73fcbc11-1ac2-44b8-a6d3-3c6d8d6ac42d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-companies.ts:queryFn',message:'useCompanies query START',data:{filters,hasLimit:!!filters?.limit},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
-      
       // First get companies
       let query = supabase
         .from("companies")
@@ -59,10 +54,6 @@ export function useCompanies(filters?: CompanyFilters) {
 
       const { data: companiesData, error } = await query;
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/73fcbc11-1ac2-44b8-a6d3-3c6d8d6ac42d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-companies.ts:queryFn',message:'useCompanies first query done',data:{durationMs:Date.now()-startTime,companyCount:companiesData?.length||0,error:error?.message||null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
-      
       if (error) throw error;
 
       const companies = companiesData as Company[];
@@ -73,18 +64,10 @@ export function useCompanies(filters?: CompanyFilters) {
       // Get contact counts and last contacted for each company
       const companyIds = companies.map((c) => c.id);
       
-      // #region agent log
-      const contactQueryStart = Date.now();
-      // #endregion
-      
       const { data: contactStatsData } = await supabase
         .from("contacts")
         .select("company_id, last_contacted_at")
         .in("company_id", companyIds);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/73fcbc11-1ac2-44b8-a6d3-3c6d8d6ac42d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-companies.ts:queryFn',message:'useCompanies contact stats query done',data:{contactQueryDurationMs:Date.now()-contactQueryStart,totalDurationMs:Date.now()-startTime,contactStatsCount:contactStatsData?.length||0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-      // #endregion
 
       const contactStats = contactStatsData as { company_id: string | null; last_contacted_at: string | null }[] | null;
 

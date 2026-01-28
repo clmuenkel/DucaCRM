@@ -332,10 +332,6 @@ function parseCSVLine(line: string): string[] {
  * Clean a field value - trim, remove leading/trailing newlines
  */
 function cleanField(value: string | undefined): string {
-  // #region agent log
-  const originalValue = value;
-  // #endregion
-  
   if (!value) return "";
   
   let cleaned = value
@@ -346,17 +342,8 @@ function cleanField(value: string | undefined): string {
   
   // Treat comma-only, comma-with-spaces, or punctuation-only as empty
   if (/^[,.\s\-_]+$/.test(cleaned) || cleaned.length === 0) {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-parser.ts:cleanField',message:'Field cleaned to empty',data:{original:originalValue,cleaned:cleaned,length:cleaned.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     return "";
   }
-  
-  // #region agent log
-  if (originalValue !== cleaned) {
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-parser.ts:cleanField',message:'Field cleaned',data:{original:originalValue,cleaned:cleaned},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-  }
-  // #endregion
   
   return cleaned;
 }
@@ -439,10 +426,6 @@ export function parseApolloCSV(csvText: string): ApolloCSVRow[] {
     
     const firstName = getField(fields, "First Name");
     const lastName = getField(fields, "Last Name");
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-parser.ts:parseApolloCSV',message:'Parsed name fields',data:{rowIndex,firstName,lastName,firstNameEmpty:!firstName,lastNameEmpty:!lastName,willSkip:!firstName&&!lastName},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     
     // Skip rows without a name
     if (!firstName && !lastName) continue;
@@ -810,10 +793,6 @@ export function mapApolloToContact(
   userId: string,
   companyId?: string
 ): InsertTables<"contacts"> {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-parser.ts:mapApolloToContact',message:'Mapping contact data',data:{firstName:row.firstName,lastName:row.lastName,firstNameEmpty:!row.firstName,email:row.email,companyId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
-  
   const domain = extractDomain(row.email);
   
   // Calculate priority score based on title
@@ -823,7 +802,7 @@ export function mapApolloToContact(
   const mobile = row.mobilePhone || null;
   const phone = row.otherPhone || null;
   
-  const result = {
+  return {
     user_id: userId,
     company_id: companyId || null,
     first_name: row.firstName,
@@ -850,12 +829,6 @@ export function mapApolloToContact(
     total_calls: 0,
     total_emails: 0,
   };
-  
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-parser.ts:mapApolloToContact',message:'Contact data created',data:{firstName:result.first_name,firstNameEmpty:!result.first_name,hasEmail:!!result.email,hasPhone:!!result.phone,hasMobile:!!result.mobile},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
-  
-  return result;
 }
 
 /**
