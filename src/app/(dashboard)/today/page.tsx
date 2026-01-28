@@ -440,7 +440,7 @@ export default function TodayPage() {
                         <TableCell>{contact.company_name}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="bg-orange-500/10 text-orange-500">
-                            {contact.email_open_count}x opened
+                            {(contact.email_open_count ?? 0)}x opened
                           </Badge>
                         </TableCell>
                         <TableCell>{contact.cadence_step !== null ? STEP_NAMES[contact.cadence_step] : "—"}</TableCell>
@@ -502,7 +502,7 @@ export default function TodayPage() {
                       <TableRow key={contact.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                            {contact.email_opened && (
+                            {(contact.email_opened ?? false) && (
                               <Flame className="h-4 w-4 text-orange-500" />
                             )}
                             {contact.first_name} {contact.last_name}
@@ -527,7 +527,7 @@ export default function TodayPage() {
                         <TableCell>
                           <Badge variant="secondary">{contact.cadence_step !== null ? STEP_NAMES[contact.cadence_step] : "—"}</Badge>
                         </TableCell>
-                        <TableCell>{contact.call_attempts || 0}</TableCell>
+                        <TableCell>{contact.call_attempts ?? 0}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
                             <Button
@@ -680,9 +680,9 @@ export default function TodayPage() {
                           </TableCell>
                           <TableCell>
                             <Badge
-                              variant={contact.priority_score >= 70 ? "default" : "secondary"}
+                              variant={(contact.priority_score ?? 0) >= 70 ? "default" : "secondary"}
                             >
-                              {contact.priority_score || 0}
+                              {contact.priority_score ?? 0}
                             </Badge>
                           </TableCell>
                         </TableRow>
