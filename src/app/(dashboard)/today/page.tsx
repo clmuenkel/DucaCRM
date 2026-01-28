@@ -110,7 +110,7 @@ export default function TodayPage() {
         .lte("next_action_date", today)
         .order("priority_score", { ascending: false });
 
-      setCallsDue((callsData as ContactWithCadence[]) || []);
+      setCallsDue((callsData as unknown as ContactWithCadence[]) || []);
 
       // 2. Get hot leads (opened email but not replied)
       const { data: hotData } = await supabase
@@ -122,7 +122,7 @@ export default function TodayPage() {
         .eq("email_replied", false)
         .order("email_open_count", { ascending: false });
 
-      setHotLeads((hotData as ContactWithCadence[]) || []);
+      setHotLeads((hotData as unknown as ContactWithCadence[]) || []);
 
       // 3. Get new contacts ready to start cadence
       const { data: newData } = await supabase
@@ -134,7 +134,7 @@ export default function TodayPage() {
         .order("priority_score", { ascending: false })
         .limit(50);
 
-      setNewContacts((newData as ContactWithCadence[]) || []);
+      setNewContacts((newData as unknown as ContactWithCadence[]) || []);
 
       // 4. Calculate stats
       const { count: totalActive } = await supabase
@@ -153,10 +153,10 @@ export default function TodayPage() {
 
       setStats({
         totalActive: totalActive || 0,
-        callsDueToday: (callsData as ContactWithCadence[])?.length || 0,
+        callsDueToday: (callsData as unknown as ContactWithCadence[])?.length || 0,
         emailsDueToday: emailsDue || 0,
-        hotLeads: (hotData as ContactWithCadence[])?.length || 0,
-        readyToStart: (newData as ContactWithCadence[])?.length || 0,
+        hotLeads: (hotData as unknown as ContactWithCadence[])?.length || 0,
+        readyToStart: (newData as unknown as ContactWithCadence[])?.length || 0,
       });
     } catch (error: any) {
       toast.error("Failed to load today's data");
