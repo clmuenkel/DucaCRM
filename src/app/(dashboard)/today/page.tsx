@@ -443,7 +443,7 @@ export default function TodayPage() {
                             {contact.email_open_count}x opened
                           </Badge>
                         </TableCell>
-                        <TableCell>{STEP_NAMES[contact.cadence_step]}</TableCell>
+                        <TableCell>{contact.cadence_step !== null ? STEP_NAMES[contact.cadence_step] : "—"}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             size="sm"
@@ -525,7 +525,7 @@ export default function TodayPage() {
                           </a>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{STEP_NAMES[contact.cadence_step]}</Badge>
+                          <Badge variant="secondary">{contact.cadence_step !== null ? STEP_NAMES[contact.cadence_step] : "—"}</Badge>
                         </TableCell>
                         <TableCell>{contact.call_attempts || 0}</TableCell>
                         <TableCell className="text-right">
