@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import type { Contact } from "@/types/database";
 
 // Cadence step definitions (matches migration)
 const CADENCE_STEPS = [
@@ -43,7 +44,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 });
     }
 
-    for (const contact of dueContacts || []) {
+    const typedDueContacts = (dueContacts || []) as Contact[];
+    for (const contact of typedDueContacts) {
       try {
         const currentStep = contact.cadence_step ?? -1;
         const stepDef = CADENCE_STEPS.find(s => s.step === currentStep);
@@ -70,7 +72,9 @@ export async function POST(request: NextRequest) {
           } else {
             // Advance to next step
             const nextStepDef = CADENCE_STEPS[nextStep];
-            const cadenceStart = new Date(contact.cadence_day_started);
+            const cadenceStart = contact.cadence_day_started 
+              ? new Date(contact.cadence_day_started) 
+              : new Date();
             const nextDate = new Date(cadenceStart);
             nextDate.setDate(nextDate.getDate() + nextStepDef.day);
 
@@ -102,7 +106,8 @@ export async function POST(request: NextRequest) {
       .eq("cadence_outcome", "callback")
       .lte("snooze_until", today);
 
-    for (const contact of snoozedContacts || []) {
+    const typedSnoozedContacts = (snoozedContacts || []) as Contact[];
+    for (const contact of typedSnoozedContacts) {
       try {
         // Resume at current step
         const stepDef = CADENCE_STEPS.find(s => s.step === contact.cadence_step);
@@ -136,7 +141,8 @@ export async function POST(request: NextRequest) {
       .lte("cadence_day_started", archiveDate.toISOString().split("T")[0])
       .gte("cadence_step", MAX_STEP);
 
-    for (const contact of staleContacts || []) {
+    const typedStaleContacts = (staleContacts || []) as Contact[];
+    for (const contact of typedStaleContacts) {
       try {
         await supabase
           .from("contacts")
@@ -159,7 +165,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: `Processed cadence: ${advanced} advanced, ${archived} archived`,
       stats: {
-        processed: (dueContacts?.length || 0) + (snoozedContacts?.length || 0),
+        processed: typedDueContacts.length + typedSnoozedContacts.length,
         advanced,
         archived,
         errors,

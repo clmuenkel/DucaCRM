@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import type { Contact } from "@/types/database";
 
 /**
  * Calculate priority score for a contact
@@ -79,15 +80,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const typedContacts = (contacts || []) as Contact[];
     let updated = 0;
     let errors = 0;
 
     // Update each contact's priority score
-    for (const contact of contacts) {
+    for (const contact of typedContacts) {
       const newScore = calculatePriorityScore(contact);
       
       // Only update if score changed
-      if (newScore !== contact.priority_score) {
+      if (newScore !== (contact.priority_score ?? 0)) {
         const { error: updateError } = await supabase
           .from("contacts")
           .update({ priority_score: newScore })
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: `Updated priority scores for ${updated} contacts`,
-      total: contacts.length,
+      total: typedContacts.length,
       updated,
       errors,
     });

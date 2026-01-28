@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import type { Contact } from "@/types/database";
 
 // Cadence step definitions
 const CADENCE_STEPS = [
@@ -64,14 +65,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const currentStep = contact.cadence_step ?? 0;
-    const cadenceStart = contact.cadence_day_started 
-      ? new Date(contact.cadence_day_started) 
+    const typedContact = contact as Contact;
+    const currentStep = typedContact.cadence_step ?? 0;
+    const cadenceStart = typedContact.cadence_day_started 
+      ? new Date(typedContact.cadence_day_started) 
       : new Date();
 
     let updateData: Record<string, any> = {
       last_contacted_at: new Date().toISOString(),
-      call_attempts: (contact.call_attempts || 0) + 1,
+      call_attempts: (typedContact.call_attempts ?? 0) + 1,
       last_call_outcome: outcome,
     };
 
