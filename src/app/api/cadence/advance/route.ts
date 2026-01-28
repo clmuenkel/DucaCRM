@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
           
           if (nextStep > MAX_STEP) {
             // Cadence complete - archive
-            await supabase
+            await (supabase as any)
               .from("contacts")
               .update({
                 cadence_status: "completed",
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
             const nextDate = new Date(cadenceStart);
             nextDate.setDate(nextDate.getDate() + nextStepDef.day);
 
-            await supabase
+            await (supabase as any)
               .from("contacts")
               .update({
                 cadence_step: nextStep,
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         // Resume at current step
         const stepDef = CADENCE_STEPS.find(s => s.step === contact.cadence_step);
         
-        await supabase
+        await (supabase as any)
           .from("contacts")
           .update({
             cadence_outcome: "in_progress",
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     const typedStaleContacts = (staleContacts || []) as Contact[];
     for (const contact of typedStaleContacts) {
       try {
-        await supabase
+        await (supabase as any)
           .from("contacts")
           .update({
             cadence_status: "completed",
