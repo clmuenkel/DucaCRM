@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/leads/manual-review
  * Manually update a lead's contact information after review

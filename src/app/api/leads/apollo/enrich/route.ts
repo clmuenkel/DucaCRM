@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { enrichPersonById, extractPersonMobile, scoreDecisionMakerTitle } from "@/lib/apollo/client";
 
+export const dynamic = 'force-dynamic';
+
 const APOLLO_API_BASE = "https://api.apollo.io/v1";
 
 // Decision maker titles to search for (in priority order for home services)

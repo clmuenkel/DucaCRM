@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/contacts/[id]/referral - Set a direct referral for a contact
 export async function POST(
   request: NextRequest,

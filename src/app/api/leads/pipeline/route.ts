@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { extractPersonMobile, findDecisionMaker } from "@/lib/apollo/client";
 
+export const dynamic = 'force-dynamic';
+
 const PLACES_API_BASE = "https://places.googleapis.com/v1/places:searchText";
 
 // Industry keywords for home services

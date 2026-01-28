@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact } from "@/types/database";
 
+export const dynamic = 'force-dynamic';
+
 // Cadence step definitions
 const CADENCE_STEPS = [
   { step: 0, day: 0, type: "email", name: "Email 1 - Intro" },

@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact } from "@/types/database";
 
+export const dynamic = 'force-dynamic';
+
 interface StartCadenceRequest {
   contactIds: string[];
   pushToInstantly?: boolean;

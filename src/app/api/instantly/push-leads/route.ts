@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { addLeadsToCampaign, type InstantlyLead } from "@/lib/instantly/client";
 
+export const dynamic = 'force-dynamic';
+
 interface PushLeadsRequest {
   contactIds: string[];
 }

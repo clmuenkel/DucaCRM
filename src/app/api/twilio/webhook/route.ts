@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Tables } from "@/types/database";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/twilio/webhook
  * Handle Twilio status callbacks for calls

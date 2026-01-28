@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
+export const dynamic = 'force-dynamic';
+
 const PLACES_API_BASE = "https://places.googleapis.com/v1/places:searchText";
 const APOLLO_API_BASE = "https://api.apollo.io/v1";
 

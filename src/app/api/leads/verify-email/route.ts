@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { verifyEmail, verifyEmailsBatch, generateEmailPatterns, findValidEmail } from "@/lib/email-verifier";
 
+export const dynamic = 'force-dynamic';
+
 interface VerifyRequest {
   // Single email verification
   email?: string;

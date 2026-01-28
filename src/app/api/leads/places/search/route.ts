@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
+export const dynamic = 'force-dynamic';
+
 // Google Places API v2 (New) endpoint
 const PLACES_API_BASE = "https://places.googleapis.com/v1/places:searchText";
 const PLACES_DETAILS_BASE = "https://places.googleapis.com/v1/places";

@@ -4,6 +4,8 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { syncEmailActivityForContacts } from "@/lib/instantly/client";
 import type { Contact } from "@/types/database";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/instantly/sync
  * Sync email activity (opens, replies) from Instantly to contacts
