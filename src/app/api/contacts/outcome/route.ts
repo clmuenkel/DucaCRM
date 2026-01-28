@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update contact
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from("contacts")
       .update(updateData)
       .eq("id", contactId);

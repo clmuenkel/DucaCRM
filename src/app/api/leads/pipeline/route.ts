@@ -498,12 +498,13 @@ export async function POST(request: NextRequest) {
                 country: "US",
               });
 
+              const contactPhones = extractPersonMobile(person.phone_numbers);
               const result = await upsertContactToCRM(supabase, userId, {
                 first_name: person.first_name || personName.split(" ")[0] || null,
                 last_name: person.last_name || personName.split(" ").slice(1).join(" ") || null,
                 email: person.email,
-                phone: phones.mobile || phones.direct || phones.any,
-                phone_type: phones.mobile ? "mobile" : (phones.direct ? "direct" : "other"),
+                phone: contactPhones.mobile || contactPhones.direct || contactPhones.any,
+                phone_type: contactPhones.mobile ? "mobile" : (contactPhones.direct ? "direct" : "other"),
                 linkedin_url: person.linkedin_url || null,
                 title: person.title || "Owner",
                 company_name: c.name,

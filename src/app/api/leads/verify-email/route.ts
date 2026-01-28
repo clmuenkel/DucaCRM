@@ -122,7 +122,6 @@ export async function POST(request: NextRequest) {
 
         results.push({
           personId: person.id,
-          email: person.email,
           ...verification,
         });
       }

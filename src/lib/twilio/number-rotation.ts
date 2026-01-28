@@ -43,15 +43,16 @@ export async function initializeTwilioNumbers(): Promise<{
         .eq("phone_number", phoneNumber)
         .single();
 
-      if (existing) {
+      const typedExisting = existing as { id: string } | null;
+      if (typedExisting) {
         // Update existing number (ensure it's active)
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("twilio_numbers")
           .update({
             is_active: true,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", existing.id);
+          .eq("id", typedExisting.id);
 
         if (error) {
           errors.push(`Failed to update ${phoneNumber}: ${error.message}`);
@@ -60,7 +61,7 @@ export async function initializeTwilioNumbers(): Promise<{
         }
       } else {
         // Create new number record
-        const { error } = await supabase.from("twilio_numbers").insert({
+        const { error } = await (supabase as any).from("twilio_numbers").insert({
           user_id: userId,
           phone_number: phoneNumber,
           daily_call_count: 0,
@@ -115,7 +116,8 @@ export async function getNextAvailableNumber(): Promise<{
       return { number: null, error: error.message };
     }
 
-    if (!numbers || numbers.length === 0) {
+    const typedNumbers = (numbers || []) as TwilioNumber[];
+    if (typedNumbers.length === 0) {
       return {
         number: null,
         error: "No active Twilio numbers found. Please configure phone numbers in environment variables.",
@@ -123,7 +125,7 @@ export async function getNextAvailableNumber(): Promise<{
     }
 
     // Find first number that hasn't hit its daily limit
-    const availableNumber = numbers.find(
+    const availableNumber = typedNumbers.find(
       (n) => n.daily_call_count < n.daily_call_limit
     );
 
@@ -162,11 +164,12 @@ export async function incrementCallCount(
       return { success: false, error: fetchError?.message || "Number not found" };
     }
 
+    const typedNumber = number as { daily_call_count: number | null };
     // Increment count and update last_used_at
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from("twilio_numbers")
       .update({
-        daily_call_count: (number.daily_call_count || 0) + 1,
+        daily_call_count: (typedNumber.daily_call_count || 0) + 1,
         last_used_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -208,8 +211,9 @@ export async function checkDailyLimits(
       };
     }
 
-    const current = number.daily_call_count || 0;
-    const limit = number.daily_call_limit || 50;
+    const typedNumber = number as { daily_call_count: number | null; daily_call_limit: number | null };
+    const current = typedNumber.daily_call_count || 0;
+    const limit = typedNumber.daily_call_limit || 50;
 
     return {
       withinLimit: current < limit,
@@ -264,7 +268,7 @@ export async function updateSpamScore(
   const userId = DEFAULT_USER_ID;
 
   try {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("twilio_numbers")
       .update({
         spam_score: spamScore,
@@ -293,7 +297,7 @@ export async function deactivateNumber(
   const userId = DEFAULT_USER_ID;
 
   try {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("twilio_numbers")
       .update({
         is_active: false,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTwilioClient } from "@/lib/twilio/client";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import type { Tables } from "@/types/database";
 
 /**
  * POST /api/twilio/webhook
@@ -32,6 +33,8 @@ export async function POST(request: NextRequest) {
       .eq("call_sid", callSid)
       .single();
 
+    const typedExistingCall = existingCall as Tables<"twilio_calls"> | null;
+
     // Update or create twilio_calls record
     const callData: any = {
       call_sid: callSid,
@@ -43,13 +46,13 @@ export async function POST(request: NextRequest) {
     };
 
     // Set timestamps based on status
-    if (callStatus === "in-progress" && !existingCall?.answered_at) {
+    if (callStatus === "in-progress" && !typedExistingCall?.answered_at) {
       callData.answered_at = new Date().toISOString();
-    } else if (callStatus === "ringing" && !existingCall?.started_at) {
+    } else if (callStatus === "ringing" && !typedExistingCall?.started_at) {
       callData.started_at = new Date().toISOString();
     } else if (
       (callStatus === "completed" || callStatus === "failed" || callStatus === "busy" || callStatus === "no-answer") &&
-      !existingCall?.ended_at
+      !typedExistingCall?.ended_at
     ) {
       callData.ended_at = new Date().toISOString();
     }
@@ -59,9 +62,9 @@ export async function POST(request: NextRequest) {
       callData.duration = parseInt(duration, 10);
     }
 
-    if (existingCall) {
+    if (typedExistingCall) {
       // Update existing record
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from("twilio_calls")
         .update(callData)
         .eq("call_sid", callSid);
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new record (webhook received before initiate)
       callData.user_id = userId;
-      const { error: insertError } = await supabase.from("twilio_calls").insert(callData);
+      const { error: insertError } = await (supabase as any).from("twilio_calls").insert(callData);
 
       if (insertError) {
         console.error("Error creating twilio_calls:", insertError);
@@ -82,14 +85,16 @@ export async function POST(request: NextRequest) {
     }
 
     // If call completed, update the main calls table if linked
-    if (callStatus === "completed" && existingCall?.contact_id) {
+    if (callStatus === "completed" && typedExistingCall?.contact_id) {
       const { data: updatedCall } = await supabase
         .from("twilio_calls")
         .select("*")
         .eq("call_sid", callSid)
         .single();
 
-      if (updatedCall) {
+      const typedUpdatedCall = updatedCall as Tables<"twilio_calls"> | null;
+
+      if (typedUpdatedCall) {
         // Find the corresponding call in calls table
         const { data: calls } = await supabase
           .from("calls")
@@ -97,15 +102,16 @@ export async function POST(request: NextRequest) {
           .eq("twilio_call_sid", callSid)
           .limit(1);
 
-        if (calls && calls.length > 0) {
+        const typedCalls = (calls || []) as Array<{ id: string }>;
+        if (typedCalls.length > 0) {
           // Update the call record
-          await supabase
+          await (supabase as any)
             .from("calls")
             .update({
-              ended_at: updatedCall.ended_at,
-              duration_seconds: updatedCall.duration,
+              ended_at: typedUpdatedCall.ended_at,
+              duration_seconds: typedUpdatedCall.duration,
             })
-            .eq("id", calls[0].id);
+            .eq("id", typedCalls[0].id);
         }
       }
     }

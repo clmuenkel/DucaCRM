@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import type { Contact } from "@/types/database";
 
 interface StartCadenceRequest {
   contactIds: string[];
@@ -55,8 +56,10 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        const typedContact = contact as Contact;
+
         // Update cadence status
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from("contacts")
           .update({
             cadence_status: "active",
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest) {
         started++;
 
         // Push to Instantly if configured and contact has email
-        if (pushToInstantly && instantlyApiKey && instantlyCampaignId && contact.email) {
+        if (pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email) {
           try {
             const instantlyResponse = await fetch(
               "https://api.instantly.ai/api/v1/lead/add",
@@ -88,11 +91,11 @@ export async function POST(request: NextRequest) {
                   skip_if_in_workspace: true,
                   leads: [
                     {
-                      email: contact.email,
-                      first_name: contact.first_name,
-                      last_name: contact.last_name || "",
-                      company_name: contact.company_name || "",
-                      personalization: contact.title || "Decision Maker",
+                      email: typedContact.email || "",
+                      first_name: typedContact.first_name,
+                      last_name: typedContact.last_name || "",
+                      company_name: typedContact.company_name || "",
+                      personalization: typedContact.title || "Decision Maker",
                     },
                   ],
                 }),
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
               
               // Update contact with Instantly lead ID
               if (instantlyData.lead_id) {
-                await supabase
+                await (supabase as any)
                   .from("contacts")
                   .update({ instantly_lead_id: instantlyData.lead_id })
                   .eq("id", contactId);

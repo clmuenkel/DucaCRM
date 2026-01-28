@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       
       // Only update if score changed
       if (newScore !== (contact.priority_score ?? 0)) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from("contacts")
           .update({ priority_score: newScore })
           .eq("id", contact.id);

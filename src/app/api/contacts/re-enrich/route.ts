@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { enrichPersonById, extractPersonMobile } from "@/lib/apollo/client";
+import type { Contact } from "@/types/database";
 
 const APOLLO_API_BASE = "https://api.apollo.io/v1";
 
@@ -95,7 +96,8 @@ export async function POST(request: NextRequest) {
       method: string;
     }> = [];
 
-    for (const contact of contacts || []) {
+    const typedContacts = (contacts || []) as Contact[];
+    for (const contact of typedContacts) {
       stats.processed++;
       
       try {
@@ -153,7 +155,7 @@ export async function POST(request: NextRequest) {
             updateData.apollo_id = person.id;
           }
 
-          const { error: updateError } = await supabase
+          const { error: updateError } = await (supabase as any)
             .from("contacts")
             .update(updateData)
             .eq("id", contact.id)
@@ -169,7 +171,7 @@ export async function POST(request: NextRequest) {
         updatesPreview.push({
           contactId: contact.id,
           name: `${contact.first_name} ${contact.last_name}`,
-          email: contact.email,
+          email: contact.email || "",
           phone: nextPhone || null,
           mobile: nextMobile || null,
           method,

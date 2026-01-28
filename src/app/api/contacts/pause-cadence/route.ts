@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const userId = DEFAULT_USER_ID;
 
     // Update cadence status to paused
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from("contacts")
       .update({ cadence_status: "paused" })
       .eq("id", contactId)

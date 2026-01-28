@@ -2,6 +2,7 @@ import { getTwilioClient } from "./client";
 import { updateSpamScore, deactivateNumber, getAllTwilioNumbers } from "./number-rotation";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import type { Tables } from "@/types/database";
 
 // Spam score thresholds
 const HIGH_SPAM_THRESHOLD = 50; // Numbers with score > 50 are considered high spam
@@ -137,17 +138,18 @@ export async function calculateSpamScoreFromOutcomes(
       return { spamScore: null, error: error.message };
     }
 
-    if (!calls || calls.length === 0) {
+    const typedCalls = (calls || []) as Array<{ status: string }>;
+    if (typedCalls.length === 0) {
       return { spamScore: null }; // No data yet
     }
 
     // Calculate spam score based on call outcomes
     // Higher ratio of failed/busy/no-answer = higher spam score
-    const totalCalls = calls.length;
-    const failedCalls = calls.filter(
+    const totalCalls = typedCalls.length;
+    const failedCalls = typedCalls.filter(
       (c) => c.status === "failed" || c.status === "busy" || c.status === "no-answer"
     ).length;
-    const completedCalls = calls.filter((c) => c.status === "completed").length;
+    const completedCalls = typedCalls.filter((c) => c.status === "completed").length;
 
     // Spam score: 0-100
     // Higher score = more likely spam

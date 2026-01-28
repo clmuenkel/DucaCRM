@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { syncEmailActivityForContacts } from "@/lib/instantly/client";
+import type { Contact } from "@/types/database";
 
 /**
  * POST /api/instantly/sync
@@ -55,8 +56,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const typedContacts = (contacts || []) as Contact[];
+
     // Get emails to sync
-    const emails = contacts.map((c: any) => c.email).filter(Boolean);
+    const emails = typedContacts.map((c) => c.email).filter((e): e is string => e !== null);
 
     // Sync from Instantly
     const { synced, activities } = await syncEmailActivityForContacts(
@@ -71,10 +74,10 @@ export async function POST(request: NextRequest) {
     let replied = 0;
 
     for (const activity of activities) {
-      const contact = contacts.find((c: any) => c.email === activity.email);
+      const contact = typedContacts.find((c) => c.email === activity.email);
       if (!contact) continue;
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from("contacts")
         .update({
           email_opened: activity.opened,

@@ -35,7 +35,11 @@ export async function validateCredentials(): Promise<{
   try {
     const client = getTwilioClient();
     // Make a lightweight API call to validate credentials
-    await client.api.accounts(process.env.TWILIO_ACCOUNT_SID).fetch();
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    if (!accountSid) {
+      return { valid: false, error: "TWILIO_ACCOUNT_SID not configured" };
+    }
+    await client.api.accounts(accountSid).fetch();
     return { valid: true };
   } catch (error: any) {
     return {

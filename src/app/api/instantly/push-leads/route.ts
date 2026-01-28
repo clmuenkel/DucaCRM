@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     if (result.success > 0) {
       const pushedEmails = leads.slice(0, result.success).map(l => l.email);
       
-      await supabase
+      await (supabase as any)
         .from("contacts")
         .update({
           instantly_lead_id: "pushed",

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Record call in database (before actually making it)
     // This helps track usage even if call fails to connect
-    const { data: twilioCall, error: callError } = await supabase
+    const { data: twilioCall, error: callError } = await (supabase as any)
       .from("twilio_calls")
       .insert({
         user_id: userId,
