@@ -999,6 +999,39 @@ export interface Database {
         };
         Relationships: [];
       };
+      cadence_settings: {
+        Row: {
+          id: string;
+          user_id: string;
+          emails_per_week: number;
+          calls_per_week: number;
+          instantly_api_key: string | null;
+          instantly_campaign_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          emails_per_week?: number;
+          calls_per_week?: number;
+          instantly_api_key?: string | null;
+          instantly_campaign_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          emails_per_week?: number;
+          calls_per_week?: number;
+          instantly_api_key?: string | null;
+          instantly_campaign_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       user_settings: {
         Row: {
           user_id: string;
