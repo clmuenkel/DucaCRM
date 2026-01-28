@@ -1,7 +1,5 @@
 import { CompanyList } from "@/components/companies/company-list";
-import { Button } from "@/components/ui/button";
-import { Building2, Upload } from "lucide-react";
-import Link from "next/link";
+import { Building2 } from "lucide-react";
 
 export default function CompaniesPage() {
   return (
@@ -14,15 +12,9 @@ export default function CompaniesPage() {
             Companies
           </h1>
           <p className="text-muted-foreground">
-            View and manage all your target companies and their contacts
+            Account-level view of companies and their engagement
           </p>
         </div>
-        <Link href="/import">
-          <Button>
-            <Upload className="h-4 w-4 mr-2" />
-            Import from Apollo
-          </Button>
-        </Link>
       </div>
 
       {/* Company List */}

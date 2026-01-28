@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS contacts (
   city TEXT,
   state TEXT,
   country TEXT,
+  timezone TEXT,
   
   -- CRM fields
   stage TEXT DEFAULT 'fresh',

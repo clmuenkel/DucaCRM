@@ -240,12 +240,12 @@ export function ContextPanel({ contact, onSelectContact }: ContextPanelProps) {
               onCopy={() => copyToClipboard(contact.email!, "email")}
             />
           )}
-          {contact.phone && (
+          {(contact.phone || contact.mobile) && (
             <QuickCopyButton
               label="Phone"
-              value={contact.phone}
+              value={contact.phone || contact.mobile!}
               copied={copiedField === "phone"}
-              onCopy={() => copyToClipboard(contact.phone!, "phone")}
+              onCopy={() => copyToClipboard(contact.phone || contact.mobile!, "phone")}
             />
           )}
           {company?.name && (

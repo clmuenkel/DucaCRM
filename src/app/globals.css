@@ -3,62 +3,62 @@
 @tailwind utilities;
 
 @layer base {
-  /* Light Mode */
+  /* Light Mode - "Home Services Pro" Theme */
   :root {
     --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --foreground: 220 20% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 220 20% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    --popover-foreground: 220 20% 14%;
+    --primary: 172 66% 40%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary-foreground: 220 20% 14%;
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
     --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
+    --accent-foreground: 220 20% 14%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
     --success: 142 76% 36%;
     --success-foreground: 355 100% 97%;
-    --warning: 38 92% 50%;
+    --warning: 45 93% 47%;
     --warning-foreground: 48 96% 89%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --ring: 172 66% 40%;
     --radius: 0.5rem;
-    --sidebar: 222 47% 11%;
+    --sidebar: 220 20% 14%;
     --sidebar-foreground: 210 40% 98%;
   }
 
-  /* Dark Mode - "Midnight Operator" Theme */
+  /* Dark Mode - "Home Services Pro" Theme */
   .dark {
-    --background: 222 47% 6%;
+    --background: 220 20% 7%;
     --foreground: 210 40% 96%;
-    --card: 217 33% 12%;
+    --card: 220 18% 11%;
     --card-foreground: 210 40% 96%;
-    --popover: 217 33% 12%;
+    --popover: 220 18% 11%;
     --popover-foreground: 210 40% 96%;
-    --primary: 38 92% 50%;
-    --primary-foreground: 0 0% 0%;
-    --secondary: 217 33% 17%;
+    --primary: 172 66% 50%;
+    --primary-foreground: 220 20% 7%;
+    --secondary: 220 18% 16%;
     --secondary-foreground: 210 40% 96%;
-    --muted: 217 33% 17%;
+    --muted: 220 18% 16%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
+    --accent: 220 18% 16%;
     --accent-foreground: 210 40% 96%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
     --success: 142 71% 45%;
     --success-foreground: 144 80% 10%;
-    --warning: 48 96% 53%;
+    --warning: 45 93% 47%;
     --warning-foreground: 36 45% 15%;
-    --border: 217 33% 20%;
-    --input: 217 33% 17%;
-    --ring: 38 92% 50%;
-    --sidebar: 222 47% 8%;
+    --border: 220 18% 18%;
+    --input: 220 18% 16%;
+    --ring: 172 66% 50%;
+    --sidebar: 220 20% 5%;
     --sidebar-foreground: 210 40% 96%;
   }
 }

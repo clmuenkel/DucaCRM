@@ -184,13 +184,13 @@ export function ContactPanelCompact() {
 
       {/* Contact Info */}
       <div className="space-y-2">
-        {currentContact.phone && (
+        {(currentContact.phone || currentContact.mobile) && (
           <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-3">
               <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="font-mono">{formatPhone(currentContact.phone)}</span>
+              <span className="font-mono">{formatPhone(currentContact.phone || currentContact.mobile!)}</span>
             </div>
-            <CopyButton text={currentContact.phone} field="phone" />
+            <CopyButton text={currentContact.phone || currentContact.mobile!} field="phone" />
           </div>
         )}
         
@@ -235,10 +235,12 @@ export function ContactPanelCompact() {
                   {company?.industry || currentContact.industry}
                 </Badge>
               )}
-              {(company?.employee_range || currentContact.employee_range) && (
+              {(company?.employee_count || currentContact.employee_count || company?.employee_range || currentContact.employee_range) && (
                 <Badge variant="secondary" className="gap-1">
                   <Users className="h-3 w-3" />
-                  {company?.employee_range || currentContact.employee_range} employees
+                  {(company?.employee_count || currentContact.employee_count) 
+                    ? `${(company?.employee_count || currentContact.employee_count)?.toLocaleString()} employees`
+                    : `${company?.employee_range || currentContact.employee_range} employees`}
                 </Badge>
               )}
             </div>

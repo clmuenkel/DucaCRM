@@ -50,12 +50,12 @@ export const TASK_PRIORITIES = [
 ] as const;
 
 export const INDUSTRIES = [
-  { value: "credit_union", label: "Credit Union" },
-  { value: "hospital", label: "Hospital" },
-  { value: "bank", label: "Bank" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "financial_services", label: "Financial Services" },
-  { value: "insurance", label: "Insurance" },
+  { value: "hvac", label: "HVAC" },
+  { value: "plumbing", label: "Plumbing" },
+  { value: "roofing", label: "Roofing" },
+  { value: "electrical", label: "Electrical" },
+  { value: "solar", label: "Solar" },
+  { value: "construction", label: "General Contractor" },
 ] as const;
 
 export const EMPLOYEE_RANGES = [
@@ -212,17 +212,15 @@ export const TIMEZONE_FRIENDLY_NAMES: Record<string, string> = {
 };
 
 // ============================================
-// APOLLO INTENT TOPICS (for reference)
+// APOLLO INTENT TOPICS (for home services)
 // ============================================
 export const APOLLO_INTENT_TOPICS = [
-  { id: "healthcare_technology", label: "Healthcare Technology" },
-  { id: "financial_services_technology", label: "Financial Services Technology" },
-  { id: "cybersecurity", label: "Cybersecurity" },
-  { id: "cloud_computing", label: "Cloud Computing" },
-  { id: "digital_transformation", label: "Digital Transformation" },
-  { id: "data_analytics", label: "Data Analytics" },
-  { id: "artificial_intelligence", label: "Artificial Intelligence" },
-  { id: "automation", label: "Automation" },
+  { id: "home_improvement", label: "Home Improvement" },
+  { id: "construction", label: "Construction" },
+  { id: "facility_management", label: "Facility Management" },
+  { id: "real_estate", label: "Real Estate" },
+  { id: "energy_efficiency", label: "Energy Efficiency" },
+  { id: "sustainability", label: "Sustainability" },
 ] as const;
 
 // ============================================

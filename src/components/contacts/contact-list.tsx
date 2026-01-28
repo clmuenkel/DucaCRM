@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AbuButton } from "@/components/ui/abu-button";
 import {
   Table,
   TableBody,
@@ -29,7 +28,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STAGES } from "@/lib/constants";
-import { formatPhone, copyToClipboard } from "@/lib/utils";
+import { formatPhone, copyToClipboard, getValidPhone } from "@/lib/utils";
 import { Search, Phone, Mail, Trash2, Eye, Copy, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -175,7 +174,10 @@ export function ContactList() {
                   contact={contact}
                   selected={selected.includes(contact.id)}
                   onSelect={(checked) => handleSelect(contact.id, checked)}
-                  onCopyPhone={(e) => contact.phone && handleCopyPhone(contact.phone, e)}
+                  onCopyPhone={(e) => {
+                    const validPhone = getValidPhone(contact.phone, contact.mobile);
+                    if (validPhone) handleCopyPhone(validPhone, e);
+                  }}
                   onCopyEmail={(e) => contact.email && handleCopyEmail(contact.email, e)}
                   onDelete={(e) => handleDelete(contact.id, e)}
                   onRowClick={() => router.push(`/contacts/${contact.id}`)}
@@ -232,17 +234,20 @@ function ContactRow({
         </div>
       </TableCell>
       <TableCell>
-        {contact.phone ? (
-          <button
-            onClick={onCopyPhone}
-            className="text-sm font-mono hover:text-primary flex items-center gap-1 transition-colors"
-          >
-            {formatPhone(contact.phone)}
-            <Copy className="h-3 w-3 opacity-0 group-hover:opacity-50" />
-          </button>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
+        {(() => {
+          const validPhone = getValidPhone(contact.phone, contact.mobile);
+          return validPhone ? (
+            <button
+              onClick={onCopyPhone}
+              className="text-sm font-mono hover:text-primary flex items-center gap-1 transition-colors"
+            >
+              {formatPhone(validPhone)}
+              <Copy className="h-3 w-3 opacity-0 group-hover:opacity-50" />
+            </button>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          );
+        })()}
       </TableCell>
       <TableCell>
         {contact.email ? (
@@ -274,7 +279,7 @@ function ContactRow({
             <TooltipContent>View Details</TooltipContent>
           </Tooltip>
 
-          {contact.phone && (
+          {getValidPhone(contact.phone, contact.mobile) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link href={`/dialer?contact=${contact.id}`}>
@@ -297,15 +302,6 @@ function ContactRow({
               <TooltipContent>Email</TooltipContent>
             </Tooltip>
           )}
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <AbuButton size="icon" className="h-8 w-8" contactName={contactName} />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Abu Quick Email</TooltipContent>
-          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>

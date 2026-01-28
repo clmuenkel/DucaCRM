@@ -18,7 +18,7 @@ import { MeetingsList } from "@/components/meetings/meetings-list";
 import { MeetingDialog } from "@/components/dialer/meeting-dialog";
 import { STAGES } from "@/lib/constants";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { formatPhone, copyToClipboard, getInitials } from "@/lib/utils";
+import { formatPhone, copyToClipboard, getInitials, getValidPhone } from "@/lib/utils";
 import {
   Phone,
   Mail,
@@ -37,7 +37,6 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 import { useState } from "react";
-import { AbuButton } from "@/components/ui/abu-button";
 import {
   Dialog,
   DialogContent,
@@ -211,18 +210,21 @@ export default function ContactDetailPage() {
 
                 {/* Contact Info */}
                 <div className="grid gap-4 mt-6 sm:grid-cols-2">
-                  {contact.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <button
-                        onClick={() => handleCopy(contact.phone!, "Phone")}
-                        className="text-sm hover:text-primary hover:underline flex items-center gap-1"
-                      >
-                        {formatPhone(contact.phone)}
-                        <Copy className="h-3 w-3 opacity-50" />
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const validPhone = getValidPhone(contact.phone, contact.mobile);
+                    return validPhone ? (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <button
+                          onClick={() => handleCopy(validPhone, "Phone")}
+                          className="text-sm hover:text-primary hover:underline flex items-center gap-1"
+                        >
+                          {formatPhone(validPhone)}
+                          <Copy className="h-3 w-3 opacity-50" />
+                        </button>
+                      </div>
+                    ) : null;
+                  })()}
                   {contact.email && (
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-muted-foreground" />
@@ -254,7 +256,8 @@ export default function ContactDetailPage() {
                       <Building2 className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm">
                         {contact.company_name}
-                        {contact.employee_range && ` (${contact.employee_range})`}
+                        {contact.employee_count && ` • ${contact.employee_count.toLocaleString()} employees`}
+                        {contact.employee_range && !contact.employee_count && ` (${contact.employee_range})`}
                       </span>
                     </div>
                   )}
@@ -284,7 +287,6 @@ export default function ContactDetailPage() {
                     <Calendar className="mr-2 h-4 w-4" />
                     Schedule Meeting
                   </Button>
-                  <AbuButton contactName={`${contact.first_name} ${contact.last_name || ''}`.trim()} />
                 </div>
               </CardContent>
             </Card>

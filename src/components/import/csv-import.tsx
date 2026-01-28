@@ -9,7 +9,13 @@ import {
   extractDomain,
   mapToContact,
   mapToCompany,
+  isApolloCSV,
+  prepareApolloImport,
+  mapApolloToContact,
+  mapApolloToCompany,
   type ParsedCSVRow,
+  type ApolloCSVRow,
+  type CompanyGroup,
 } from "@/lib/csv-parser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +40,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   Upload,
@@ -45,20 +56,34 @@ import {
   AlertCircle,
   X,
   Phone,
+  ChevronDown,
+  ChevronRight,
+  Tag,
+  Smartphone,
+  Mail,
 } from "lucide-react";
 
 type ImportStep = "upload" | "preview" | "importing" | "done";
+type CSVType = "legacy" | "apollo";
 
 interface ImportStats {
   created: number;
   updated: number;
   companiesCreated: number;
+  companiesUpdated: number;
   failed: number;
   notesCreated: number;
 }
 
+interface ApolloImportStats extends ImportStats {
+  withMobile: number;
+  withWorkPhone: number;
+  missingBothPhones: number;
+  topTags: { tag: string; count: number }[];
+}
+
 interface FailedImport {
-  row: ParsedCSVRow;
+  row: ParsedCSVRow | ApolloCSVRow;
   type: "contact" | "company";
   error: string;
   errorCode?: string;
@@ -74,25 +99,66 @@ function getFriendlyErrorMessage(error: string, code?: string): string {
   return error;
 }
 
+// Tag color mapping
+const TAG_COLORS: Record<string, string> = {
+  hvac: "bg-blue-500/20 text-blue-600 dark:text-blue-300 border-blue-500/40",
+  plumbing: "bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border-cyan-500/40",
+  roofing: "bg-orange-500/20 text-orange-600 dark:text-orange-300 border-orange-500/40",
+  electrical: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-500/40",
+  pest_control: "bg-red-500/20 text-red-600 dark:text-red-300 border-red-500/40",
+  landscaping: "bg-green-500/20 text-green-600 dark:text-green-300 border-green-500/40",
+  windows_doors: "bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/40",
+  solar: "bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40",
+  construction: "bg-slate-500/20 text-slate-600 dark:text-slate-300 border-slate-500/40",
+  mechanical: "bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border-indigo-500/40",
+};
+
+function getTagColor(tag: string): string {
+  return TAG_COLORS[tag] || "bg-gray-500/20 text-gray-400 border-gray-500/30";
+}
+
 export function CSVImport() {
   const [step, setStep] = useState<ImportStep>("upload");
+  const [csvType, setCsvType] = useState<CSVType>("legacy");
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState<string>("");
   const [listName, setListName] = useState<string>("");
   
-  // Parsed data
+  // Legacy CSV data
   const [parsedRows, setParsedRows] = useState<ParsedCSVRow[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [parseStats, setParseStats] = useState({ totalRows: 0, afterDedupe: 0, duplicatesRemoved: 0 });
   
+  // Apollo CSV data
+  const [companyGroups, setCompanyGroups] = useState<CompanyGroup[]>([]);
+  const [apolloRows, setApolloRows] = useState<ApolloCSVRow[]>([]);
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set());
+  const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
+  const [apolloStats, setApolloStats] = useState({
+    totalRows: 0,
+    afterDedupe: 0,
+    duplicatesRemoved: 0,
+    totalCompanies: 0,
+    withMobile: 0,
+    withWorkPhone: 0,
+    missingBothPhones: 0,
+    topTags: [] as { tag: string; count: number }[],
+  });
+  
   // Import progress
   const [importProgress, setImportProgress] = useState(0);
-  const [importStats, setImportStats] = useState<ImportStats>({
+  const [importStats, setImportStats] = useState<ApolloImportStats>({
     created: 0,
     updated: 0,
     companiesCreated: 0,
+    companiesUpdated: 0,
     failed: 0,
     notesCreated: 0,
+    withMobile: 0,
+    withWorkPhone: 0,
+    missingBothPhones: 0,
+    topTags: [],
   });
   const [failedImports, setFailedImports] = useState<FailedImport[]>([]);
   const [showFailedDialog, setShowFailedDialog] = useState(false);
@@ -113,27 +179,54 @@ export function CSVImport() {
       const text = await file.text();
       console.log("[CSV Import] File text length:", text.length, "First 200 chars:", text.substring(0, 200));
       
-      const allRows = parseCSV(text);
-      console.log("[CSV Import] Parsed rows:", allRows.length);
+      // Detect CSV type
+      const firstLine = text.split("\n")[0];
+      const isApollo = isApolloCSV(firstLine);
+      setCsvType(isApollo ? "apollo" : "legacy");
       
-      const dedupedRows = dedupeByLink(allRows);
-      console.log("[CSV Import] After dedupe:", dedupedRows.length);
-      
-      setParsedRows(dedupedRows);
-      setParseStats({
-        totalRows: allRows.length,
-        afterDedupe: dedupedRows.length,
-        duplicatesRemoved: allRows.length - dedupedRows.length,
-      });
-      
-      // Select all by default
-      setSelectedRows(new Set(dedupedRows.map((_, i) => i)));
-      
-      if (dedupedRows.length === 0) {
-        toast.error("No contacts found in CSV. Check console for details.");
+      if (isApollo) {
+        // Parse Apollo CSV
+        console.log("[CSV Import] Detected Apollo CSV format");
+        const { groups, allRows, stats } = prepareApolloImport(text);
+        
+        setCompanyGroups(groups);
+        setApolloRows(allRows);
+        setApolloStats(stats);
+        
+        // Select all contacts by default
+        setSelectedContacts(new Set(allRows.map((_, i) => i)));
+        setSelectedCompanies(new Set(groups.map(g => `${g.companyName}|${g.city}|${g.state}`)));
+        // Expand first 5 companies by default
+        setExpandedCompanies(new Set(groups.slice(0, 5).map(g => `${g.companyName}|${g.city}|${g.state}`)));
+        
+        if (allRows.length === 0) {
+          toast.error("No contacts found in CSV. Check console for details.");
+        } else {
+          setStep("preview");
+          toast.success(`Parsed ${stats.afterDedupe} contacts in ${stats.totalCompanies} companies`);
+        }
       } else {
-        setStep("preview");
-        toast.success(`Parsed ${dedupedRows.length} contacts (${allRows.length - dedupedRows.length} duplicates removed)`);
+        // Parse legacy CSV
+        console.log("[CSV Import] Detected legacy CSV format");
+        const allRows = parseCSV(text);
+        const dedupedRows = dedupeByLink(allRows);
+        
+        setParsedRows(dedupedRows);
+        setParseStats({
+          totalRows: allRows.length,
+          afterDedupe: dedupedRows.length,
+          duplicatesRemoved: allRows.length - dedupedRows.length,
+        });
+        
+        // Select all by default
+        setSelectedRows(new Set(dedupedRows.map((_, i) => i)));
+        
+        if (dedupedRows.length === 0) {
+          toast.error("No contacts found in CSV. Check console for details.");
+        } else {
+          setStep("preview");
+          toast.success(`Parsed ${dedupedRows.length} contacts (${allRows.length - dedupedRows.length} duplicates removed)`);
+        }
       }
     } catch (error) {
       console.error("[CSV Import] Parse error:", error);
@@ -168,6 +261,7 @@ export function CSVImport() {
     }
   }, [handleFileSelect]);
 
+  // Legacy CSV selection handlers
   const toggleSelectRow = (index: number) => {
     const next = new Set(selectedRows);
     if (next.has(index)) {
@@ -186,7 +280,398 @@ export function CSVImport() {
     }
   };
 
-  const handleImport = async () => {
+  // Apollo CSV selection handlers
+  const getCompanyKey = (group: CompanyGroup) => `${group.companyName}|${group.city}|${group.state}`;
+  
+  const toggleCompanyExpanded = (key: string) => {
+    const next = new Set(expandedCompanies);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    setExpandedCompanies(next);
+  };
+
+  const toggleSelectCompany = (group: CompanyGroup) => {
+    const key = getCompanyKey(group);
+    const next = new Set(selectedCompanies);
+    const nextContacts = new Set(selectedContacts);
+    
+    if (next.has(key)) {
+      // Deselect company and all its contacts
+      next.delete(key);
+      for (const contact of group.contacts) {
+        const contactIndex = apolloRows.findIndex(r => r._rowIndex === contact._rowIndex);
+        if (contactIndex !== -1) {
+          nextContacts.delete(contactIndex);
+        }
+      }
+    } else {
+      // Select company and all its contacts
+      next.add(key);
+      for (const contact of group.contacts) {
+        const contactIndex = apolloRows.findIndex(r => r._rowIndex === contact._rowIndex);
+        if (contactIndex !== -1) {
+          nextContacts.add(contactIndex);
+        }
+      }
+    }
+    
+    setSelectedCompanies(next);
+    setSelectedContacts(nextContacts);
+  };
+
+  const toggleSelectContact = (contact: ApolloCSVRow, group: CompanyGroup) => {
+    const contactIndex = apolloRows.findIndex(r => r._rowIndex === contact._rowIndex);
+    if (contactIndex === -1) return;
+    
+    const nextContacts = new Set(selectedContacts);
+    if (nextContacts.has(contactIndex)) {
+      nextContacts.delete(contactIndex);
+    } else {
+      nextContacts.add(contactIndex);
+    }
+    setSelectedContacts(nextContacts);
+    
+    // Update company selection based on whether all contacts are selected
+    const key = getCompanyKey(group);
+    const allSelected = group.contacts.every(c => {
+      const idx = apolloRows.findIndex(r => r._rowIndex === c._rowIndex);
+      return nextContacts.has(idx);
+    });
+    
+    const nextCompanies = new Set(selectedCompanies);
+    if (allSelected) {
+      nextCompanies.add(key);
+    } else {
+      nextCompanies.delete(key);
+    }
+    setSelectedCompanies(nextCompanies);
+  };
+
+  const toggleSelectAllApollo = () => {
+    if (selectedContacts.size === apolloRows.length) {
+      setSelectedContacts(new Set());
+      setSelectedCompanies(new Set());
+    } else {
+      setSelectedContacts(new Set(apolloRows.map((_, i) => i)));
+      setSelectedCompanies(new Set(companyGroups.map(g => getCompanyKey(g))));
+    }
+  };
+
+  // Apollo CSV Import handler
+  const handleApolloImport = async () => {
+    const toImport = apolloRows.filter((_, i) => selectedContacts.has(i));
+    if (toImport.length === 0) {
+      toast.error("No contacts selected");
+      return;
+    }
+
+    console.log("[Apollo Import] Starting import of", toImport.length, "contacts");
+    
+    setStep("importing");
+    setImportProgress(0);
+    setImportStats({
+      created: 0,
+      updated: 0,
+      companiesCreated: 0,
+      companiesUpdated: 0,
+      failed: 0,
+      notesCreated: 0,
+      withMobile: apolloStats.withMobile,
+      withWorkPhone: apolloStats.withWorkPhone,
+      missingBothPhones: apolloStats.missingBothPhones,
+      topTags: apolloStats.topTags,
+    });
+    setFailedImports([]);
+
+    const sourceList = listName || `Apollo Import ${new Date().toLocaleDateString()}`;
+    let created = 0;
+    let updated = 0;
+    let companiesCreated = 0;
+    let companiesUpdated = 0;
+    let failed = 0;
+    let notesCreated = 0;
+    const failures: FailedImport[] = [];
+
+    // Cache for companies by domain to avoid duplicates
+    const companyCache = new Map<string, string>(); // domain or name -> company_id
+
+    for (let i = 0; i < toImport.length; i++) {
+      const row = toImport[i];
+      console.log(`[Apollo Import] Processing ${i + 1}/${toImport.length}: ${row.firstName} ${row.lastName}`);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Starting contact import',data:{index:i+1,total:toImport.length,firstName:row.firstName,lastName:row.lastName,email:row.email},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
+      
+      try {
+        // 1. Find or create company
+        let companyId: string | null = null;
+        const domain = extractDomain(row.email);
+        
+        if (row.companyName) {
+          const cacheKey = domain || row.companyName.toLowerCase();
+          
+          // Check cache first
+          if (companyCache.has(cacheKey)) {
+            companyId = companyCache.get(cacheKey)!;
+          } else {
+            // Check if company exists by domain
+            if (domain) {
+              const { data: existingCompany } = await supabase
+                .from("companies")
+                .select("id")
+                .eq("user_id", userId)
+                .eq("domain", domain)
+                .single();
+              
+              if (existingCompany) {
+                companyId = existingCompany.id;
+                companyCache.set(cacheKey, companyId);
+                
+                // Update company with new data
+                const companyData = mapApolloToCompany(row, userId, domain);
+                if (companyData) {
+                  await supabase
+                    .from("companies")
+                    .update({
+                      employee_count: companyData.employee_count,
+                      employee_range: companyData.employee_range,
+                      city: companyData.city,
+                      state: companyData.state,
+                      industry: companyData.industry,
+                    })
+                    .eq("id", companyId);
+                  companiesUpdated++;
+                }
+              }
+            }
+            
+            // If no company found, check by name
+            if (!companyId) {
+              const { data: existingByName } = await supabase
+                .from("companies")
+                .select("id")
+                .eq("user_id", userId)
+                .eq("name", row.companyName)
+                .single();
+              
+              if (existingByName) {
+                companyId = existingByName.id;
+                companyCache.set(cacheKey, companyId);
+                
+                // Update company with new data
+                const companyData = mapApolloToCompany(row, userId, domain);
+                if (companyData) {
+                  await supabase
+                    .from("companies")
+                    .update({
+                      domain: domain || undefined,
+                      employee_count: companyData.employee_count,
+                      employee_range: companyData.employee_range,
+                      city: companyData.city,
+                      state: companyData.state,
+                      industry: companyData.industry,
+                    })
+                    .eq("id", companyId);
+                  companiesUpdated++;
+                }
+              }
+            }
+            
+            // Create new company if not found
+            if (!companyId) {
+              const companyData = mapApolloToCompany(row, userId, domain);
+              if (companyData) {
+                const { data: newCompany, error: companyError } = await supabase
+                  .from("companies")
+                  .insert(companyData)
+                  .select("id")
+                  .single();
+                
+                if (!companyError && newCompany) {
+                  companyId = newCompany.id;
+                  companiesCreated++;
+                  companyCache.set(cacheKey, companyId);
+                } else if (companyError) {
+                  console.error("Company insert error:", companyError);
+                }
+              }
+            }
+          }
+        }
+
+        // 2. Find existing contact by email only (as per user preference)
+        let existingContactId: string | null = null;
+        
+        if (row.email) {
+          const { data: byEmail } = await supabase
+            .from("contacts")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("email", row.email.toLowerCase())
+            .single();
+          
+          if (byEmail) existingContactId = byEmail.id;
+        }
+
+        // 3. Insert or update contact
+        const contactData = {
+          ...mapApolloToContact(row, userId, companyId || undefined),
+          source_list: sourceList,
+        };
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Contact data prepared',data:{index:i+1,firstName:contactData.first_name,firstNameEmpty:!contactData.first_name,hasExistingContact:!!existingContactId,companyId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
+
+        if (existingContactId) {
+          // Update existing contact - but don't overwrite phone/mobile with empty values
+          const updateData: Record<string, unknown> = { ...contactData };
+          
+          // Remove phone fields if they're empty to avoid wiping existing good numbers
+          if (!updateData.phone) delete updateData.phone;
+          if (!updateData.mobile) delete updateData.mobile;
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Before update query',data:{index:i+1,contactId:existingContactId,updateDataKeys:Object.keys(updateData)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Before update query',data:{index:i+1,contactId:existingContactId,updateDataKeys:Object.keys(updateData)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+          
+          const { error: updateError } = await supabase
+            .from("contacts")
+            .update(updateData)
+            .eq("id", existingContactId);
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'After update query',data:{index:i+1,hasError:!!updateError,errorName:updateError?.name,errorMessage:updateError?.message,errorCode:updateError?.code,errorDetails:updateError?.details,errorHint:updateError?.hint},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+          
+          if (updateError) {
+            console.error("Update error:", updateError);
+            failures.push({
+              row,
+              type: "contact",
+              error: updateError.message,
+              errorCode: updateError.code,
+            });
+            failed++;
+          } else {
+            updated++;
+            
+            // Create note for extra phones if present
+            if (row.extraPhonesNote) {
+              const { error: noteError } = await supabase
+                .from("notes")
+                .insert({
+                  user_id: userId,
+                  contact_id: existingContactId,
+                  company_id: companyId,
+                  content: row.extraPhonesNote,
+                  is_pinned: false,
+                  is_company_wide: false,
+                });
+              
+              if (!noteError) notesCreated++;
+            }
+          }
+        } else {
+          // Insert new contact
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Before insert query',data:{index:i+1,contactDataKeys:Object.keys(contactData),firstName:contactData.first_name,firstNameEmpty:!contactData.first_name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+          
+          const { data: newContact, error: insertError } = await supabase
+            .from("contacts")
+            .insert(contactData)
+            .select("id")
+            .single();
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'After insert query',data:{index:i+1,hasError:!!insertError,errorName:insertError?.name,errorMessage:insertError?.message,errorCode:insertError?.code,errorDetails:insertError?.details,errorHint:insertError?.hint,hasData:!!newContact},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+          
+          if (insertError) {
+            console.error("Insert error:", insertError);
+            failures.push({
+              row,
+              type: "contact",
+              error: insertError.message,
+              errorCode: insertError.code,
+            });
+            failed++;
+          } else {
+            created++;
+            
+            // Create note for extra phones if present
+            if (row.extraPhonesNote && newContact) {
+              const { error: noteError } = await supabase
+                .from("notes")
+                .insert({
+                  user_id: userId,
+                  contact_id: newContact.id,
+                  company_id: companyId,
+                  content: row.extraPhonesNote,
+                  is_pinned: false,
+                  is_company_wide: false,
+                });
+              
+              if (!noteError) notesCreated++;
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Import error for row:", row, error);
+        
+        // #region agent log
+        const errorDetails = error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+          cause: (error as any).cause,
+        } : { type: typeof error, value: String(error) };
+        fetch('http://127.0.0.1:7243/ingest/0b2edc16-0dce-4de6-88ec-ecfd9031eb28',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'csv-import.tsx:handleApolloImport',message:'Caught exception',data:{index:i+1,errorDetails,firstName:row.firstName,lastName:row.lastName},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+        // #endregion
+        
+        failures.push({
+          row,
+          type: "contact",
+          error: error instanceof Error ? error.message : String(error),
+        });
+        failed++;
+      }
+
+      // Update progress
+      setImportProgress(Math.round(((i + 1) / toImport.length) * 100));
+      setImportStats(prev => ({
+        ...prev,
+        created,
+        updated,
+        companiesCreated,
+        companiesUpdated,
+        failed,
+        notesCreated,
+      }));
+    }
+
+    // Set final state
+    setFailedImports(failures);
+    setStep("done");
+    
+    if (failures.length > 0) {
+      toast.warning(`Imported ${created + updated} contacts with ${failures.length} failure(s)`);
+    } else {
+      toast.success(`Imported ${created + updated} contacts!`);
+    }
+  };
+
+  // Legacy CSV Import handler
+  const handleLegacyImport = async () => {
     const toImport = parsedRows.filter((_, i) => selectedRows.has(i));
     if (toImport.length === 0) {
       toast.error("No contacts selected");
@@ -197,8 +682,19 @@ export function CSVImport() {
     
     setStep("importing");
     setImportProgress(0);
-    setImportStats({ created: 0, updated: 0, companiesCreated: 0, failed: 0, notesCreated: 0 });
-    setFailedImports([]); // Clear previous failures
+    setImportStats({
+      created: 0,
+      updated: 0,
+      companiesCreated: 0,
+      companiesUpdated: 0,
+      failed: 0,
+      notesCreated: 0,
+      withMobile: 0,
+      withWorkPhone: 0,
+      missingBothPhones: 0,
+      topTags: [],
+    });
+    setFailedImports([]);
 
     const sourceList = listName || `CSV Import ${new Date().toLocaleDateString()}`;
     let created = 0;
@@ -407,7 +903,14 @@ export function CSVImport() {
 
       // Update progress
       setImportProgress(Math.round(((i + 1) / toImport.length) * 100));
-      setImportStats({ created, updated, companiesCreated, failed, notesCreated });
+      setImportStats(prev => ({
+        ...prev,
+        created,
+        updated,
+        companiesCreated,
+        failed,
+        notesCreated,
+      }));
     }
 
     // Set final state
@@ -421,6 +924,39 @@ export function CSVImport() {
     }
   };
 
+  const handleImport = () => {
+    if (csvType === "apollo") {
+      handleApolloImport();
+    } else {
+      handleLegacyImport();
+    }
+  };
+
+  const resetImport = () => {
+    setStep("upload");
+    setCsvType("legacy");
+    setParsedRows([]);
+    setFileName("");
+    setCompanyGroups([]);
+    setApolloRows([]);
+    setSelectedCompanies(new Set());
+    setSelectedContacts(new Set());
+    setExpandedCompanies(new Set());
+    setImportStats({
+      created: 0,
+      updated: 0,
+      companiesCreated: 0,
+      companiesUpdated: 0,
+      failed: 0,
+      notesCreated: 0,
+      withMobile: 0,
+      withWorkPhone: 0,
+      missingBothPhones: 0,
+      topTags: [],
+    });
+    setImportProgress(0);
+  };
+
   // Step: Upload
   if (step === "upload") {
     return (
@@ -432,7 +968,7 @@ export function CSVImport() {
               Import from CSV
             </CardTitle>
             <CardDescription>
-              Upload a CSV file with your contact list
+              Upload a CSV file with your contact list (supports Apollo exports)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -474,7 +1010,7 @@ export function CSVImport() {
               <Label htmlFor="list-name">Import List Name (optional)</Label>
               <Input
                 id="list-name"
-                placeholder={`e.g., CX Call List ${new Date().toLocaleDateString()}`}
+                placeholder={`e.g., Apollo Export ${new Date().toLocaleDateString()}`}
                 value={listName}
                 onChange={(e) => setListName(e.target.value)}
               />
@@ -483,20 +1019,30 @@ export function CSVImport() {
               </p>
             </div>
 
-            {/* Expected Format */}
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <p className="text-sm font-medium">Expected CSV columns:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  "Last Name", "First Name", "Company", "Link (LinkedIn)", 
-                  "Type", "Company Info", "Company Headcount", "Time Zone",
-                  "Mobile", "Direct", "Email", "Position", "Personal Connector + Bio",
-                  "Answered", "Notes"
-                ].map((col) => (
-                  <Badge key={col} variant="secondary" className="text-xs">
-                    {col}
-                  </Badge>
-                ))}
+            {/* Supported Formats */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium">Supported CSV formats:</p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Apollo Export:</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {["First Name", "Last Name", "Company Name", "Email", "Mobile Phone", "Other Phone", "# Employees", "City", "State"].map((col) => (
+                      <Badge key={col} variant="secondary" className="text-xs">
+                        {col}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Legacy Format:</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {["Last Name", "First Name", "Company", "Link", "Mobile", "Direct", "Email", "Position"].map((col) => (
+                      <Badge key={col} variant="outline" className="text-xs">
+                        {col}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -505,15 +1051,271 @@ export function CSVImport() {
     );
   }
 
-  // Step: Preview
-  if (step === "preview") {
+  // Step: Preview (Apollo)
+  if (step === "preview" && csvType === "apollo") {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Preview Import</h2>
+            <p className="text-sm text-muted-foreground">
+              {apolloStats.afterDedupe} contacts in {apolloStats.totalCompanies} companies from {fileName}
+              {apolloStats.duplicatesRemoved > 0 && (
+                <span className="text-amber-600 ml-2">
+                  ({apolloStats.duplicatesRemoved} duplicates by email removed)
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={resetImport}>
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+            <Button onClick={handleImport} disabled={selectedContacts.size === 0}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import {selectedContacts.size} Contacts
+            </Button>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-5 gap-4">
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <Building2 className="h-8 w-8 text-purple-500" />
+                <div>
+                  <p className="text-2xl font-bold">{apolloStats.totalCompanies}</p>
+                  <p className="text-xs text-muted-foreground">Companies</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <Users className="h-8 w-8 text-blue-500" />
+                <div>
+                  <p className="text-2xl font-bold">{apolloStats.afterDedupe}</p>
+                  <p className="text-xs text-muted-foreground">Contacts</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <Smartphone className="h-8 w-8 text-green-500" />
+                <div>
+                  <p className="text-2xl font-bold">{apolloStats.withMobile}</p>
+                  <p className="text-xs text-muted-foreground">With Mobile</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <Phone className="h-8 w-8 text-cyan-500" />
+                <div>
+                  <p className="text-2xl font-bold">{apolloStats.withWorkPhone}</p>
+                  <p className="text-xs text-muted-foreground">With Other Phone</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-8 w-8 text-amber-500" />
+                <div>
+                  <p className="text-2xl font-bold">{apolloStats.missingBothPhones}</p>
+                  <p className="text-xs text-muted-foreground">No Phone</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Top Tags */}
+        {apolloStats.topTags.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Top industries:</span>
+            <div className="flex gap-1.5">
+              {apolloStats.topTags.map(({ tag, count }) => (
+                <Badge key={tag} variant="secondary" className={getTagColor(tag)}>
+                  {tag.replace("_", " ")} ({count})
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Select All */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={selectedContacts.size === apolloRows.length}
+            onCheckedChange={toggleSelectAllApollo}
+          />
+          <span className="text-sm">
+            {selectedContacts.size === apolloRows.length ? "Deselect all" : "Select all"} ({selectedContacts.size} selected)
+          </span>
+        </div>
+
+        {/* Company Groups */}
+        <Card>
+          <ScrollArea className="h-[500px]">
+            <div className="p-4 space-y-2">
+              {companyGroups.map((group) => {
+                const key = getCompanyKey(group);
+                const isExpanded = expandedCompanies.has(key);
+                const isSelected = selectedCompanies.has(key);
+                const selectedInGroup = group.contacts.filter(c => {
+                  const idx = apolloRows.findIndex(r => r._rowIndex === c._rowIndex);
+                  return selectedContacts.has(idx);
+                }).length;
+                
+                return (
+                  <Collapsible key={key} open={isExpanded}>
+                    {/* Company Header */}
+                    <div className="flex items-center gap-2 p-3 bg-card border border-border rounded-lg hover:bg-muted/40 transition-colors">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSelectCompany(group)}
+                      />
+                      <CollapsibleTrigger 
+                        className="flex-1 flex items-center gap-3 text-left"
+                        onClick={() => toggleCompanyExpanded(key)}
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium truncate">{group.companyName}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({selectedInGroup}/{group.contacts.length} contacts)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {group.city && group.state && (
+                              <span>{group.city}, {group.state}</span>
+                            )}
+                            {group.employeeCount && (
+                              <span className="text-primary">{group.employeeCount} employees</span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Tags */}
+                        <div className="flex gap-1 flex-shrink-0">
+                          {group.inferredTags.map(tag => (
+                            <Badge key={tag} variant="secondary" className={`text-xs ${getTagColor(tag)}`}>
+                              {tag.replace("_", " ")}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CollapsibleTrigger>
+                    </div>
+                    
+                    {/* Contact List */}
+                    <CollapsibleContent>
+                      <div className="ml-8 mt-1 space-y-1">
+                        {group.contacts.map((contact) => {
+                          const contactIndex = apolloRows.findIndex(r => r._rowIndex === contact._rowIndex);
+                          const isContactSelected = selectedContacts.has(contactIndex);
+                          
+                          return (
+                            <div
+                              key={contact._rowIndex}
+                              className={`flex items-center gap-3 p-2 rounded-md transition-colors ${
+                                isContactSelected ? "bg-primary/5" : "hover:bg-muted/30"
+                              } ${!contact.mobilePhone && !contact.otherPhone ? "opacity-60" : ""}`}
+                            >
+                              <Checkbox
+                                checked={isContactSelected}
+                                onCheckedChange={() => toggleSelectContact(contact, group)}
+                              />
+                              <div className="flex-1 min-w-0 grid grid-cols-4 gap-4">
+                                {/* Name & Title */}
+                                <div>
+                                  <p className="font-medium text-sm truncate">
+                                    {contact.firstName} {contact.lastName}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {contact.title || "No title"}
+                                  </p>
+                                </div>
+                                
+                                {/* Email */}
+                                <div className="flex items-center gap-1.5">
+                                  {contact.email ? (
+                                    <>
+                                      <Mail className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                      <span className="text-xs truncate">{contact.email}</span>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">No email</span>
+                                  )}
+                                </div>
+                                
+                                {/* Mobile Phone */}
+                                <div className="flex items-center gap-1.5">
+                                  {contact.mobilePhone ? (
+                                    <>
+                                      <Smartphone className="h-3 w-3 text-green-500 flex-shrink-0" />
+                                      <span className="text-xs font-mono">{contact.mobilePhone}</span>
+                                      <Badge variant="outline" className="text-[8px] h-4 px-1 border-green-500/30 text-green-500">
+                                        Mobile
+                                      </Badge>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">No mobile</span>
+                                  )}
+                                </div>
+                                
+                                {/* Other Phone */}
+                                <div className="flex items-center gap-1.5">
+                                  {contact.otherPhone ? (
+                                    <>
+                                      <Phone className="h-3 w-3 text-cyan-500 flex-shrink-0" />
+                                      <span className="text-xs font-mono">{contact.otherPhone}</span>
+                                      <Badge variant="outline" className="text-[8px] h-4 px-1 border-cyan-500/30 text-cyan-500">
+                                        Other
+                                      </Badge>
+                                    </>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">No other phone</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </Card>
+      </div>
+    );
+  }
+
+  // Step: Preview (Legacy)
+  if (step === "preview" && csvType === "legacy") {
     // Count contacts with phone numbers
     const withPhone = parsedRows.filter(r => r.direct || r.mobile).length;
     const withEmail = parsedRows.filter(r => r.email).length;
     const withLinkedIn = parsedRows.filter(r => r.linkedinUrl).length;
     
     return (
-      <div className="space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold">Preview Import</h2>
@@ -527,11 +1329,7 @@ export function CSVImport() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => {
-              setStep("upload");
-              setParsedRows([]);
-              setFileName("");
-            }}>
+            <Button variant="outline" onClick={resetImport}>
               <X className="mr-2 h-4 w-4" />
               Cancel
             </Button>
@@ -672,6 +1470,9 @@ export function CSVImport() {
           <p>{importStats.created} contacts created</p>
           <p>{importStats.updated} contacts updated</p>
           <p>{importStats.companiesCreated} companies created</p>
+          {importStats.companiesUpdated > 0 && (
+            <p>{importStats.companiesUpdated} companies updated</p>
+          )}
           {importStats.failed > 0 && (
             <p className="text-red-500">{importStats.failed} failed</p>
           )}
@@ -682,7 +1483,7 @@ export function CSVImport() {
 
   // Step: Done
   return (
-    <div className="max-w-md mx-auto text-center space-y-6">
+    <div className="max-w-xl mx-auto text-center space-y-6">
       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
         <CheckCircle2 className="h-8 w-8 text-green-600" />
       </div>
@@ -690,17 +1491,19 @@ export function CSVImport() {
         <h2 className="text-xl font-semibold">Import Complete!</h2>
         <p className="text-muted-foreground">Your contacts are ready to call.</p>
       </div>
+      
+      {/* Main Stats */}
       <div className="grid grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-6 text-center">
             <p className="text-2xl font-bold text-green-600">{importStats.created}</p>
-            <p className="text-xs text-muted-foreground">Created</p>
+            <p className="text-xs text-muted-foreground">Contacts Created</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6 text-center">
             <p className="text-2xl font-bold text-blue-600">{importStats.updated}</p>
-            <p className="text-xs text-muted-foreground">Updated</p>
+            <p className="text-xs text-muted-foreground">Contacts Updated</p>
           </CardContent>
         </Card>
         <Card>
@@ -716,6 +1519,51 @@ export function CSVImport() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Phone Coverage Stats (Apollo only) */}
+      {csvType === "apollo" && (importStats.withMobile > 0 || importStats.withWorkPhone > 0) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Phone Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-lg font-bold text-green-600">{importStats.withMobile}</p>
+                <p className="text-xs text-muted-foreground">With Mobile</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-cyan-600">{importStats.withWorkPhone}</p>
+                <p className="text-xs text-muted-foreground">With Other Phone</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-amber-600">{importStats.missingBothPhones}</p>
+                <p className="text-xs text-muted-foreground">No Phone</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Top Tags (Apollo only) */}
+      {csvType === "apollo" && importStats.topTags.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Industries Found</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {importStats.topTags.map(({ tag, count }) => (
+                <Badge key={tag} variant="outline" className={getTagColor(tag)}>
+                  {tag.replace("_", " ")} ({count})
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Failed Imports */}
       {importStats.failed > 0 && (
         <Card 
           className="border-red-200 dark:border-red-900 cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
@@ -727,14 +1575,10 @@ export function CSVImport() {
           </CardContent>
         </Card>
       )}
+      
+      {/* Action Buttons */}
       <div className="flex gap-2 justify-center">
-        <Button variant="outline" onClick={() => {
-          setStep("upload");
-          setParsedRows([]);
-          setFileName("");
-          setImportStats({ created: 0, updated: 0, companiesCreated: 0, failed: 0, notesCreated: 0 });
-          setImportProgress(0);
-        }}>
+        <Button variant="outline" onClick={resetImport}>
           Import More
         </Button>
         <Button onClick={() => window.location.href = "/companies"}>
@@ -769,21 +1613,25 @@ export function CSVImport() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {failedImports.map((failure, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">
-                      {failure.row.firstName} {failure.row.lastName}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {failure.row.company || "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="destructive" className="text-xs font-normal">
-                        {getFriendlyErrorMessage(failure.error, failure.errorCode)}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {failedImports.map((failure, index) => {
+                  const row = failure.row as ApolloCSVRow | ParsedCSVRow;
+                  const name = `${row.firstName} ${row.lastName}`;
+                  const company = "companyName" in row ? row.companyName : row.company;
+                  
+                  return (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {company || "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="destructive" className="text-xs font-normal">
+                          {getFriendlyErrorMessage(failure.error, failure.errorCode)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </ScrollArea>

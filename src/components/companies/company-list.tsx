@@ -24,17 +24,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getTimezoneDisplay, getFriendlyTimezoneName } from "@/lib/timezone";
 import { formatDistanceToNow } from "date-fns";
 import { Search, Building2, Users, Clock, MapPin } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CompanyWithStats } from "@/hooks/use-companies";
 
 const INDUSTRY_FILTERS = [
   { value: "all", label: "All Industries" },
-  { value: "credit_union", label: "Credit Unions" },
-  { value: "hospital", label: "Hospitals" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "bank", label: "Banking" },
-  { value: "financial_services", label: "Financial Services" },
+  { value: "hvac", label: "HVAC" },
+  { value: "plumbing", label: "Plumbing" },
+  { value: "roofing", label: "Roofing" },
+  { value: "electrical", label: "Electrical" },
+  { value: "solar", label: "Solar" },
+  { value: "construction", label: "General Contractors" },
 ];
 
 export function CompanyList() {
@@ -106,11 +106,6 @@ export function CompanyList() {
                   <div className="flex flex-col items-center gap-2">
                     <Building2 className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No companies found</p>
-                    <Link href="/import">
-                      <Button variant="outline" size="sm" className="mt-2">
-                        Import from Apollo
-                      </Button>
-                    </Link>
                   </div>
                 </TableCell>
               </TableRow>
@@ -168,8 +163,15 @@ function CompanyRow({
         )}
       </TableCell>
       <TableCell>
-        {company.employee_range ? (
-          <span className="text-sm">{company.employee_range}</span>
+        {company.employee_count || company.employee_range ? (
+          <span className="text-sm">
+            {company.employee_count 
+              ? `${company.employee_count.toLocaleString()}` 
+              : company.employee_range}
+            {company.employee_count && company.employee_range && (
+              <span className="text-xs text-muted-foreground ml-1">({company.employee_range})</span>
+            )}
+          </span>
         ) : (
           <span className="text-muted-foreground">-</span>
         )}

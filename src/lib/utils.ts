@@ -5,6 +5,30 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Check if a phone number is valid (has at least 10 digits)
+ */
+export function isValidPhone(phone: string | null | undefined): boolean {
+  if (!phone) return false;
+  const cleaned = phone.replace(/\D/g, "");
+  return cleaned.length >= 10;
+}
+
+/**
+ * Get the first valid phone number from phone or mobile, with proper fallback
+ */
+export function getValidPhone(phone: string | null | undefined, mobile: string | null | undefined): string | null {
+  // Check phone first, but only if it's valid
+  if (isValidPhone(phone)) {
+    return phone!;
+  }
+  // Fallback to mobile if phone is invalid or empty
+  if (isValidPhone(mobile)) {
+    return mobile!;
+  }
+  return null;
+}
+
 export function formatPhone(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
   if (cleaned.length === 10) {

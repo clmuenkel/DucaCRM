@@ -213,69 +213,42 @@ export function useDuplicatePersonaSet() {
   });
 }
 
-// Pre-built persona set templates
+// Pre-built persona set templates for home services
 export const PERSONA_SET_TEMPLATES = {
-  finance_healthcare: {
-    name: "Finance Leaders - Healthcare",
-    titles: [
-      "CFO",
-      "Chief Financial Officer",
-      "VP Finance",
-      "VP of Finance",
-      "Director of Finance",
-      "Controller",
-      "Treasurer",
-      "Finance Director",
-    ],
-    industries: ["hospitals", "healthcare", "medical"],
-    employee_ranges: ["1001-5000", "5001+"],
+  hvac_owners: {
+    name: "HVAC Company Owners",
+    titles: ["Owner", "Founder", "President", "CEO", "Principal", "General Manager"],
+    industries: ["hvac"],
+    employee_ranges: ["1-50", "51-200"],
   },
-  finance_banking: {
-    name: "Finance Leaders - Banking/Credit Unions",
-    titles: [
-      "CFO",
-      "Chief Financial Officer",
-      "VP Finance",
-      "VP of Finance",
-      "Director of Finance",
-      "Controller",
-      "Treasurer",
-    ],
-    industries: ["credit_unions", "banking", "financial_services"],
-    employee_ranges: ["501-1000", "1001-5000", "5001+"],
+  plumbing_owners: {
+    name: "Plumbing Company Owners",
+    titles: ["Owner", "Founder", "President", "CEO", "Principal", "General Manager"],
+    industries: ["plumbing"],
+    employee_ranges: ["1-50", "51-200"],
   },
-  it_healthcare: {
-    name: "IT Leaders - Healthcare",
-    titles: [
-      "CIO",
-      "CTO",
-      "Chief Information Officer",
-      "Chief Technology Officer",
-      "VP IT",
-      "VP of IT",
-      "IT Director",
-      "Director of IT",
-    ],
-    industries: ["hospitals", "healthcare", "medical"],
-    employee_ranges: ["1001-5000", "5001+"],
+  roofing_owners: {
+    name: "Roofing Company Owners",
+    titles: ["Owner", "Founder", "President", "CEO", "Principal", "General Manager"],
+    industries: ["roofing"],
+    employee_ranges: ["1-50", "51-200"],
   },
-  operations_all: {
-    name: "Operations Leaders",
-    titles: [
-      "COO",
-      "Chief Operating Officer",
-      "VP Operations",
-      "VP of Operations",
-      "Operations Director",
-      "Director of Operations",
-    ],
-    industries: [],
-    employee_ranges: ["1001-5000", "5001+"],
+  electrical_owners: {
+    name: "Electrical Company Owners",
+    titles: ["Owner", "Founder", "President", "CEO", "Principal", "General Manager"],
+    industries: ["electrical"],
+    employee_ranges: ["1-50", "51-200"],
   },
-  c_suite: {
-    name: "C-Suite Executives",
-    titles: ["CEO", "CFO", "COO", "CIO", "CTO", "President", "Chief Executive Officer"],
-    industries: [],
-    employee_ranges: ["501-1000", "1001-5000", "5001+"],
+  solar_owners: {
+    name: "Solar Company Owners",
+    titles: ["Owner", "Founder", "President", "CEO", "Principal", "General Manager"],
+    industries: ["solar"],
+    employee_ranges: ["1-50", "51-200"],
+  },
+  all_home_services: {
+    name: "All Home Services Owners",
+    titles: ["Owner", "Founder", "President", "CEO", "Principal"],
+    industries: ["hvac", "plumbing", "roofing", "electrical", "solar", "construction"],
+    employee_ranges: ["1-50", "51-200"],
   },
 };

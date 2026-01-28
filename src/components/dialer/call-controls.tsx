@@ -3,15 +3,22 @@
 import { useState } from "react";
 import { useDialerStore, type PhoneType } from "@/stores/dialer-store";
 import { useLogCall } from "@/hooks/use-calls";
-import { useUpdateContact } from "@/hooks/use-contacts";
+import { useUpdateContact, useContacts } from "@/hooks/use-contacts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { formatDuration, copyToClipboard } from "@/lib/utils";
 import { MeetingDialog } from "./meeting-dialog";
 import {
@@ -29,15 +36,20 @@ import {
   Calendar,
   Smartphone,
   Building2,
+  Trophy,
+  XCircle,
+  Clock,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { AbuButton } from "@/components/ui/abu-button";
 
 export function CallControlsHeader() {
   const userId = DEFAULT_USER_ID;
   const [copied, setCopied] = useState(false);
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [isProcessingOutcome, setIsProcessingOutcome] = useState(false);
+  const [callbackDate, setCallbackDate] = useState<string>("");
   
   const {
     currentContact,
@@ -62,10 +74,63 @@ export function CallControlsHeader() {
     previousContact,
     skipContact,
     endSession,
+    twilioDevice,
+    isConnecting,
+    twilioError,
+    twilioCallSid,
+    twilioNumberUsed,
+    initializeTwilioDevice,
+    connectTwilioCall,
+    disconnectTwilioCall,
+    setTwilioError,
   } = useDialerStore();
 
   const logCall = useLogCall();
   const updateContact = useUpdateContact();
+  const { refetch: refetchContacts } = useContacts({});
+  
+  // Check if contact is in active cadence
+  const isInCadence = currentContact?.cadence_status === "active" && 
+                      currentContact?.cadence_outcome === "in_progress";
+
+  // Handle cadence outcome (Won, Lost, No Answer, Callback)
+  const handleCadenceOutcome = async (
+    outcomeType: "won" | "lost" | "no_answer" | "callback",
+    date?: string
+  ) => {
+    if (!currentContact) return;
+
+    setIsProcessingOutcome(true);
+    try {
+      const response = await fetch("/api/contacts/outcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId: currentContact.id,
+          outcome: outcomeType,
+          callbackDate: date,
+          notes: notes || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to process outcome");
+      }
+
+      toast.success(data.message);
+      
+      // Refetch contacts and move to next
+      await refetchContacts();
+      nextContact();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsProcessingOutcome(false);
+      setCallbackDate("");
+    }
+  };
 
   // Get available phone numbers
   const mobileNumber = currentContact?.mobile;
@@ -73,23 +138,42 @@ export function CallControlsHeader() {
   const hasBothNumbers = !!(mobileNumber && officeNumber && mobileNumber !== officeNumber);
   const selectedPhone = getSelectedPhone();
 
-  const dialGoogleVoice = () => {
+  const dialTwilio = async () => {
     const phoneToCall = selectedPhone;
     if (!phoneToCall) {
       toast.error("No phone number available");
       return;
     }
 
-    const cleanNumber = phoneToCall.replace(/\D/g, "");
-    
-    window.open(
-      `https://voice.google.com/u/0/calls?a=nc,${cleanNumber}`,
-      "googleVoice",
-      "width=400,height=600,left=100,top=100"
-    );
+    if (!currentContact) {
+      toast.error("No contact selected");
+      return;
+    }
 
-    startCall();
-    toast.success(`Calling ${selectedPhoneType === "mobile" ? "mobile" : "office"}! Timer started.`);
+    try {
+      // Check if device is initialized
+      if (!twilioDevice) {
+        // Get access token and initialize device
+        const tokenResponse = await fetch("/api/twilio/token");
+        if (!tokenResponse.ok) {
+          const errorData = await tokenResponse.json();
+          throw new Error(errorData.error || "Failed to get Twilio token");
+        }
+
+        const { token } = await tokenResponse.json();
+        await initializeTwilioDevice(token);
+      }
+
+      // Connect the call
+      setTwilioError(null);
+      await connectTwilioCall(phoneToCall);
+      
+      toast.success(`Connecting to ${selectedPhoneType === "mobile" ? "mobile" : "office"}...`);
+    } catch (error: any) {
+      console.error("Error dialing Twilio:", error);
+      toast.error(error.message || "Failed to connect call");
+      setTwilioError(error.message || "Failed to connect call");
+    }
   };
 
   const handleCopyNumber = async () => {
@@ -102,6 +186,7 @@ export function CallControlsHeader() {
   };
 
   const handleEndCall = () => {
+    disconnectTwilioCall();
     endCall();
     toast.info("Call ended. Don't forget to log your outcome.");
   };
@@ -156,6 +241,8 @@ export function CallControlsHeader() {
           outcome,
           disposition: disposition || undefined,
           phone_used: selectedPhoneType,
+          twilio_call_sid: twilioCallSid || undefined,
+          twilio_number_used: twilioNumberUsed || undefined,
           notes: notes || undefined,
           confirmed_budget: confirmedBudget,
           confirmed_authority: confirmedAuthority,
@@ -249,7 +336,14 @@ export function CallControlsHeader() {
 
         {/* Center: Phone Selector + Main Call Actions */}
         <div className="flex items-center gap-3">
-          {!isCallActive ? (
+          {/* Twilio Error Display */}
+          {twilioError && (
+            <div className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-md text-sm text-red-600">
+              {twilioError}
+            </div>
+          )}
+
+          {!isCallActive && !isConnecting ? (
             <>
               {/* Phone Number Selector */}
               {hasBothNumbers ? (
@@ -325,13 +419,21 @@ export function CallControlsHeader() {
               {/* DIAL BUTTON - Large and Prominent */}
               <Button 
                 size="lg" 
-                onClick={dialGoogleVoice}
-                disabled={!selectedPhone}
-                className="h-12 px-6 text-base font-semibold gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg"
+                onClick={dialTwilio}
+                disabled={!selectedPhone || isConnecting}
+                className="h-12 px-6 text-base font-semibold gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg disabled:opacity-50"
               >
-                <Phone className="h-5 w-5" />
-                DIAL
-                <ExternalLink className="h-4 w-4 ml-1" />
+                {isConnecting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Phone className="h-5 w-5" />
+                    DIAL
+                  </>
+                )}
               </Button>
 
               {/* Meeting Button - Right next to Dial */}
@@ -347,7 +449,7 @@ export function CallControlsHeader() {
             </>
           ) : (
             <>
-              {/* Active Call - Show which number */}
+              {/* Active Call or Connecting - Show which number */}
               <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-md text-sm">
                 {selectedPhoneType === "mobile" ? (
                   <Smartphone className="h-4 w-4 text-blue-500" />
@@ -355,7 +457,7 @@ export function CallControlsHeader() {
                   <Building2 className="h-4 w-4 text-amber-500" />
                 )}
                 <span className="text-muted-foreground">
-                  {selectedPhoneType === "mobile" ? "Mobile" : "Office"}
+                  {isConnecting ? "Connecting..." : selectedPhoneType === "mobile" ? "Mobile" : "Office"}
                 </span>
               </div>
 
@@ -381,12 +483,112 @@ export function CallControlsHeader() {
           )}
         </div>
 
-        {/* Right: Save Actions */}
+        {/* Right: Cadence Outcomes + Save Actions */}
         <div className="flex items-center gap-2">
-          <AbuButton 
-            size="default"
-            contactName={currentContact ? `${currentContact.first_name} ${currentContact.last_name || ''}`.trim() : undefined}
-          />
+          {/* Cadence Outcome Buttons (only show if in active cadence) */}
+          {isInCadence && (
+            <div className="flex items-center gap-1 mr-2 border-r pr-3">
+              {/* Won - Green */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCadenceOutcome("won")}
+                disabled={isProcessingOutcome}
+                className="h-9 gap-1 border-green-500/50 text-green-600 hover:bg-green-500/10 hover:text-green-600"
+                title="Meeting Booked!"
+              >
+                {isProcessingOutcome ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trophy className="h-4 w-4" />
+                )}
+                Won
+              </Button>
+
+              {/* No Answer - Gray */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCadenceOutcome("no_answer")}
+                disabled={isProcessingOutcome}
+                className="h-9 gap-1"
+                title="No Answer - Advance to next step"
+              >
+                {isProcessingOutcome ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PhoneOff className="h-4 w-4" />
+                )}
+                No Answer
+              </Button>
+
+              {/* Callback - Yellow with date picker */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isProcessingOutcome}
+                    className="h-9 gap-1 border-yellow-500/50 text-yellow-600 hover:bg-yellow-500/10 hover:text-yellow-600"
+                    title="Schedule Callback"
+                  >
+                    <Clock className="h-4 w-4" />
+                    Callback
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-3" align="end">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Callback Date</Label>
+                    <Input
+                      type="date"
+                      value={callbackDate}
+                      onChange={(e) => setCallbackDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (callbackDate) {
+                          handleCadenceOutcome("callback", callbackDate);
+                        } else {
+                          toast.error("Please select a callback date");
+                        }
+                      }}
+                      disabled={!callbackDate || isProcessingOutcome}
+                      className="w-full gap-2"
+                    >
+                      {isProcessingOutcome ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Calendar className="h-4 w-4" />
+                      )}
+                      Schedule
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Lost - Red */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCadenceOutcome("lost")}
+                disabled={isProcessingOutcome}
+                className="h-9 gap-1 border-red-500/50 text-red-600 hover:bg-red-500/10 hover:text-red-600"
+                title="Not Interested - Archive"
+              >
+                {isProcessingOutcome ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                Lost
+              </Button>
+            </div>
+          )}
+
+          {/* Standard Actions */}
           <Button 
             variant="outline" 
             size="default" 

@@ -12,7 +12,15 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, User, Key, Bell, Database, Trash2, Download, AlertTriangle } from "lucide-react";
+import { Loader2, Save, User, Key, Bell, Database, Trash2, Download, AlertTriangle, Mail, Phone, Zap, CheckCircle2, XCircle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { testInstantlyConnection, getCampaigns, type InstantlyCampaign } from "@/lib/instantly/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Profile } from "@/types/database";
 
@@ -31,6 +39,17 @@ export default function SettingsPage() {
 
   // API Keys
   const [apolloApiKey, setApolloApiKey] = useState("");
+
+  // Instantly Settings
+  const [instantlyApiKey, setInstantlyApiKey] = useState("");
+  const [instantlyCampaignId, setInstantlyCampaignId] = useState("");
+  const [instantlyCampaigns, setInstantlyCampaigns] = useState<InstantlyCampaign[]>([]);
+  const [isTestingInstantly, setIsTestingInstantly] = useState(false);
+  const [instantlyConnected, setInstantlyConnected] = useState<boolean | null>(null);
+
+  // Cadence Settings
+  const [emailsPerWeek, setEmailsPerWeek] = useState(3);
+  const [callsPerWeek, setCallsPerWeek] = useState(5);
 
   // Goals
   const [dailyCallGoal, setDailyCallGoal] = useState(50);
@@ -68,6 +87,31 @@ export default function SettingsPage() {
         if (settings) {
           setApolloApiKey(settings.apollo_api_key || "");
         }
+
+        // Load cadence settings
+        const { data: cadenceData } = await (supabase as any)
+          .from("cadence_settings")
+          .select("*")
+          .eq("user_id", DEFAULT_USER_ID)
+          .single();
+
+        if (cadenceData) {
+          setInstantlyApiKey(cadenceData.instantly_api_key || "");
+          setInstantlyCampaignId(cadenceData.instantly_campaign_id || "");
+          setEmailsPerWeek(cadenceData.emails_per_week || 3);
+          setCallsPerWeek(cadenceData.calls_per_week || 5);
+
+          // Load campaigns if API key exists
+          if (cadenceData.instantly_api_key) {
+            try {
+              const campaigns = await getCampaigns(cadenceData.instantly_api_key);
+              setInstantlyCampaigns(campaigns);
+              setInstantlyConnected(true);
+            } catch {
+              setInstantlyConnected(false);
+            }
+          }
+        }
       } catch (error) {
         console.error("Failed to load settings:", error);
       } finally {
@@ -101,6 +145,17 @@ export default function SettingsPage() {
           user_id: DEFAULT_USER_ID,
           apollo_api_key: apolloApiKey,
         } as any);
+
+      // Update cadence settings
+      await (supabase as any)
+        .from("cadence_settings")
+        .upsert({
+          user_id: DEFAULT_USER_ID,
+          instantly_api_key: instantlyApiKey,
+          instantly_campaign_id: instantlyCampaignId,
+          emails_per_week: emailsPerWeek,
+          calls_per_week: callsPerWeek,
+        });
 
       toast.success("Settings saved!");
     } catch (error: any) {
@@ -142,6 +197,35 @@ export default function SettingsPage() {
       toast.error(error.message || "Failed to clear data");
     } finally {
       setIsClearing(false);
+    }
+  };
+
+  const handleTestInstantly = async () => {
+    if (!instantlyApiKey) {
+      toast.error("Enter an API key first");
+      return;
+    }
+
+    setIsTestingInstantly(true);
+    setInstantlyConnected(null);
+
+    try {
+      const result = await testInstantlyConnection(instantlyApiKey);
+      setInstantlyConnected(result.success);
+
+      if (result.success) {
+        toast.success("Connected to Instantly!");
+        // Load campaigns
+        const campaigns = await getCampaigns(instantlyApiKey);
+        setInstantlyCampaigns(campaigns);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Connection test failed");
+      setInstantlyConnected(false);
+    } finally {
+      setIsTestingInstantly(false);
     }
   };
 
@@ -262,10 +346,136 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Goals */}
+          {/* Instantly Integration */}
           <Card
             className="opacity-0 animate-fade-in"
             style={{ animationDelay: "100ms", animationFillMode: "forwards" }}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Instantly.ai Integration
+                {instantlyConnected === true && (
+                  <Badge variant="outline" className="text-green-600 border-green-600 gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Connected
+                  </Badge>
+                )}
+                {instantlyConnected === false && (
+                  <Badge variant="outline" className="text-red-600 border-red-600 gap-1">
+                    <XCircle className="h-3 w-3" />
+                    Not Connected
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Connect Instantly for automated email campaigns
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="instantlyApiKey">Instantly API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="instantlyApiKey"
+                    type="password"
+                    value={instantlyApiKey}
+                    onChange={(e) => setInstantlyApiKey(e.target.value)}
+                    placeholder="Enter your Instantly API key"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleTestInstantly}
+                    disabled={isTestingInstantly || !instantlyApiKey}
+                  >
+                    {isTestingInstantly ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Test"
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Find your API key in Instantly Settings → Integrations → API
+                </p>
+              </div>
+
+              {instantlyCampaigns.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="instantlyCampaign">Campaign</Label>
+                  <Select value={instantlyCampaignId} onValueChange={setInstantlyCampaignId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a campaign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {instantlyCampaigns.map(campaign => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          {campaign.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Contacts will be added to this campaign when you start a cadence
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Cadence Settings */}
+          <Card
+            className="opacity-0 animate-fade-in"
+            style={{ animationDelay: "125ms", animationFillMode: "forwards" }}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Cadence Settings
+              </CardTitle>
+              <CardDescription>
+                Configure your sales outreach cadence
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="emailsPerWeek">Emails per Week</Label>
+                  <Input
+                    id="emailsPerWeek"
+                    type="number"
+                    min={1}
+                    max={14}
+                    value={emailsPerWeek}
+                    onChange={(e) => setEmailsPerWeek(parseInt(e.target.value) || 3)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Automated via Instantly
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="callsPerWeek">Calls per Week</Label>
+                  <Input
+                    id="callsPerWeek"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={callsPerWeek}
+                    onChange={(e) => setCallsPerWeek(parseInt(e.target.value) || 5)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Manual via Power Dialer
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Goals */}
+          <Card
+            className="opacity-0 animate-fade-in"
+            style={{ animationDelay: "150ms", animationFillMode: "forwards" }}
           >
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -307,7 +517,7 @@ export default function SettingsPage() {
           {/* Data Management */}
           <Card
             className="opacity-0 animate-fade-in border-amber-500/50"
-            style={{ animationDelay: "150ms", animationFillMode: "forwards" }}
+            style={{ animationDelay: "200ms", animationFillMode: "forwards" }}
           >
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -365,7 +575,7 @@ export default function SettingsPage() {
           {/* Save */}
           <div 
             className="flex justify-end opacity-0 animate-fade-in"
-            style={{ animationDelay: "200ms", animationFillMode: "forwards" }}
+            style={{ animationDelay: "250ms", animationFillMode: "forwards" }}
           >
             <Button onClick={handleSave} disabled={isSaving} className="press-scale">
               {isSaving ? (

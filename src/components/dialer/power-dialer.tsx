@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useDialerStore } from "@/stores/dialer-store";
 import { useCallTimer } from "@/hooks/use-call-timer";
 import { useContacts } from "@/hooks/use-contacts";
@@ -12,13 +14,24 @@ import { NotesAndTasks } from "./notes-and-tasks";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Phone, Zap, Users, Save } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Phone, Zap, Users, Save, CalendarClock, Flame, ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import { createClient } from "@/lib/supabase/client";
 import type { Contact } from "@/types/database";
+
+type DialerMode = "cadence" | "all" | "hot";
 
 export function PowerDialer() {
   const userId = DEFAULT_USER_ID;
+  const searchParams = useSearchParams();
+  const initialContactId = searchParams.get("contact");
+  const [mode, setMode] = useState<DialerMode>("cadence");
+  const [cadenceContacts, setCadenceContacts] = useState<Contact[]>([]);
+  const [hotContacts, setHotContacts] = useState<Contact[]>([]);
+  const [isLoadingCadence, setIsLoadingCadence] = useState(true);
+  const supabase = createClient();
 
   const {
     isActive,
@@ -35,10 +48,74 @@ export function PowerDialer() {
     goToContact,
   } = useDialerStore();
 
-  const { data: contacts, isLoading } = useContacts({
+  // Fetch cadence contacts (calls due today)
+  useEffect(() => {
+    const fetchCadenceContacts = async () => {
+      setIsLoadingCadence(true);
+      const today = new Date().toISOString().split("T")[0];
+
+      // Get contacts with calls due today
+      const { data: cadenceData } = await supabase
+        .from("contacts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("cadence_status", "active")
+        .eq("cadence_outcome", "in_progress")
+        .eq("next_action_type", "call")
+        .lte("next_action_date", today)
+        .or("phone.not.is.null,mobile.not.is.null")
+        .order("priority_score", { ascending: false });
+
+      setCadenceContacts((cadenceData as Contact[]) || []);
+
+      // Get hot leads (opened email)
+      const { data: hotData } = await supabase
+        .from("contacts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("cadence_status", "active")
+        .eq("email_opened", true)
+        .eq("email_replied", false)
+        .or("phone.not.is.null,mobile.not.is.null")
+        .order("email_open_count", { ascending: false });
+
+      setHotContacts((hotData as Contact[]) || []);
+      setIsLoadingCadence(false);
+
+      // If initial contact ID provided, start session with that contact
+      if (initialContactId && cadenceData) {
+        const targetContact = cadenceData.find((c: any) => c.id === initialContactId);
+        if (targetContact) {
+          startSession([targetContact as Contact]);
+        }
+      }
+    };
+
+    fetchCadenceContacts();
+  }, [userId, initialContactId]);
+
+  // Fallback: all fresh contacts
+  const { data: allContacts, isLoading: isLoadingAll } = useContacts({
     stage: "fresh",
+    orderBy: "priority_score",
     limit: 100,
   });
+
+  const isLoading = isLoadingCadence || isLoadingAll;
+
+  // Get contacts based on mode
+  const getContactsForMode = () => {
+    switch (mode) {
+      case "cadence":
+        return cadenceContacts;
+      case "hot":
+        return hotContacts;
+      case "all":
+        return allContacts?.filter(c => c.phone || c.mobile) || [];
+      default:
+        return cadenceContacts;
+    }
+  };
 
   const { data: colleagues } = useCompanyColleagues(
     currentContact?.id || "",
@@ -55,11 +132,12 @@ export function PowerDialer() {
   useHydrateDraft(userId);
 
   const handleStartSession = () => {
-    if (!contacts || contacts.length === 0) {
-      toast.error("No contacts to call. Import some leads first!");
+    const contactsToCall = getContactsForMode();
+    if (!contactsToCall || contactsToCall.length === 0) {
+      toast.error("No contacts to call. Import some leads or start cadences first!");
       return;
     }
-    startSession(contacts.filter(c => c.phone));
+    startSession(contactsToCall);
   };
 
   if (isLoading) {
@@ -75,7 +153,10 @@ export function PowerDialer() {
     );
   }
 
-  const contactsWithPhone = contacts?.filter(c => c.phone).length || 0;
+  const cadenceCount = cadenceContacts.length;
+  const hotCount = hotContacts.length;
+  const allCount = allContacts?.filter(c => c.phone).length || 0;
+  const currentModeCount = getContactsForMode().length;
 
   // Start Screen
   if (!isActive) {
@@ -87,29 +168,71 @@ export function PowerDialer() {
           </div>
           <h2 className="text-3xl font-bold mb-3 tracking-tight">Power Dialer</h2>
           <p className="text-muted-foreground mb-8 text-lg">
-            Work through your leads efficiently with our focused calling experience.
+            Work through your cadence calls efficiently.
           </p>
+
+          {/* Mode Selection Tabs */}
+          <div className="mb-6">
+            <Tabs value={mode} onValueChange={(v) => setMode(v as DialerMode)} className="inline-flex">
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="cadence" className="gap-2">
+                  <CalendarClock className="h-4 w-4" />
+                  Due Today
+                  {cadenceCount > 0 && (
+                    <Badge variant="secondary" className="ml-1">{cadenceCount}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="hot" className="gap-2">
+                  <Flame className="h-4 w-4 text-orange-500" />
+                  Hot
+                  {hotCount > 0 && (
+                    <Badge variant="secondary" className="ml-1 bg-orange-500/20 text-orange-500">{hotCount}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="all" className="gap-2">
+                  <ListTodo className="h-4 w-4" />
+                  All Fresh
+                  {allCount > 0 && (
+                    <Badge variant="secondary" className="ml-1">{allCount}</Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           
-          {contactsWithPhone > 0 ? (
+          {currentModeCount > 0 ? (
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-card rounded-full border">
                 <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{contactsWithPhone} contacts ready to call</span>
+                <span className="text-sm font-medium">
+                  {currentModeCount} {mode === "cadence" ? "calls due today" : mode === "hot" ? "hot leads" : "contacts"} ready
+                </span>
               </div>
               <div className="block">
                 <Button size="lg" onClick={handleStartSession} className="h-14 px-8 text-lg gap-3">
                   <Zap className="h-5 w-5" />
-                  Start Calling Session
+                  Start Calling {mode === "cadence" ? "Cadence" : mode === "hot" ? "Hot Leads" : "Session"}
                 </Button>
               </div>
+              {mode === "cadence" && cadenceCount === 0 && (
+                <p className="text-sm text-muted-foreground mt-4">
+                  No cadence calls due today. Try "Hot" or "All Fresh" tabs.
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                No contacts with phone numbers found.
+                {mode === "cadence" 
+                  ? "No cadence calls due today. Start some cadences from the Today page!"
+                  : mode === "hot"
+                  ? "No hot leads yet. Wait for email opens."
+                  : "No contacts with phone numbers found."}
               </p>
               <Button variant="outline" size="lg" asChild>
-                <a href="/import">Import from Apollo</a>
+                <a href={mode === "cadence" ? "/today" : "/import"}>
+                  {mode === "cadence" ? "Go to Today" : "Import from Apollo"}
+                </a>
               </Button>
             </div>
           )}

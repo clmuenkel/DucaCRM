@@ -142,7 +142,7 @@ function ContactCard({
           </div>
           {/* Quick Info */}
           <div className="flex items-center gap-2 mt-2">
-            {contact.phone && (
+            {(contact.phone || contact.mobile) && (
               <Badge variant="outline" className="text-xs">
                 <Phone className="h-3 w-3 mr-1" />
                 Has Phone

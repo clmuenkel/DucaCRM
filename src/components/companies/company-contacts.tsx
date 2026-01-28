@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import type { Contact } from "@/types/database";
+import { getValidPhone } from "@/lib/utils";
 
 interface CompanyContactsProps {
   contacts: Contact[];
@@ -136,24 +137,27 @@ function ContactRow({
       </TableCell>
       <TableCell>
         <div className="flex gap-1">
-          {contact.phone && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={(e) => {
-                e.stopPropagation();
-                copyToClipboard(contact.phone!, "phone");
-              }}
-              title={contact.phone}
-            >
-              {copiedField === "phone" ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <Phone className="h-4 w-4" />
-              )}
-            </Button>
-          )}
+          {(() => {
+            const validPhone = getValidPhone(contact.phone, contact.mobile);
+            return validPhone ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  copyToClipboard(validPhone, "phone");
+                }}
+                title={validPhone}
+              >
+                {copiedField === "phone" ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Phone className="h-4 w-4" />
+                )}
+              </Button>
+            ) : null;
+          })()}
           {contact.email && (
             <Button
               variant="ghost"
@@ -195,7 +199,7 @@ function ContactRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onStartCall && contact.phone && (
+          {onStartCall && getValidPhone(contact.phone, contact.mobile) && (
             <Button
               variant="outline"
               size="sm"

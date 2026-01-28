@@ -8,41 +8,63 @@ export function useContacts(filters?: {
   stage?: string;
   search?: string;
   limit?: number;
+  cadenceStatus?: string;
+  orderBy?: "created_at" | "priority_score" | "last_contacted_at";
+  minPriority?: number;
+  industry?: string;
 }) {
   const supabase = createClient();
 
   return useQuery<Contact[]>({
     queryKey: ["contacts", filters],
     queryFn: async () => {
-      // #region agent log
-      const startTime = Date.now();
-      fetch('http://127.0.0.1:7242/ingest/73fcbc11-1ac2-44b8-a6d3-3c6d8d6ac42d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contacts.ts:queryFn',message:'useContacts query START',data:{filters,hasLimit:!!filters?.limit},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
-      
       let query = supabase
         .from("contacts")
         .select("*")
-        .order("created_at", { ascending: false });
+        .eq("status", "active");
 
+      // Stage filter
       if (filters?.stage && filters.stage !== "all") {
         query = query.eq("stage", filters.stage);
       }
 
+      // Cadence status filter
+      if (filters?.cadenceStatus && filters.cadenceStatus !== "all") {
+        query = query.eq("cadence_status", filters.cadenceStatus);
+      }
+
+      // Industry filter
+      if (filters?.industry && filters.industry !== "all") {
+        query = query.eq("industry", filters.industry);
+      }
+
+      // Minimum priority filter
+      if (filters?.minPriority) {
+        query = query.gte("priority_score", filters.minPriority);
+      }
+
+      // Search filter
       if (filters?.search) {
         query = query.or(
           `first_name.ilike.%${filters.search}%,last_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`
         );
       }
 
+      // Ordering
+      if (filters?.orderBy === "priority_score") {
+        query = query.order("priority_score", { ascending: false, nullsFirst: false });
+      } else if (filters?.orderBy === "last_contacted_at") {
+        query = query.order("last_contacted_at", { ascending: false, nullsFirst: false });
+      } else {
+        query = query.order("created_at", { ascending: false });
+      }
+
+      // Limit
       if (filters?.limit) {
         query = query.limit(filters.limit);
       }
 
       const { data, error } = await query;
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/73fcbc11-1ac2-44b8-a6d3-3c6d8d6ac42d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'use-contacts.ts:queryFn',message:'useContacts query END',data:{durationMs:Date.now()-startTime,recordCount:data?.length||0,error:error?.message||null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
       
       if (error) throw error;
       return data as Contact[];

@@ -1,9 +1,10 @@
-# PezCRM - Cold Calling CRM
+# LeadFlow - Home Services Lead Generation CRM
 
-A personal CRM designed for cold calling credit unions, hospitals, and small banks. Built with Next.js 14, Supabase, and Tailwind CSS.
+A personal CRM and lead generation system designed for cold calling home services companies (HVAC, plumbing, roofing, electrical, solar, general contractors). Built with Next.js 14, Supabase, and Tailwind CSS.
 
 ## Features
 
+- **Multi-Source Lead Generation**: Find home services companies via Google Places, enrich with Apollo
 - **Apollo Integration**: Import leads directly from Apollo with industry/employee filters
 - **Power Dialer**: Click-to-call via Google Voice with call timer, notes, and outcome logging
 - **Pipeline Management**: Kanban board to track leads through stages (Fresh → Won)
@@ -16,7 +17,6 @@ A personal CRM designed for cold calling credit unions, hospitals, and small ban
 
 - **Framework**: Next.js 14 (App Router)
 - **Database**: Supabase (PostgreSQL)
-- **Auth**: Supabase Auth
 - **Styling**: Tailwind CSS + shadcn/ui
 - **State**: React Query + Zustand
 
@@ -26,30 +26,30 @@ A personal CRM designed for cold calling credit unions, hospitals, and small ban
 
 - Node.js 18+
 - Supabase account
-- Apollo account (for lead import)
+- Apollo account (for lead enrichment)
+- Google Places API key (for lead sourcing)
 
 ### Setup
 
 1. **Clone and install dependencies**:
    ```bash
-   cd pezCRM
    npm install
    ```
 
 2. **Set up Supabase**:
    - Create a new project at [supabase.com](https://supabase.com)
-   - Go to SQL Editor and run the migration in `supabase/migrations/001_initial_schema.sql`
+   - Go to SQL Editor and run the migration in `supabase/migrations/complete_single_user_schema.sql`
+   - Then run incremental migrations in timestamp order
    - Get your project URL and anon key from Project Settings → API
 
 3. **Configure environment variables**:
-   ```bash
-   cp .env.local.example .env.local
-   ```
-   
-   Edit `.env.local` with your credentials:
+   Create `.env.local` with your credentials:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   APOLLO_API_KEY=your-apollo-key
+   GOOGLE_PLACES_API_KEY=your-places-key
+   WEBHOOK_BASE_URL=https://your-ngrok-url.ngrok.io   # For mobile phone reveals
    ```
 
 4. **Run the development server**:
@@ -62,24 +62,58 @@ A personal CRM designed for cold calling credit unions, hospitals, and small ban
 ### Apollo Setup
 
 1. Get your Apollo API key from Apollo Settings → API
-2. Add it in PezCRM Settings or during import
+2. Add it in Settings or set it in `.env.local`
+
+### Mobile Phone Reveals (ngrok Setup)
+
+Apollo requires a webhook to deliver mobile phone numbers. To enable this:
+
+1. **Install ngrok**:
+   - Download from [ngrok.com/download](https://ngrok.com/download)
+   - Create a free account at ngrok.com
+   - Copy your authtoken from the ngrok dashboard
+
+2. **Run ngrok** (in a separate terminal):
+   ```bash
+   ngrok http 3000
+   ```
+   You'll see a URL like `https://abc123.ngrok.io`
+
+3. **Add the webhook URL to `.env.local`**:
+   ```
+   WEBHOOK_BASE_URL=https://abc123.ngrok.io
+   ```
+
+4. **How it works**:
+   - When you extract leads, Apollo receives your webhook URL
+   - Apollo sends mobile phone numbers to `/api/apollo/webhook` 2-5 minutes later
+   - The webhook automatically updates your contacts with mobile numbers
+
+**Note**: The ngrok URL changes each time you restart ngrok. Update `.env.local` accordingly.
 
 ## Usage
 
-### Importing Leads
+### Lead Generation Pipeline
 
-1. Go to **Import** page
-2. Enter your Apollo API key
-3. Select industry (Credit Unions, Hospitals, Banks)
-4. Set employee range (1,001-5,000 recommended)
-5. Choose job titles (Finance, Operations, IT leaders)
-6. Preview and import contacts
+1. Go to **Lead Gen** page
+2. Select industry (HVAC, Plumbing, Roofing, Electrical, Solar, General Contractor)
+3. Enter target location (city/state)
+4. Click **Find Companies** to search via Google Places
+5. Click **Enrich** to find decision makers via Apollo
+6. Export leads to CSV or push to your CRM
+
+### Target Audience
+
+- **Industries**: HVAC, plumbing, roofing, electrical, solar, general contractors
+- **Company Size**: 10-50 employees
+- **Decision Makers**: Owners, CEOs, Founders, Presidents
+- **Location**: USA
 
 ### Power Dialer
 
 1. Go to **Power Dialer**
 2. Click **Start Calling Session**
-3. Click **Dial in Google Voice** to initiate call
+3. Click **Dial** to initiate call via Google Voice
 4. Take notes during the call
 5. Select outcome and disposition
 6. Click **Save & Next** to move to the next contact
@@ -99,7 +133,6 @@ A personal CRM designed for cold calling credit unions, hospitals, and small ban
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── (auth)/            # Login page
 │   ├── (dashboard)/       # Main app pages
 │   └── api/               # API routes
 ├── components/
@@ -123,12 +156,15 @@ src/
 
 Key tables:
 - `contacts` - Contact information with Apollo data
+- `companies` - Company records
+- `lead_companies` - Companies sourced from Google Places
+- `lead_people` - Decision makers found via enrichment
 - `calls` - Call logs with outcomes and notes
 - `tasks` - Follow-ups and action items
 - `email_templates` - Reusable email templates
 - `activity_log` - Timeline of all activities
 
-See `supabase/migrations/001_initial_schema.sql` for the full schema.
+See `supabase/migrations/complete_single_user_schema.sql` for the full schema.
 
 ## Deployment
 

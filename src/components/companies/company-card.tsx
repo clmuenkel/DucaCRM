@@ -81,12 +81,21 @@ export function CompanyCard({
               )}
 
               {/* Size */}
-              {company.employee_range && (
+              {(company.employee_count || company.employee_range) && (
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Size</p>
                   <div className="flex items-center gap-1 mt-1">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{company.employee_range}</span>
+                    {company.employee_count ? (
+                      <span className="text-sm font-medium">
+                        {company.employee_count.toLocaleString()} employees
+                        {company.employee_range && (
+                          <span className="text-xs text-muted-foreground ml-1">({company.employee_range})</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-sm font-medium">{company.employee_range}</span>
+                    )}
                   </div>
                 </div>
               )}

@@ -74,7 +74,7 @@ export function TaskForm({ open, onOpenChange, defaultContactId }: TaskFormProps
       type: "follow_up",
       priority: "medium",
       due_date: "",
-      contact_id: defaultContactId || "",
+      contact_id: defaultContactId || "_none",
     },
   });
 
@@ -89,7 +89,7 @@ export function TaskForm({ open, onOpenChange, defaultContactId }: TaskFormProps
         ...data,
         user_id: userId,
         due_date: data.due_date ? new Date(data.due_date).toISOString() : null,
-        contact_id: data.contact_id || null,
+        contact_id: data.contact_id && data.contact_id !== "_none" ? data.contact_id : null,
       });
       toast.success("Task created!");
       reset();
@@ -183,7 +183,7 @@ export function TaskForm({ open, onOpenChange, defaultContactId }: TaskFormProps
                 <SelectValue placeholder="Select contact (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No contact</SelectItem>
+                <SelectItem value="_none">No contact</SelectItem>
                 {contacts?.map((contact) => (
                   <SelectItem key={contact.id} value={contact.id}>
                     {contact.first_name} {contact.last_name}

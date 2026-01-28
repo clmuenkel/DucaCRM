@@ -161,9 +161,12 @@ export function CallScript() {
             </CardHeader>
             <CardContent className="px-4 pb-4 pt-0">
               <p className="text-sm italic text-muted-foreground leading-relaxed">
-                "I work with {currentContact?.industry === "credit_union" ? "credit unions" : 
-                  currentContact?.industry === "hospital" ? "hospitals" : 
-                  currentContact?.industry === "bank" ? "banks" : "organizations"} like <span className="text-foreground font-medium">{companyName}</span> to help them
+                "I work with {currentContact?.industry === "hvac" ? "HVAC companies" : 
+                  currentContact?.industry === "plumbing" ? "plumbing companies" : 
+                  currentContact?.industry === "roofing" ? "roofing contractors" :
+                  currentContact?.industry === "electrical" ? "electrical contractors" :
+                  currentContact?.industry === "solar" ? "solar installers" :
+                  currentContact?.industry === "construction" ? "general contractors" : "home services companies"} like <span className="text-foreground font-medium">{companyName}</span> to help them
                 [specific value prop]. Would it make sense to have a quick 15-minute
                 call to see if this could help?"
               </p>

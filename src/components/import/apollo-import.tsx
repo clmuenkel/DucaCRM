@@ -56,13 +56,14 @@ import type { ApolloPerson } from "@/types/apollo";
 import type { PersonaSet } from "@/types/database";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
-// Industry options for search
+// Industry options for search - Home Services focus
 const INDUSTRY_OPTIONS = [
-  { value: "credit_unions", label: "Credit Unions", apolloId: APOLLO_INDUSTRIES.credit_unions },
-  { value: "hospitals", label: "Hospitals & Healthcare", apolloId: APOLLO_INDUSTRIES.hospitals },
-  { value: "banking", label: "Banking & Financial Services", apolloId: APOLLO_INDUSTRIES.banking },
-  { value: "financial_services", label: "Financial Services", apolloId: APOLLO_INDUSTRIES.financial_services },
-  { value: "insurance", label: "Insurance", apolloId: APOLLO_INDUSTRIES.insurance },
+  { value: "hvac", label: "HVAC", apolloId: APOLLO_INDUSTRIES.hvac },
+  { value: "plumbing", label: "Plumbing", apolloId: APOLLO_INDUSTRIES.plumbing },
+  { value: "roofing", label: "Roofing", apolloId: APOLLO_INDUSTRIES.roofing },
+  { value: "electrical", label: "Electrical", apolloId: APOLLO_INDUSTRIES.electrical },
+  { value: "solar", label: "Solar & Renewables", apolloId: APOLLO_INDUSTRIES.solar },
+  { value: "construction", label: "General Contractors", apolloId: APOLLO_INDUSTRIES.construction },
 ];
 
 export function ApolloImport() {
@@ -71,7 +72,7 @@ export function ApolloImport() {
   const userId = DEFAULT_USER_ID;
   
   // Persona set selection
-  const [selectedPersonaSetId, setSelectedPersonaSetId] = useState<string>("");
+  const [selectedPersonaSetId, setSelectedPersonaSetId] = useState<string>("_none");
   const [showCreatePersona, setShowCreatePersona] = useState(false);
   const [newPersonaName, setNewPersonaName] = useState("");
   const [newPersonaTitles, setNewPersonaTitles] = useState("");
@@ -124,7 +125,7 @@ export function ApolloImport() {
 
   // When persona set is selected, populate fields
   useEffect(() => {
-    if (selectedPersonaSetId && personaSets) {
+    if (selectedPersonaSetId && selectedPersonaSetId !== "_none" && personaSets) {
       const set = personaSets.find(p => p.id === selectedPersonaSetId);
       if (set) {
         setCustomTitles(set.titles.join(", "));
@@ -447,7 +448,7 @@ export function ApolloImport() {
                     <SelectValue placeholder="Select a saved persona set or configure manually" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Configure manually</SelectItem>
+                    <SelectItem value="_none">Configure manually</SelectItem>
                     {personaSets?.map((set) => (
                       <SelectItem key={set.id} value={set.id}>
                         {set.name} {set.is_default && "(Default)"}

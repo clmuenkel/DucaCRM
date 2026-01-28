@@ -17,10 +17,12 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeft,
-  Zap,
   Calendar,
   CalendarCheck,
   BarChart3,
+  Sparkles,
+  ListTodo,
+  CalendarClock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -29,10 +31,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { toast } from "sonner";
-
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Today", href: "/today", icon: CalendarClock },
+  { name: "Lead Gen", href: "/leadgen", icon: Sparkles },
+  { name: "Work Queue", href: "/workqueue", icon: ListTodo },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Companies", href: "/companies", icon: Building2 },
@@ -48,12 +51,6 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const { isCollapsed, toggleSidebar } = useSidebarState();
-
-  const handleAbuClick = () => {
-    toast.info("Abu email feature coming soon!", {
-      description: "This will send your pre-configured follow-up email.",
-    });
-  };
 
   return (
     <div
@@ -76,7 +73,7 @@ export function Sidebar() {
             isCollapsed ? "opacity-0 w-0" : "opacity-100"
           )}
         >
-          PezCRM
+          LeadFlow
         </span>
       </div>
 
@@ -129,44 +126,6 @@ export function Sidebar() {
 
       {/* Bottom section */}
       <div className="p-2 space-y-1 shrink-0">
-        {/* Abu Button */}
-        {isCollapsed ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={handleAbuClick}
-                className={cn(
-                  "w-full bg-amber-500 hover:bg-amber-600 text-black font-bold",
-                  "shadow-[0_0_15px_rgba(245,158,11,0.3)]",
-                  "hover:shadow-[0_0_20px_rgba(245,158,11,0.5)]",
-                  "transition-all duration-200",
-                  "justify-center"
-                )}
-                size="icon"
-              >
-                <Zap className="h-5 w-5 fill-current" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="font-medium">
-              Abu Quick Email
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <Button
-            onClick={handleAbuClick}
-            className={cn(
-              "w-full bg-amber-500 hover:bg-amber-600 text-black font-bold",
-              "shadow-[0_0_15px_rgba(245,158,11,0.3)]",
-              "hover:shadow-[0_0_20px_rgba(245,158,11,0.5)]",
-              "transition-all duration-200",
-              "justify-start gap-3 px-3"
-            )}
-          >
-            <Zap className="h-5 w-5 fill-current shrink-0" />
-            <span className="whitespace-nowrap">Abu</span>
-          </Button>
-        )}
-
         {/* Theme Toggle */}
         {isCollapsed ? (
           <Tooltip delayDuration={0}>

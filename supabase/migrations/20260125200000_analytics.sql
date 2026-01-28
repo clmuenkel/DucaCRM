@@ -166,6 +166,11 @@ WHERE outcome != 'skipped'
 GROUP BY user_id, EXTRACT(DOW FROM started_at), EXTRACT(HOUR FROM started_at);
 
 -- ============================================
+-- ENSURE TIMEZONE EXISTS ON CONTACTS
+-- ============================================
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS timezone TEXT;
+
+-- ============================================
 -- HELPER VIEW: Timezone Performance
 -- ============================================
 CREATE OR REPLACE VIEW timezone_performance AS
