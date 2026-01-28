@@ -43,22 +43,22 @@ import {
 interface ContactWithCadence {
   id: string;
   first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  mobile: string;
-  company_name: string;
-  title: string;
-  industry: string;
-  cadence_step: number;
-  cadence_outcome: string;
-  next_action_date: string;
-  next_action_type: string;
-  email_opened: boolean;
-  email_replied: boolean;
-  email_open_count: number;
-  call_attempts: number;
-  priority_score: number;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  company_name: string | null;
+  title: string | null;
+  industry: string | null;
+  cadence_step: number | null;
+  cadence_outcome: string | null;
+  next_action_date: string | null;
+  next_action_type: string | null;
+  email_opened: boolean | null;
+  email_replied: boolean | null;
+  email_open_count: number | null;
+  call_attempts: number | null;
+  priority_score: number | null;
 }
 
 // Cadence step names
