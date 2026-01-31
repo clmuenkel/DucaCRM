@@ -31,16 +31,15 @@ export interface AddLeadResponse {
 
 /**
  * Helper to make V2 API requests with proper headers
- * Instantly V2 uses Basic authentication with base64-encoded API keys
+ * Instantly V2 uses Bearer authentication with base64-encoded API keys
  */
 async function instantlyRequest(apiKey: string, endpoint: string, options: RequestInit = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${INSTANTLY_API_BASE}${endpoint}`;
   
-  // Instantly V2 uses Basic auth with base64-encoded API key
-  // The API key is already base64-encoded, so we use it directly with Basic auth
+  // Instantly V2 uses Bearer auth with base64-encoded API key as the token
   const headers = {
     "Content-Type": "application/json",
-    "Authorization": `Basic ${apiKey}`,
+    "Authorization": `Bearer ${apiKey}`,
     ...options.headers,
   };
 

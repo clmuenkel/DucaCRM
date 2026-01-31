@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Basic ${instantlyApiKey}`,
+                    "Authorization": `Bearer ${instantlyApiKey}`,
                   },
                   body: JSON.stringify({
                     campaign_id: instantlyCampaignId,
