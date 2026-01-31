@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { testInstantlyConnection, getCampaigns, type InstantlyCampaign } from "@/lib/instantly/client";
+import type { InstantlyCampaign } from "@/lib/instantly/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Profile } from "@/types/database";
 
@@ -101,12 +101,21 @@ export default function SettingsPage() {
           setEmailsPerWeek(cadenceData.emails_per_week || 3);
           setCallsPerWeek(cadenceData.calls_per_week || 5);
 
-          // Load campaigns if API key exists
+          // Load campaigns if API key exists (via API route to avoid CORS)
           if (cadenceData.instantly_api_key) {
             try {
-              const campaigns = await getCampaigns(cadenceData.instantly_api_key);
-              setInstantlyCampaigns(campaigns);
-              setInstantlyConnected(true);
+              const campaignsResponse = await fetch("/api/instantly/campaigns", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ apiKey: cadenceData.instantly_api_key }),
+              });
+              const campaignsData = await campaignsResponse.json();
+              if (campaignsData.campaigns) {
+                setInstantlyCampaigns(campaignsData.campaigns);
+                setInstantlyConnected(true);
+              } else {
+                setInstantlyConnected(false);
+              }
             } catch {
               setInstantlyConnected(false);
             }
@@ -210,18 +219,36 @@ export default function SettingsPage() {
     setInstantlyConnected(null);
 
     try {
-      const result = await testInstantlyConnection(instantlyApiKey);
+      // Call server-side API route instead of client function (avoids CORS)
+      const testResponse = await fetch("/api/instantly/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: instantlyApiKey }),
+      });
+
+      const result = await testResponse.json();
       setInstantlyConnected(result.success);
 
       if (result.success) {
         toast.success("Connected to Instantly!");
-        // Load campaigns
-        const campaigns = await getCampaigns(instantlyApiKey);
-        setInstantlyCampaigns(campaigns);
+        // Load campaigns via API route
+        const campaignsResponse = await fetch("/api/instantly/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: instantlyApiKey }),
+        });
+
+        const campaignsData = await campaignsResponse.json();
+        if (campaignsData.campaigns) {
+          setInstantlyCampaigns(campaignsData.campaigns);
+        } else if (campaignsData.error) {
+          toast.error(`Failed to load campaigns: ${campaignsData.error}`);
+        }
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Connection failed");
       }
     } catch (error: any) {
+      console.error("Instantly test error:", error);
       toast.error(error.message || "Connection test failed");
       setInstantlyConnected(false);
     } finally {

@@ -109,15 +109,20 @@ export default function WorkQueuePage() {
         .from("contacts")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
-        .or("cadence_status.is.null,cadence_status.eq.none,cadence_status.eq.completed");
+        .neq("cadence_status", "active"); // Simple: exclude only active cadence
 
       if (!showLostFilter) {
         bottomQuery = bottomQuery.neq("cadence_outcome", "lost");
       }
 
-      const { data: bottomData } = await bottomQuery
+      const { data: bottomData, error: bottomError } = await bottomQuery
         .order("industry", { ascending: true, nullsFirst: true })
         .order("employee_count", { ascending: false, nullsFirst: true });
+
+      if (bottomError) {
+        console.error("Error loading all contacts:", bottomError);
+        toast.error(`Failed to load contacts: ${bottomError.message}`);
+      }
 
       setAllContacts((bottomData as Contact[]) || []);
     } catch (error) {
