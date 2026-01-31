@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/tooltip";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Today", href: "/today", icon: CalendarClock },
   { name: "Lead Gen", href: "/leadgen", icon: Sparkles },
   { name: "Work Queue", href: "/workqueue", icon: ListTodo },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
@@ -41,7 +40,6 @@ const navigation = [
   { name: "Companies", href: "/companies", icon: Building2 },
   { name: "Power Dialer", href: "/dialer", icon: Phone },
   { name: "Calendar", href: "/calendar", icon: Calendar },
-  { name: "Meetings", href: "/meetings", icon: CalendarCheck },
   { name: "Pipeline", href: "/pipeline", icon: Kanban },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Templates", href: "/templates", icon: Mail },
@@ -73,7 +71,7 @@ export function Sidebar() {
             isCollapsed ? "opacity-0 w-0" : "opacity-100"
           )}
         >
-          LeadFlow
+          DucaCRM
         </span>
       </div>
 

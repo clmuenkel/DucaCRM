@@ -42,6 +42,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { QuickActions } from "./quick-actions";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export function CallControlsHeader() {
@@ -619,6 +620,17 @@ export function CallControlsHeader() {
           </Button>
         </div>
       </div>
+
+      {/* Quick Actions - Replace old outcome buttons */}
+      {currentContact && !isCallActive && (
+        <QuickActions
+          contact={currentContact}
+          onActionComplete={async () => {
+            await refetchContacts();
+          }}
+          onNextContact={nextContact}
+        />
+      )}
 
       {/* Meeting Dialog */}
       {currentContact && (

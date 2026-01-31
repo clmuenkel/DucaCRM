@@ -186,6 +186,11 @@ export interface Database {
           last_email_opened_at: string | null;
           call_attempts: number;
           last_call_outcome: string | null;
+          wrong_number_flag: boolean;
+          wrong_number_phone: string | null;
+          last_call_attempt_date: string | null;
+          meeting_scheduling_status: string;
+          scheduling_link_sent_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -251,6 +256,11 @@ export interface Database {
           last_email_opened_at?: string | null;
           call_attempts?: number;
           last_call_outcome?: string | null;
+          wrong_number_flag?: boolean;
+          wrong_number_phone?: string | null;
+          last_call_attempt_date?: string | null;
+          meeting_scheduling_status?: string;
+          scheduling_link_sent_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -316,6 +326,11 @@ export interface Database {
           last_email_opened_at?: string | null;
           call_attempts?: number;
           last_call_outcome?: string | null;
+          wrong_number_flag?: boolean;
+          wrong_number_phone?: string | null;
+          last_call_attempt_date?: string | null;
+          meeting_scheduling_status?: string;
+          scheduling_link_sent_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1027,6 +1042,39 @@ export interface Database {
           calls_per_week?: number;
           instantly_api_key?: string | null;
           instantly_campaign_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      meeting_scheduling_queue: {
+        Row: {
+          id: string;
+          user_id: string;
+          contact_id: string;
+          scheduling_link_sent_at: string;
+          status: string;
+          calendar_event_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          contact_id: string;
+          scheduling_link_sent_at: string;
+          status?: string;
+          calendar_event_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          contact_id?: string;
+          scheduling_link_sent_at?: string;
+          status?: string;
+          calendar_event_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 interface StartCadenceRequest {
   contactIds: string[];
   pushToInstantly?: boolean;
+  emailSendRate?: number; // emails per minute, default 5
 }
 
 /**
@@ -17,7 +18,7 @@ interface StartCadenceRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: StartCadenceRequest = await request.json();
-    const { contactIds, pushToInstantly = true } = body;
+    const { contactIds, pushToInstantly = true, emailSendRate = 5 } = body;
 
     if (!contactIds || contactIds.length === 0) {
       return NextResponse.json(
@@ -59,14 +60,23 @@ export async function POST(request: NextRequest) {
         }
 
         const typedContact = contact as Contact;
+        const today = new Date().toISOString().split("T")[0];
 
-        // Update cadence status
+        // Update cadence status with proper initialization
         const { error: updateError } = await (supabase as any)
           .from("contacts")
           .update({
             cadence_status: "active",
+            cadence_step: 0,
+            cadence_day_started: today,
+            cadence_outcome: "in_progress",
+            next_action_date: today,
+            next_action_type: "email",
             cadence_started_at: new Date().toISOString(),
-            stage: "fresh", // Ensure they're in the dialer queue
+            stage: "fresh",
+            email_opened: false,
+            email_replied: false,
+            call_attempts: 0,
           })
           .eq("id", contactId);
 
@@ -77,50 +87,60 @@ export async function POST(request: NextRequest) {
 
         started++;
 
-        // Push to Instantly if configured and contact has email
+        // Push to Instantly with rate limiting if configured and contact has email
         if (pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email) {
-          try {
-            const instantlyResponse = await fetch(
-              "https://api.instantly.ai/api/v1/lead/add",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  api_key: instantlyApiKey,
-                  campaign_id: instantlyCampaignId,
-                  skip_if_in_workspace: true,
-                  leads: [
-                    {
-                      email: typedContact.email || "",
-                      first_name: typedContact.first_name,
-                      last_name: typedContact.last_name || "",
-                      company_name: typedContact.company_name || "",
-                      personalization: typedContact.title || "Decision Maker",
-                    },
-                  ],
-                }),
-              }
-            );
+          // Calculate delay based on rate (emails per minute)
+          const delayMs = (60000 / emailSendRate) * started; // Delay increases for each contact
+          
+          // Use setTimeout to rate limit (fire and forget - don't await)
+          setTimeout(async () => {
+            try {
+              const instantlyResponse = await fetch(
+                "https://api.instantly.ai/api/v2/leads",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${instantlyApiKey}`,
+                  },
+                  body: JSON.stringify({
+                    campaign_id: instantlyCampaignId,
+                    skip_if_in_workspace: true,
+                    leads: [
+                      {
+                        email: typedContact.email || "",
+                        first_name: typedContact.first_name,
+                        last_name: typedContact.last_name || "",
+                        company_name: typedContact.company_name || "",
+                        personalization: typedContact.title || "Decision Maker",
+                      },
+                    ],
+                  }),
+                }
+              );
 
-            if (instantlyResponse.ok) {
-              const instantlyData = await instantlyResponse.json();
-              
-              // Update contact with Instantly lead ID
-              if (instantlyData.lead_id) {
-                await (supabase as any)
-                  .from("contacts")
-                  .update({ instantly_lead_id: instantlyData.lead_id })
-                  .eq("id", contactId);
+              if (instantlyResponse.ok) {
+                const instantlyData = await instantlyResponse.json();
+                
+                // Update contact with Instantly lead ID
+                const supabaseUpdate = createClient();
+                if (instantlyData.lead_id || instantlyData.status === "success") {
+                  await (supabaseUpdate as any)
+                    .from("contacts")
+                    .update({ 
+                      instantly_lead_id: instantlyData.lead_id || "pushed",
+                      last_email_sent_at: new Date().toISOString(),
+                    })
+                    .eq("id", contactId);
+                }
               }
-              
-              pushedToInstantly++;
+            } catch (instantlyError) {
+              console.error(`Failed to push contact ${contactId} to Instantly:`, instantlyError);
             }
-          } catch (instantlyError) {
-            console.error(`Failed to push contact ${contactId} to Instantly:`, instantlyError);
-            // Don't fail the whole operation, just log
-          }
+          }, delayMs);
+          
+          // Count as pushed (even though it's async)
+          pushedToInstantly++;
         }
 
         // Log activity

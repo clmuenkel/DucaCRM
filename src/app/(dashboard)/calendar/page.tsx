@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/layout/header";
-import { useUpcomingMeetings, useTodaysMeetings, useCancelMeeting, useCompleteMeeting } from "@/hooks/use-meetings";
+import { useUpcomingMeetings, useTodaysMeetings, useCancelMeeting, useCompleteMeeting, useAllMeetings } from "@/hooks/use-meetings";
+import { MeetingDetailDialog } from "@/components/meetings/meeting-detail";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Search, ChevronRight } from "lucide-react";
+import { DEFAULT_USER_ID } from "@/lib/default-user";
+import { createClient } from "@/lib/supabase/client";
+import { format as formatDate, isPast, isFuture, isToday, formatDistanceToNow } from "date-fns";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -146,11 +155,62 @@ export default function CalendarPage() {
   // Day names header
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+  // Meetings list state
+  const [activeTab, setActiveTab] = useState<"calendar" | "meetings" | "scheduling">("calendar");
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [meetingSearchQuery, setMeetingSearchQuery] = useState("");
+  const [meetingFilter, setMeetingFilter] = useState<"all" | "upcoming" | "past" | "completed">("all");
+  const { data: allMeetings: allMeetingsData } = useAllMeetings();
+
+  // Filter meetings for list view
+  const filteredMeetings = (allMeetingsData ?? []).filter((meeting) => {
+    const meetingDate = new Date(meeting.scheduled_at);
+    let matchesTab = true;
+    switch (meetingFilter) {
+      case "upcoming":
+        matchesTab = meeting.status === "scheduled" && isFuture(meetingDate);
+        break;
+      case "past":
+        matchesTab = isPast(meetingDate) && meeting.status !== "completed";
+        break;
+      case "completed":
+        matchesTab = meeting.status === "completed";
+        break;
+      default:
+        matchesTab = true;
+    }
+
+    const contact = meeting.contacts;
+    const searchLower = meetingSearchQuery.toLowerCase();
+    const matchesSearch = !meetingSearchQuery || 
+      meeting.title.toLowerCase().includes(searchLower) ||
+      contact?.first_name?.toLowerCase().includes(searchLower) ||
+      contact?.last_name?.toLowerCase().includes(searchLower) ||
+      contact?.company_name?.toLowerCase().includes(searchLower);
+
+    return matchesTab && matchesSearch;
+  }) || [];
+
+  const meetingCounts = {
+    all: allMeetingsData?.length || 0,
+    upcoming: allMeetingsData?.filter(m => m.status === "scheduled" && isFuture(new Date(m.scheduled_at))).length || 0,
+    past: allMeetingsData?.filter(m => isPast(new Date(m.scheduled_at)) && m.status !== "completed").length || 0,
+    completed: allMeetingsData?.filter(m => m.status === "completed").length || 0,
+  };
+
   return (
     <div className="flex flex-col h-full">
       <Header title="Calendar" />
       
       <div className="flex-1 p-6 overflow-hidden">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "calendar" | "meetings" | "scheduling")} className="h-full flex flex-col">
+          <TabsList className="mb-4">
+            <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+            <TabsTrigger value="meetings">Meetings List</TabsTrigger>
+            <TabsTrigger value="scheduling">Scheduling Queue</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="calendar" className="flex-1 overflow-hidden">
         <div className="flex gap-6 h-full">
           {/* Main Calendar - Month View */}
           <div className="flex-1 flex flex-col min-w-0">
@@ -295,9 +355,84 @@ export default function CalendarPage() {
             </Card>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="meetings" className="flex-1 overflow-auto">
+            <div className="space-y-6">
+              {/* Search and Filters */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search meetings..."
+                    value={meetingSearchQuery}
+                    onChange={(e) => setMeetingSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              {/* Filter Tabs */}
+              <Tabs value={meetingFilter} onValueChange={(v) => setMeetingFilter(v as typeof meetingFilter)}>
+                <TabsList>
+                  <TabsTrigger value="all" className="gap-2">
+                    All
+                    <Badge variant="secondary" className="text-xs">{meetingCounts.all}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="upcoming" className="gap-2">
+                    Upcoming
+                    <Badge variant="secondary" className="text-xs">{meetingCounts.upcoming}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="past" className="gap-2">
+                    Past
+                    <Badge variant="secondary" className="text-xs">{meetingCounts.past}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="completed" className="gap-2">
+                    Completed
+                    <Badge variant="secondary" className="text-xs">{meetingCounts.completed}</Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {/* Meetings List */}
+              {filteredMeetings.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredMeetings.map((meeting) => (
+                    <MeetingRowComponent
+                      key={meeting.id}
+                      meeting={meeting}
+                      onClick={() => setSelectedMeetingId(meeting.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">
+                    {meetingSearchQuery ? "No meetings match your search" : "No meetings found"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="scheduling" className="flex-1 overflow-auto">
+            <SchedulingQueue />
+          </TabsContent>
+        </Tabs>
       </div>
 
-      {/* Meeting Detail Dialog */}
+      {/* Meeting Detail Dialog (for meetings list) */}
+      {selectedMeetingId && (
+        <MeetingDetailDialog
+          meetingId={selectedMeetingId}
+          userId={DEFAULT_USER_ID}
+          open={!!selectedMeetingId}
+          onOpenChange={(open) => !open && setSelectedMeetingId(null)}
+        />
+      )}
+
+      {/* Meeting Detail Dialog (for calendar view) */}
       <Dialog open={!!selectedMeeting && !showCompleteDialog} onOpenChange={(open) => !open && setSelectedMeeting(null)}>
         <DialogContent className="sm:max-w-[500px]">
           {selectedMeeting && (
@@ -471,6 +606,170 @@ export default function CalendarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function MeetingRowComponent({ meeting, onClick }: { meeting: MeetingWithContact; onClick: () => void }) {
+  const contact = meeting.contacts;
+  const meetingDate = new Date(meeting.scheduled_at);
+  const isPastMeeting = isPast(meetingDate);
+  const isTodayMeeting = isToday(meetingDate);
+
+  const getStatusBadge = () => {
+    if (meeting.status === "completed") {
+      return <Badge className="bg-green-500 text-white">Completed</Badge>;
+    }
+    if (meeting.status === "cancelled") {
+      return <Badge variant="destructive">Cancelled</Badge>;
+    }
+    if (isTodayMeeting) {
+      return <Badge className="bg-blue-500 text-white">Today</Badge>;
+    }
+    if (isPastMeeting) {
+      return <Badge variant="secondary">Past Due</Badge>;
+    }
+    return <Badge variant="outline">Scheduled</Badge>;
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left p-4 rounded-lg border bg-card transition-colors hover:bg-muted group ${
+        meeting.status === "cancelled" ? "opacity-50" : ""
+      }`}
+    >
+      <div className="flex items-center gap-4">
+        <div className="w-20 shrink-0 text-center">
+          <p className="text-2xl font-bold">{formatDate(meetingDate, "d")}</p>
+          <p className="text-xs text-muted-foreground uppercase">
+            {formatDate(meetingDate, "MMM yyyy")}
+          </p>
+        </div>
+        <div className="w-px h-12 bg-border" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="font-semibold truncate">{meeting.title}</p>
+            {getStatusBadge()}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              {formatDate(meetingDate, "h:mm a")} • {meeting.duration_minutes}min
+            </span>
+            {contact && (
+              <span className="flex items-center gap-1">
+                <User className="h-3.5 w-3.5" />
+                {contact.first_name} {contact.last_name}
+              </span>
+            )}
+            {contact?.company_name && (
+              <span className="flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5" />
+                {contact.company_name}
+              </span>
+            )}
+          </div>
+          {meeting.status === "completed" && meeting.outcome && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              Outcome: {meeting.outcome}
+            </p>
+          )}
+        </div>
+        <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+      </div>
+    </button>
+  );
+}
+
+function SchedulingQueue() {
+  const [schedulingQueue, setSchedulingQueue] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const loadSchedulingQueue = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("meeting_scheduling_queue")
+          .select(`
+            *,
+            contacts:contact_id (
+              id,
+              first_name,
+              last_name,
+              company_name,
+              email,
+              meeting_scheduling_status,
+              scheduling_link_sent_at
+            )
+          `)
+          .eq("user_id", DEFAULT_USER_ID)
+          .eq("status", "pending")
+          .order("scheduling_link_sent_at", { ascending: true });
+
+        if (error) throw error;
+        setSchedulingQueue(data || []);
+      } catch (error) {
+        console.error("Error loading scheduling queue:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSchedulingQueue();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (schedulingQueue.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+        <p className="text-muted-foreground">No contacts waiting for scheduling</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {schedulingQueue.map((item) => {
+        const contact = item.contacts;
+        const sentDate = new Date(item.scheduling_link_sent_at);
+        const daysWaiting = Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        return (
+          <Card key={item.id}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="font-medium">
+                    {contact?.first_name} {contact?.last_name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {contact?.company_name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Link sent {formatDistanceToNow(sentDate, { addSuffix: true })} ({daysWaiting} days ago)
+                  </p>
+                </div>
+                <Badge variant={daysWaiting > 7 ? "destructive" : daysWaiting > 3 ? "secondary" : "outline"}>
+                  {daysWaiting} days
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

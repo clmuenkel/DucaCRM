@@ -8,7 +8,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PezCRM - Cold Calling CRM",
+  title: "DucaCRM - Cold Calling CRM",
   description: "Personal CRM for cold calling credit unions, hospitals, and small banks",
 };
 
