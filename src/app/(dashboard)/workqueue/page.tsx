@@ -105,14 +105,16 @@ export default function WorkQueuePage() {
       setActiveCadenceContacts((activeData as Contact[]) || []);
 
       // Bottom table: All other contacts (not in active cadence)
+      // Show all active contacts that are NOT in active cadence
       let bottomQuery = supabase
         .from("contacts")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
-        .neq("cadence_status", "active"); // Simple: exclude only active cadence
+        .eq("status", "active") // Only show active contacts
+        .or("cadence_status.is.null,cadence_status.neq.active"); // Include NULL or non-active
 
       if (!showLostFilter) {
-        bottomQuery = bottomQuery.neq("cadence_outcome", "lost");
+        bottomQuery = bottomQuery.or("cadence_outcome.is.null,cadence_outcome.neq.lost");
       }
 
       const { data: bottomData, error: bottomError } = await bottomQuery

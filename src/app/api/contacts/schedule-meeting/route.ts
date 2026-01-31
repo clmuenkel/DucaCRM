@@ -108,16 +108,9 @@ export async function POST(request: NextRequest) {
     const subject = renderTemplate(template.subject_template, variables);
     const emailBody = renderTemplate(template.body_template, variables);
 
-    // Send email via Instantly if configured
-    // Get cadence settings for Instantly
-    const { data: settings } = await (supabase as any)
-      .from("cadence_settings")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    const instantlyApiKey = settings?.instantly_api_key;
-    const instantlyCampaignId = settings?.instantly_campaign_id;
+    // Send email via Instantly if configured (from environment)
+    const instantlyApiKey = process.env.INSTANTLY_API_KEY;
+    const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
 
     if (instantlyApiKey && instantlyCampaignId) {
       try {

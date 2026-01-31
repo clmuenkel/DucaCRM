@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { apiKey } = await request.json();
+    const { apiKey: requestApiKey } = await request.json();
+    const apiKey = requestApiKey || process.env.INSTANTLY_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(

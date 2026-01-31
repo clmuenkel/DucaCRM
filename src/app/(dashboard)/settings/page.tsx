@@ -88,7 +88,7 @@ export default function SettingsPage() {
           setApolloApiKey(settings.apollo_api_key || "");
         }
 
-        // Load cadence settings
+        // Load cadence settings (Instantly config is now in .env.local, backend only)
         const { data: cadenceData } = await (supabase as any)
           .from("cadence_settings")
           .select("*")
@@ -96,30 +96,8 @@ export default function SettingsPage() {
           .single();
 
         if (cadenceData) {
-          setInstantlyApiKey(cadenceData.instantly_api_key || "");
-          setInstantlyCampaignId(cadenceData.instantly_campaign_id || "");
           setEmailsPerWeek(cadenceData.emails_per_week || 3);
           setCallsPerWeek(cadenceData.calls_per_week || 5);
-
-          // Load campaigns if API key exists (via API route to avoid CORS)
-          if (cadenceData.instantly_api_key) {
-            try {
-              const campaignsResponse = await fetch("/api/instantly/campaigns", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ apiKey: cadenceData.instantly_api_key }),
-              });
-              const campaignsData = await campaignsResponse.json();
-              if (campaignsData.campaigns) {
-                setInstantlyCampaigns(campaignsData.campaigns);
-                setInstantlyConnected(true);
-              } else {
-                setInstantlyConnected(false);
-              }
-            } catch {
-              setInstantlyConnected(false);
-            }
-          }
         }
       } catch (error) {
         console.error("Failed to load settings:", error);
@@ -155,13 +133,11 @@ export default function SettingsPage() {
           apollo_api_key: apolloApiKey,
         } as any);
 
-      // Update cadence settings
+      // Update cadence settings (Instantly API key and campaign ID are now in .env.local)
       await (supabase as any)
         .from("cadence_settings")
         .upsert({
           user_id: DEFAULT_USER_ID,
-          instantly_api_key: instantlyApiKey,
-          instantly_campaign_id: instantlyCampaignId,
           emails_per_week: emailsPerWeek,
           calls_per_week: callsPerWeek,
         });
@@ -373,83 +349,9 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Instantly Integration */}
-          <Card
-            className="opacity-0 animate-fade-in"
-            style={{ animationDelay: "100ms", animationFillMode: "forwards" }}
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Instantly.ai Integration
-                {instantlyConnected === true && (
-                  <Badge variant="outline" className="text-green-600 border-green-600 gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Connected
-                  </Badge>
-                )}
-                {instantlyConnected === false && (
-                  <Badge variant="outline" className="text-red-600 border-red-600 gap-1">
-                    <XCircle className="h-3 w-3" />
-                    Not Connected
-                  </Badge>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Connect Instantly for automated email campaigns
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="instantlyApiKey">Instantly API Key</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="instantlyApiKey"
-                    type="password"
-                    value={instantlyApiKey}
-                    onChange={(e) => setInstantlyApiKey(e.target.value)}
-                    placeholder="Enter your Instantly API key"
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={handleTestInstantly}
-                    disabled={isTestingInstantly || !instantlyApiKey}
-                  >
-                    {isTestingInstantly ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Test"
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Find your API key in Instantly Settings → Integrations → API
-                </p>
-              </div>
-
-              {instantlyCampaigns.length > 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="instantlyCampaign">Campaign</Label>
-                  <Select value={instantlyCampaignId} onValueChange={setInstantlyCampaignId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a campaign" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {instantlyCampaigns.map(campaign => (
-                        <SelectItem key={campaign.id} value={campaign.id}>
-                          {campaign.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Contacts will be added to this campaign when you start a cadence
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Instantly Integration - Backend Only */}
+          {/* Instantly API key and campaign ID are configured in .env.local (backend only) */}
+          {/* This section is hidden as configuration is done via environment variables */}
 
           {/* Cadence Settings */}
           <Card

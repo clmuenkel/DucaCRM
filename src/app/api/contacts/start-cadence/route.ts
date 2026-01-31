@@ -30,15 +30,9 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
-    // Get cadence settings for Instantly integration
-    const { data: settings } = await (supabase as any)
-      .from("cadence_settings")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    const instantlyApiKey = settings?.instantly_api_key;
-    const instantlyCampaignId = settings?.instantly_campaign_id;
+    // Get Instantly config from environment variables (backend only)
+    const instantlyApiKey = process.env.INSTANTLY_API_KEY;
+    const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
 
     let started = 0;
     let pushedToInstantly = 0;

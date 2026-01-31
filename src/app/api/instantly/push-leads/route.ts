@@ -28,23 +28,20 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
-    // Get Instantly settings
-    const { data: settings } = await (supabase as any)
-      .from("cadence_settings")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+    // Get Instantly config from environment
+    const apiKey = process.env.INSTANTLY_API_KEY;
+    const campaignId = process.env.INSTANTLY_CAMPAIGN_ID;
 
-    if (!settings?.instantly_api_key) {
+    if (!apiKey) {
       return NextResponse.json(
-        { error: "Instantly API key not configured. Go to Settings to add it." },
+        { error: "Instantly API key not configured in .env.local" },
         { status: 400 }
       );
     }
 
-    if (!settings?.instantly_campaign_id) {
+    if (!campaignId) {
       return NextResponse.json(
-        { error: "No Instantly campaign selected. Go to Settings to select one." },
+        { error: "Instantly campaign ID not configured in .env.local" },
         { status: 400 }
       );
     }
@@ -92,8 +89,8 @@ export async function POST(request: NextRequest) {
 
     // Push to Instantly
     const result = await addLeadsToCampaign(
-      settings.instantly_api_key,
-      settings.instantly_campaign_id,
+      apiKey,
+      campaignId,
       leads
     );
 
