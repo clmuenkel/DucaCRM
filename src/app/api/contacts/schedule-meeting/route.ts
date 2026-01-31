@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import type { Contact } from "@/types/database";
+import type { Contact, EmailTemplate } from "@/types/database";
 import { renderTemplate } from "@/lib/email-template-renderer";
 
 export const dynamic = 'force-dynamic';
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find email template (prefer schedule meeting template)
-    let template;
+    let template: EmailTemplate | null = null;
     if (templateId) {
       const { data: templateData } = await supabase
         .from("email_templates")
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         .eq("id", templateId)
         .eq("user_id", userId)
         .single();
-      template = templateData;
+      template = templateData as EmailTemplate | null;
     } else {
       // Find template with "schedule" in name or category "meeting"
       const { data: templates } = await supabase
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         .eq("user_id", userId)
         .or("category.eq.meeting,name.ilike.%schedule%")
         .limit(1);
-      template = templates?.[0];
+      template = (templates?.[0] as EmailTemplate | undefined) || null;
     }
 
     if (!template) {
@@ -85,9 +85,11 @@ export async function POST(request: NextRequest) {
     // Get user profile for calendar link
     const { data: profile } = await supabase
       .from("profiles")
-      .select("calendar_link")
+      .select("calendar_link, full_name")
       .eq("id", userId)
       .single();
+
+    const typedProfile = profile as { calendar_link: string | null; full_name: string | null } | null;
 
     // Render template with variables
     const variables = {
@@ -98,13 +100,13 @@ export async function POST(request: NextRequest) {
       title: typedContact.title || "",
       email: typedContact.email || "",
       phone: typedContact.phone || typedContact.mobile || "",
-      sender_name: "Your Name", // TODO: Get from profile
-      sender_calendar: profile?.calendar_link || "[Calendar Link]",
+      sender_name: typedProfile?.full_name || "Your Name",
+      sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
     };
 
     // Render template with variables
     const subject = renderTemplate(template.subject_template, variables);
-    const body = renderTemplate(template.body_template, variables);
+    const emailBody = renderTemplate(template.body_template, variables);
 
     // Send email via Instantly if configured
     // Get cadence settings for Instantly
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest) {
                   personalization: subject, // Use subject as personalization
                   custom_variables: {
                     email_subject: subject,
-                    email_body: body,
+                    email_body: emailBody,
                   },
                 },
               ],
@@ -199,7 +201,7 @@ export async function POST(request: NextRequest) {
       message: "Scheduling email sent successfully",
       emailContent: {
         subject,
-        body,
+        body: emailBody,
         to: typedContact.email,
       },
     });

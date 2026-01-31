@@ -6,16 +6,29 @@ import { useUpcomingMeetings, useTodaysMeetings, useCancelMeeting, useCompleteMe
 import { MeetingDetailDialog } from "@/components/meetings/meeting-detail";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronRight } from "lucide-react";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { createClient } from "@/lib/supabase/client";
-import { format as formatDate, isPast, isFuture, isToday, formatDistanceToNow } from "date-fns";
-import { Card, CardContent } from "@/components/ui/card";
+import { 
+  format, 
+  format as formatDate,
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek, 
+  endOfWeek, 
+  addDays, 
+  isSameDay, 
+  isToday, 
+  isPast,
+  isFuture,
+  formatDistanceToNow,
+  addMonths, 
+  subMonths,
+  isSameMonth 
+} from "date-fns";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -46,21 +59,8 @@ import {
   X,
   CheckCircle,
   Loader2,
+  Search,
 } from "lucide-react";
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  addDays, 
-  isSameDay, 
-  isToday, 
-  isPast, 
-  addMonths, 
-  subMonths,
-  isSameMonth 
-} from "date-fns";
 import { toast } from "sonner";
 import Link from "next/link";
 import type { MeetingWithContact } from "@/types/database";
@@ -160,7 +160,7 @@ export default function CalendarPage() {
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [meetingSearchQuery, setMeetingSearchQuery] = useState("");
   const [meetingFilter, setMeetingFilter] = useState<"all" | "upcoming" | "past" | "completed">("all");
-  const { data: allMeetings: allMeetingsData } = useAllMeetings();
+  const { data: allMeetingsData } = useAllMeetings();
 
   // Filter meetings for list view
   const filteredMeetings = (allMeetingsData ?? []).filter((meeting) => {

@@ -244,7 +244,7 @@ export default function WorkQueuePage() {
                 </TableHeader>
                 <TableBody>
                   {activeCadenceContacts.map((contact) => {
-                    const phone = getValidPhone(contact);
+                    const phone = getValidPhone(contact.phone, contact.mobile);
                     return (
                       <TableRow key={contact.id}>
                         <TableCell className="font-medium">
@@ -398,7 +398,7 @@ export default function WorkQueuePage() {
                 </TableHeader>
                 <TableBody>
                   {filteredAllContacts.map((contact) => {
-                    const phone = getValidPhone(contact);
+                    const phone = getValidPhone(contact.phone, contact.mobile);
                     return (
                       <TableRow key={contact.id}>
                         <TableCell>
