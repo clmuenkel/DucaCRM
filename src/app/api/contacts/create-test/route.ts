@@ -19,13 +19,14 @@ export async function POST(request: NextRequest) {
       .select("id")
       .eq("user_id", userId)
       .eq("email", "18cmuenkel@gmail.com")
-      .single();
+      .maybeSingle();
 
     if (existing) {
+      const typedExisting = existing as { id: string };
       return NextResponse.json({
         success: true,
         message: "Test contact already exists",
-        contactId: existing.id,
+        contactId: typedExisting.id,
       });
     }
 
