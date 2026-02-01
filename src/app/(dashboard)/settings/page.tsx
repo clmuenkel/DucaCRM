@@ -24,6 +24,91 @@ import type { InstantlyCampaign } from "@/lib/instantly/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Profile } from "@/types/database";
 
+function InstantlyCampaignStatus() {
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [campaignStatus, setCampaignStatus] = useState<{
+    valid: boolean;
+    campaign?: { id: string; name: string; status: string };
+    error?: string;
+  } | null>(null);
+
+  const handleVerify = async () => {
+    setIsVerifying(true);
+    try {
+      const response = await fetch("/api/instantly/verify-campaign");
+      const data = await response.json();
+      setCampaignStatus(data);
+      
+      if (data.valid) {
+        toast.success(`Campaign verified: ${data.campaign?.name}`);
+      } else {
+        toast.error(data.error || "Campaign verification failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to verify campaign");
+      setCampaignStatus({ valid: false, error: error.message });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">
+            Campaign ID is configured in .env.local (backend only)
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleVerify}
+          disabled={isVerifying}
+        >
+          {isVerifying ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Verifying...
+            </>
+          ) : (
+            "Verify Campaign"
+          )}
+        </Button>
+      </div>
+
+      {campaignStatus && (
+        <div className="space-y-2">
+          {campaignStatus.valid && campaignStatus.campaign ? (
+            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <div className="flex-1">
+                <p className="font-medium text-green-900 dark:text-green-100">
+                  Campaign Verified
+                </p>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  {campaignStatus.campaign.name} ({campaignStatus.campaign.status})
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-800">
+              <XCircle className="h-5 w-5 text-red-600" />
+              <div className="flex-1">
+                <p className="font-medium text-red-900 dark:text-red-100">
+                  Campaign Not Found
+                </p>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  {campaignStatus.error || "Please check your campaign ID in .env.local"}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const supabase = createClient();
   const [isLoading, setIsLoading] = useState(true);
@@ -349,9 +434,24 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Instantly Integration - Backend Only */}
-          {/* Instantly API key and campaign ID are configured in .env.local (backend only) */}
-          {/* This section is hidden as configuration is done via environment variables */}
+          {/* Instantly Campaign Status */}
+          <Card
+            className="opacity-0 animate-fade-in"
+            style={{ animationDelay: "75ms", animationFillMode: "forwards" }}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Instantly Campaign Status
+              </CardTitle>
+              <CardDescription>
+                Verify your Instantly campaign configuration
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <InstantlyCampaignStatus />
+            </CardContent>
+          </Card>
 
           {/* Cadence Settings */}
           <Card

@@ -90,14 +90,13 @@ export default function WorkQueuePage() {
     try {
       const today = new Date().toISOString().split("T")[0];
 
-      // Top table: Active cadence contacts (to call)
-      // Show contacts that are in active cadence AND (have call action due OR have been called before)
+      // Top table: All active cadence contacts (not just to call)
+      // Show ALL contacts in active cadence regardless of next_action_type
       const { data: activeData } = await supabase
         .from("contacts")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
         .eq("cadence_status", "active")
-        .or(`next_action_type.eq.call,last_call_attempt_date.not.is.null`)
         .order("next_action_date", { ascending: true, nullsFirst: true })
         .order("last_call_attempt_date", { ascending: false, nullsFirst: true })
         .order("priority_score", { ascending: false });
@@ -178,9 +177,24 @@ export default function WorkQueuePage() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to start cadence");
+      }
 
-      toast.success(data.message);
+      // Show detailed stats
+      if (data.stats) {
+        const { started, pushedToInstantly, errors, total } = data.stats;
+        if (errors > 0) {
+          toast.warning(
+            `Started ${started}/${total} contacts. ${pushedToInstantly} emails sent. ${errors} errors.`
+          );
+        } else {
+          toast.success(data.message);
+        }
+      } else {
+        toast.success(data.message);
+      }
+
       setSelectedContacts(new Set());
       setShowStartCadenceDialog(false);
       await loadData();
@@ -245,6 +259,7 @@ export default function WorkQueuePage() {
                     <TableHead>Phone</TableHead>
                     <TableHead>Last Attempt</TableHead>
                     <TableHead>Step</TableHead>
+                    <TableHead>Next Action</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -282,6 +297,16 @@ export default function WorkQueuePage() {
                           {contact.cadence_step !== null
                             ? STEP_NAMES[contact.cadence_step] || `Step ${contact.cadence_step}`
                             : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {contact.next_action_type && (
+                            <Badge 
+                              variant={contact.next_action_type === "email" ? "default" : "secondary"}
+                              className={contact.next_action_type === "email" ? "bg-blue-500" : "bg-orange-500"}
+                            >
+                              {contact.next_action_type === "email" ? "Email" : "Call"}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant={contact.priority_score >= 70 ? "default" : "secondary"}>

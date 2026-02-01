@@ -8,7 +8,6 @@ export const dynamic = 'force-dynamic';
 interface StartCadenceRequest {
   contactIds: string[];
   pushToInstantly?: boolean;
-  emailSendRate?: number; // emails per minute, default 5
 }
 
 /**
@@ -18,7 +17,7 @@ interface StartCadenceRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: StartCadenceRequest = await request.json();
-    const { contactIds, pushToInstantly = true, emailSendRate = 5 } = body;
+    const { contactIds, pushToInstantly = true } = body;
 
     if (!contactIds || contactIds.length === 0) {
       return NextResponse.json(
@@ -81,74 +80,76 @@ export async function POST(request: NextRequest) {
 
         started++;
 
-        // Push to Instantly with rate limiting if configured and contact has email
+        // Push to Instantly with proper error handling (Instantly handles rate limiting)
         if (pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email) {
-          // Calculate delay based on rate (emails per minute)
-          const delayMs = (60000 / emailSendRate) * started; // Delay increases for each contact
-          
-          // Use setTimeout to rate limit (fire and forget - don't await)
-          setTimeout(async () => {
-            try {
-              const instantlyResponse = await fetch(
-                "https://api.instantly.ai/api/v2/leads",
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${instantlyApiKey}`,
-                  },
-                  body: JSON.stringify({
-                    campaign_id: instantlyCampaignId,
-                    skip_if_in_workspace: true,
-                    leads: [
-                      {
-                        email: typedContact.email || "",
-                        first_name: typedContact.first_name,
-                        last_name: typedContact.last_name || "",
-                        company_name: typedContact.company_name || "",
-                        personalization: typedContact.title || "Decision Maker",
-                      },
-                    ],
-                  }),
-                }
-              );
-
-              if (instantlyResponse.ok) {
-                const instantlyData = await instantlyResponse.json();
-                
-                // Update contact with Instantly lead ID
-                const supabaseUpdate = createClient();
-                if (instantlyData.lead_id || instantlyData.status === "success") {
-                  await (supabaseUpdate as any)
-                    .from("contacts")
-                    .update({ 
-                      instantly_lead_id: instantlyData.lead_id || "pushed",
-                      last_email_sent_at: new Date().toISOString(),
-                    })
-                    .eq("id", contactId);
-                }
+          try {
+            const instantlyResponse = await fetch(
+              "https://api.instantly.ai/api/v2/leads",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${instantlyApiKey}`,
+                },
+                body: JSON.stringify({
+                  campaign_id: instantlyCampaignId,
+                  skip_if_in_workspace: true,
+                  leads: [
+                    {
+                      email: typedContact.email || "",
+                      first_name: typedContact.first_name,
+                      last_name: typedContact.last_name || "",
+                      company_name: typedContact.company_name || "",
+                      personalization: typedContact.title || "Decision Maker",
+                    },
+                  ],
+                }),
               }
-            } catch (instantlyError) {
-              console.error(`Failed to push contact ${contactId} to Instantly:`, instantlyError);
+            );
+
+            if (!instantlyResponse.ok) {
+              const errorText = await instantlyResponse.text();
+              throw new Error(`Instantly API error: ${errorText}`);
             }
-          }, delayMs);
-          
-          // Count as pushed (even though it's async)
-          pushedToInstantly++;
+
+            const instantlyData = await instantlyResponse.json();
+            
+            // Update contact with Instantly lead ID
+            if (instantlyData.lead_id || instantlyData.status === "success") {
+              await (supabase as any)
+                .from("contacts")
+                .update({ 
+                  instantly_lead_id: instantlyData.lead_id || "pushed",
+                  last_email_sent_at: new Date().toISOString(),
+                })
+                .eq("id", contactId);
+            }
+            
+            pushedToInstantly++;
+          } catch (instantlyError: any) {
+            console.error(`Failed to push contact ${contactId} to Instantly:`, instantlyError);
+            errors++;
+            // Don't fail the whole operation, but track the error
+          }
         }
 
-        // Log activity
-        await (supabase as any)
-          .from("activity_log")
-          .insert({
-            user_id: userId,
-            contact_id: contactId,
-            activity_type: "cadence_started",
-            summary: `Sales cadence started${pushedToInstantly ? " (added to Instantly)" : ""}`,
-            metadata: {
-              pushed_to_instantly: pushedToInstantly > 0,
-            },
-          });
+        // Log activity (don't fail if logging fails)
+        try {
+          await (supabase as any)
+            .from("activity_log")
+            .insert({
+              user_id: userId,
+              contact_id: contactId,
+              activity_type: "cadence_started",
+              summary: `Sales cadence started`,
+              metadata: {
+                pushed_to_instantly: pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email,
+              },
+            });
+        } catch (logError) {
+          // Don't fail if logging fails
+          console.warn("Failed to log activity:", logError);
+        }
 
       } catch (e: any) {
         console.error(`Error starting cadence for contact ${contactId}:`, e);
