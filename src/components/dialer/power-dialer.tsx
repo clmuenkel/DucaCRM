@@ -48,22 +48,19 @@ export function PowerDialer() {
     goToContact,
   } = useDialerStore();
 
-  // Fetch cadence contacts (calls due today)
+  // Fetch ALL active cadence contacts (not just calls due today)
   useEffect(() => {
     const fetchCadenceContacts = async () => {
       setIsLoadingCadence(true);
-      const today = new Date().toISOString().split("T")[0];
 
-      // Get contacts with calls due today
+      // Get ALL active cadence contacts (regardless of next_action_type)
       const { data: cadenceData } = await supabase
         .from("contacts")
         .select("*")
         .eq("user_id", userId)
         .eq("cadence_status", "active")
-        .eq("cadence_outcome", "in_progress")
-        .eq("next_action_type", "call")
-        .lte("next_action_date", today)
         .or("phone.not.is.null,mobile.not.is.null")
+        .order("next_action_date", { ascending: true, nullsFirst: true })
         .order("priority_score", { ascending: false });
 
       setCadenceContacts((cadenceData as Contact[]) || []);
@@ -177,7 +174,7 @@ export function PowerDialer() {
               <TabsList className="grid grid-cols-3 w-full">
                 <TabsTrigger value="cadence" className="gap-2">
                   <CalendarClock className="h-4 w-4" />
-                  Due Today
+                  Active Cadence
                   {cadenceCount > 0 && (
                     <Badge variant="secondary" className="ml-1">{cadenceCount}</Badge>
                   )}
@@ -205,7 +202,7 @@ export function PowerDialer() {
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-card rounded-full border">
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">
-                  {currentModeCount} {mode === "cadence" ? "calls due today" : mode === "hot" ? "hot leads" : "contacts"} ready
+                  {currentModeCount} {mode === "cadence" ? "active cadence contacts" : mode === "hot" ? "hot leads" : "contacts"} ready
                 </span>
               </div>
               <div className="block">
@@ -216,7 +213,7 @@ export function PowerDialer() {
               </div>
               {mode === "cadence" && cadenceCount === 0 && (
                 <p className="text-sm text-muted-foreground mt-4">
-                  No cadence calls due today. Try "Hot" or "All Fresh" tabs.
+                  No active cadence contacts. Start a cadence from Work Queue.
                 </p>
               )}
             </div>
@@ -224,14 +221,14 @@ export function PowerDialer() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 {mode === "cadence" 
-                  ? "No cadence calls due today. Start some cadences from the Today page!"
+                  ? "No active cadence contacts. Start a cadence from Work Queue!"
                   : mode === "hot"
                   ? "No hot leads yet. Wait for email opens."
                   : "No contacts with phone numbers found."}
               </p>
               <Button variant="outline" size="lg" asChild>
-                <a href={mode === "cadence" ? "/today" : "/import"}>
-                  {mode === "cadence" ? "Go to Today" : "Import from Apollo"}
+                <a href={mode === "cadence" ? "/workqueue" : "/import"}>
+                  {mode === "cadence" ? "Go to Work Queue" : "Import from Apollo"}
                 </a>
               </Button>
             </div>

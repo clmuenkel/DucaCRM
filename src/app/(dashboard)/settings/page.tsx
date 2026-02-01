@@ -26,11 +26,14 @@ import type { Profile } from "@/types/database";
 
 function InstantlyCampaignStatus() {
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isDebugging, setIsDebugging] = useState(false);
   const [campaignStatus, setCampaignStatus] = useState<{
     valid: boolean;
     campaign?: { id: string; name: string; status: string };
     error?: string;
+    debug?: any;
   } | null>(null);
+  const [envDebug, setEnvDebug] = useState<any>(null);
 
   const handleVerify = async () => {
     setIsVerifying(true);
@@ -52,6 +55,20 @@ function InstantlyCampaignStatus() {
     }
   };
 
+  const handleDebugEnv = async () => {
+    setIsDebugging(true);
+    try {
+      const response = await fetch("/api/instantly/debug-env");
+      const data = await response.json();
+      setEnvDebug(data);
+      toast.info("Environment debug info loaded");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load debug info");
+    } finally {
+      setIsDebugging(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -60,21 +77,53 @@ function InstantlyCampaignStatus() {
             Campaign ID is configured in .env.local (backend only)
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleVerify}
-          disabled={isVerifying}
-        >
-          {isVerifying ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            "Verify Campaign"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDebugEnv}
+            disabled={isDebugging}
+            size="sm"
+          >
+            {isDebugging ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              "Debug Env"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleVerify}
+            disabled={isVerifying}
+          >
+            {isVerifying ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              "Verify Campaign"
+            )}
+          </Button>
+        </div>
       </div>
+
+      {envDebug && (
+        <div className="p-3 bg-muted rounded-md border text-xs space-y-1">
+          <p className="font-semibold">Environment Debug Info:</p>
+          <p>API Key: {envDebug.hasApiKey ? `✓ (${envDebug.apiKeyLength} chars)` : "✗ Missing"}</p>
+          <p>Campaign ID: {envDebug.hasCampaignId ? `✓ ${envDebug.campaignId}` : "✗ Missing"}</p>
+          {envDebug.apiKeyHasQuotes && (
+            <p className="text-red-600">⚠ API Key has quotes - remove them from .env.local</p>
+          )}
+          {envDebug.campaignIdHasQuotes && (
+            <p className="text-red-600">⚠ Campaign ID has quotes - remove them from .env.local</p>
+          )}
+          <p className="text-muted-foreground">Node Env: {envDebug.nodeEnv}</p>
+        </div>
+      )}
 
       {campaignStatus && (
         <div className="space-y-2">
@@ -100,6 +149,11 @@ function InstantlyCampaignStatus() {
                 <p className="text-sm text-red-700 dark:text-red-300">
                   {campaignStatus.error || "Please check your campaign ID in .env.local"}
                 </p>
+                {campaignStatus.debug && (
+                  <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 rounded text-xs">
+                    <p>Debug: {JSON.stringify(campaignStatus.debug, null, 2)}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

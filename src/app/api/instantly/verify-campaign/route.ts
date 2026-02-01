@@ -8,13 +8,40 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
+    // Debug: Log what we're reading (without exposing full values)
     const apiKey = process.env.INSTANTLY_API_KEY;
     const campaignId = process.env.INSTANTLY_CAMPAIGN_ID;
     
+    console.log("[Verify Campaign] API Key exists:", !!apiKey);
+    console.log("[Verify Campaign] API Key length:", apiKey?.length || 0);
+    console.log("[Verify Campaign] Campaign ID exists:", !!campaignId);
+    console.log("[Verify Campaign] Campaign ID:", campaignId ? `${campaignId.substring(0, 8)}...` : "none");
+    
     if (!apiKey || !campaignId) {
+      // Return more detailed error
       return NextResponse.json({ 
         valid: false, 
-        error: "API key or campaign ID not configured in .env.local" 
+        error: `Missing configuration: ${!apiKey ? "API key" : ""} ${!campaignId ? "Campaign ID" : ""} not found in environment variables`,
+        debug: {
+          hasApiKey: !!apiKey,
+          hasCampaignId: !!campaignId,
+          envKeys: Object.keys(process.env).filter(k => k.includes("INSTANTLY")),
+        }
+      });
+    }
+    
+    // Check for common formatting issues (quotes)
+    if (apiKey && (apiKey.startsWith('"') || apiKey.startsWith("'"))) {
+      return NextResponse.json({
+        valid: false,
+        error: "API key appears to have quotes. Remove quotes from .env.local (use: INSTANTLY_API_KEY=your_key, not INSTANTLY_API_KEY=\"your_key\")",
+      });
+    }
+
+    if (campaignId && (campaignId.startsWith('"') || campaignId.startsWith("'"))) {
+      return NextResponse.json({
+        valid: false,
+        error: "Campaign ID appears to have quotes. Remove quotes from .env.local (use: INSTANTLY_CAMPAIGN_ID=your_id, not INSTANTLY_CAMPAIGN_ID=\"your_id\")",
       });
     }
     
