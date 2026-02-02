@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Header } from "@/components/layout/header";
 import { useEmailTemplates, useDeleteEmailTemplate } from "@/hooks/use-email-templates";
 import { TemplateEditor } from "@/components/emails/template-editor";
+import { TemplatePreview } from "@/components/emails/template-preview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
-import { Plus, MoreHorizontal, Pencil, Trash2, Mail } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Mail, Eye } from "lucide-react";
 import { toast } from "sonner";
 import type { EmailTemplate } from "@/types/database";
 
@@ -23,7 +24,9 @@ export default function TemplatesPage() {
   const { data: templates, isLoading } = useEmailTemplates();
   const deleteTemplate = useDeleteEmailTemplate();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
 
   const handleEdit = (template: EmailTemplate) => {
     setEditingTemplate(template);
@@ -44,6 +47,11 @@ export default function TemplatesPage() {
         toast.error("Failed to delete template");
       }
     }
+  };
+
+  const handlePreview = (template: EmailTemplate) => {
+    setPreviewTemplate(template);
+    setPreviewOpen(true);
   };
 
   // Group templates by category
@@ -126,6 +134,10 @@ export default function TemplatesPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handlePreview(template)}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Preview
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleEdit(template)}>
                                     <Pencil className="mr-2 h-4 w-4" />
                                     Edit
@@ -171,6 +183,11 @@ export default function TemplatesPage() {
         open={editorOpen}
         onOpenChange={setEditorOpen}
         template={editingTemplate}
+      />
+      <TemplatePreview
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        template={previewTemplate}
       />
     </div>
   );

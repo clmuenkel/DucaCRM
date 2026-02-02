@@ -17,7 +17,7 @@ const CADENCE_STEPS = [
 
 const MAX_STEP = 5;
 
-type Outcome = "won" | "lost" | "no_answer" | "callback";
+type Outcome = "won" | "lost" | "no_answer" | "callback" | "wrong_number" | "voicemail" | "busy" | "gatekeeper";
 
 interface OutcomeRequest {
   contactId: string;
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       last_contacted_at: new Date().toISOString(),
       call_attempts: (typedContact.call_attempts ?? 0) + 1,
       last_call_outcome: outcome,
+      last_call_attempt_date: new Date().toISOString().split("T")[0],
     };
 
     let activitySummary = "";
@@ -110,6 +111,21 @@ export async function POST(request: NextRequest) {
         activitySummary = "Contact marked as lost.";
         break;
 
+      case "wrong_number":
+        // Wrong number - stop cadence, do NOT return to queue
+        updateData = {
+          ...updateData,
+          wrong_number_flag: true,
+          cadence_status: "completed",
+          cadence_outcome: "wrong_number",
+          cadence_step: null,
+          next_action_date: null,
+          next_action_type: null,
+          stage: "archived",
+        };
+        activitySummary = "Wrong number - cadence stopped.";
+        break;
+
       case "callback":
         // Snooze until callback date
         updateData = {
@@ -123,35 +139,19 @@ export async function POST(request: NextRequest) {
         break;
 
       case "no_answer":
-        // Advance to next step
-        const nextStep = currentStep + 1;
-
-        if (nextStep > MAX_STEP) {
-          // Cadence complete - archive
-          updateData = {
-            ...updateData,
-            cadence_status: "completed",
-            cadence_outcome: "archived",
-            cadence_step: null,
-            next_action_date: null,
-            next_action_type: null,
-            stage: "archived",
-          };
-          activitySummary = "Cadence complete. No response - archived.";
-        } else {
-          // Advance to next step
-          const nextStepDef = CADENCE_STEPS[nextStep];
-          const nextDate = new Date(cadenceStart);
-          nextDate.setDate(nextDate.getDate() + nextStepDef.day);
-
-          updateData = {
-            ...updateData,
-            cadence_step: nextStep,
-            next_action_date: nextDate.toISOString().split("T")[0],
-            next_action_type: nextStepDef.type,
-          };
-          activitySummary = `No answer. Advanced to Step ${nextStep}: ${nextStepDef.name}`;
-        }
+      case "voicemail":
+      case "busy":
+      case "gatekeeper":
+        // These outcomes trigger 7-day follow-up email
+        // Set outcome and mark for follow-up (will be sent in 7 days)
+        updateData = {
+          ...updateData,
+          cadence_outcome: outcome,
+          // Keep cadence active, will trigger follow-up in 7 days
+          // next_action_type stays as "call" so they can be called again
+          next_action_type: "call",
+        };
+        activitySummary = `${outcome === "no_answer" ? "No answer" : outcome === "voicemail" ? "Voicemail left" : outcome === "busy" ? "Busy" : "Gatekeeper"} - follow-up email will be sent in 7 days`;
         break;
     }
 
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userId,
         contact_id: contactId,
-        outcome: outcome === "no_answer" ? "no_answer" : outcome === "won" ? "connected" : "not_interested",
+        outcome: outcome === "won" ? "connected" : outcome === "lost" ? "not_interested" : outcome,
         duration_seconds: 0, // Will be updated if tracked
         notes: notes || activitySummary,
         called_at: new Date().toISOString(),

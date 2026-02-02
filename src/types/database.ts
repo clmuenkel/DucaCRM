@@ -67,6 +67,7 @@ export interface Database {
           name: string;
           domain: string | null;
           industry: string | null;
+          industries: string[];
           employee_count: number | null;
           employee_range: string | null;
           city: string | null;
@@ -87,6 +88,7 @@ export interface Database {
           name: string;
           domain?: string | null;
           industry?: string | null;
+          industries?: string[];
           employee_count?: number | null;
           employee_range?: string | null;
           city?: string | null;
@@ -107,6 +109,7 @@ export interface Database {
           name?: string;
           domain?: string | null;
           industry?: string | null;
+          industries?: string[];
           employee_count?: number | null;
           employee_range?: string | null;
           city?: string | null;
@@ -144,6 +147,7 @@ export interface Database {
           company_domain: string | null;
           company_linkedin: string | null;
           industry: string | null;
+          industries: string[];
           industry_code: string | null;
           employee_count: number | null;
           employee_range: string | null;
@@ -214,6 +218,7 @@ export interface Database {
           company_domain?: string | null;
           company_linkedin?: string | null;
           industry?: string | null;
+          industries?: string[];
           industry_code?: string | null;
           employee_count?: number | null;
           employee_range?: string | null;
@@ -284,6 +289,7 @@ export interface Database {
           company_domain?: string | null;
           company_linkedin?: string | null;
           industry?: string | null;
+          industries?: string[];
           industry_code?: string | null;
           employee_count?: number | null;
           employee_range?: string | null;

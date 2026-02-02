@@ -56,6 +56,7 @@ export const INDUSTRIES = [
   { value: "electrical", label: "Electrical" },
   { value: "solar", label: "Solar" },
   { value: "construction", label: "General Contractor" },
+  { value: "not_found", label: "Not Found" },
 ] as const;
 
 export const EMPLOYEE_RANGES = [

@@ -48,7 +48,10 @@ export async function POST(request: NextRequest) {
         break;
       case "email_replied":
         updates.email_replied = true;
-        updates.cadence_status = "paused"; // Pause on reply
+        updates.cadence_status = "completed"; // Stop automation on reply
+        updates.cadence_outcome = "replied";
+        updates.next_action_date = null;
+        updates.next_action_type = null;
         break;
       case "email_bounced":
         // Mark as bounced, might want to flag contact

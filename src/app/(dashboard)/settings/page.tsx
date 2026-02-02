@@ -27,6 +27,11 @@ import type { Profile } from "@/types/database";
 function InstantlyCampaignStatus() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isDebugging, setIsDebugging] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isTestingLeadPush, setIsTestingLeadPush] = useState(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [testResults, setTestResults] = useState<any>(null);
+  const [webhookTestEmail, setWebhookTestEmail] = useState("");
   const [campaignStatus, setCampaignStatus] = useState<{
     valid: boolean;
     campaign?: { id: string; name: string; status: string };
@@ -69,6 +74,80 @@ function InstantlyCampaignStatus() {
     }
   };
 
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    setTestResults(null);
+    try {
+      const response = await fetch("/api/instantly/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ testType: "connection" }),
+      });
+      const data = await response.json();
+      setTestResults({ type: "connection", ...data });
+      if (data.success) {
+        toast.success("Connection test passed!");
+      } else {
+        toast.error(data.message || "Connection test failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to test connection");
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  const handleTestLeadPush = async () => {
+    setIsTestingLeadPush(true);
+    setTestResults(null);
+    try {
+      const response = await fetch("/api/instantly/test-lead-push", {
+        method: "POST",
+      });
+      const data = await response.json();
+      setTestResults({ type: "leadPush", ...data });
+      if (data.success) {
+        toast.success("Test lead pushed successfully!");
+      } else {
+        toast.error(data.message || "Lead push test failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to test lead push");
+    } finally {
+      setIsTestingLeadPush(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!webhookTestEmail) {
+      toast.error("Please enter an email address");
+      return;
+    }
+    setIsTestingWebhook(true);
+    setTestResults(null);
+    try {
+      const response = await fetch("/api/instantly/test-webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "email_opened",
+          email: webhookTestEmail,
+        }),
+      });
+      const data = await response.json();
+      setTestResults({ type: "webhook", ...data });
+      if (data.success) {
+        toast.success("Webhook test passed!");
+      } else {
+        toast.error(data.message || "Webhook test failed");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to test webhook");
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -77,7 +156,7 @@ function InstantlyCampaignStatus() {
             Campaign ID is configured in .env.local (backend only)
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={handleDebugEnv}
@@ -97,6 +176,7 @@ function InstantlyCampaignStatus() {
             variant="outline"
             onClick={handleVerify}
             disabled={isVerifying}
+            size="sm"
           >
             {isVerifying ? (
               <>
@@ -105,6 +185,36 @@ function InstantlyCampaignStatus() {
               </>
             ) : (
               "Verify Campaign"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleTestConnection}
+            disabled={isTestingConnection}
+            size="sm"
+          >
+            {isTestingConnection ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              "Test Connection"
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleTestLeadPush}
+            disabled={isTestingLeadPush}
+            size="sm"
+          >
+            {isTestingLeadPush ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              "Test Lead Push"
             )}
           </Button>
         </div>
@@ -159,6 +269,48 @@ function InstantlyCampaignStatus() {
           )}
         </div>
       )}
+
+      {/* Test Results */}
+      {testResults && (
+        <div className="p-3 bg-muted rounded-md border text-xs space-y-2">
+          <p className="font-semibold">Test Results ({testResults.type}):</p>
+          <pre className="text-xs overflow-auto max-h-40">
+            {JSON.stringify(testResults, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {/* Webhook Test */}
+      <div className="space-y-2 pt-2 border-t">
+        <Label className="text-sm font-semibold">Test Webhook</Label>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={webhookTestEmail}
+            onChange={(e) => setWebhookTestEmail(e.target.value)}
+            placeholder="Enter contact email to test"
+            className="flex-1 px-3 py-2 text-sm border rounded-md"
+          />
+          <Button
+            variant="outline"
+            onClick={handleTestWebhook}
+            disabled={isTestingWebhook || !webhookTestEmail}
+            size="sm"
+          >
+            {isTestingWebhook ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              "Test Webhook"
+            )}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Simulates an email_opened event for the specified contact
+        </p>
+      </div>
     </div>
   );
 }

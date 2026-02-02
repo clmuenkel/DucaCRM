@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import type { Contact } from "@/types/database";
+import type { Contact, EmailTemplate } from "@/types/database";
+import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
+import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
 
 export const dynamic = 'force-dynamic';
 
 interface StartCadenceRequest {
   contactIds: string[];
   pushToInstantly?: boolean;
+  templateId?: string; // Optional - defaults to "Cold Email"
+  staggerMinutes?: number; // Default: 1 minute between emails
+  sendImmediately?: boolean; // Default: true
 }
 
 /**
@@ -17,7 +22,13 @@ interface StartCadenceRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: StartCadenceRequest = await request.json();
-    const { contactIds, pushToInstantly = true } = body;
+    const { 
+      contactIds, 
+      pushToInstantly = true,
+      templateId,
+      staggerMinutes = 1,
+      sendImmediately = true,
+    } = body;
 
     if (!contactIds || contactIds.length === 0) {
       return NextResponse.json(
@@ -33,11 +44,52 @@ export async function POST(request: NextRequest) {
     const instantlyApiKey = process.env.INSTANTLY_API_KEY;
     const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
 
+    // Get "Cold Email" template from CRM (or use provided templateId)
+    let template: EmailTemplate | null = null;
+    if (templateId) {
+      const { data: templateData } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("id", templateId)
+        .eq("user_id", userId)
+        .single();
+      template = templateData as EmailTemplate | null;
+    } else {
+      // Find "Cold Email" template by category or name
+      const { data: templateData } = await supabase
+        .from("email_templates")
+        .select("*")
+        .eq("user_id", userId)
+        .or(`category.eq.initial_outreach,name.ilike.%cold%`)
+        .order("is_default", { ascending: false })
+        .order("use_count", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      template = templateData as EmailTemplate | null;
+    }
+
+    if (!template) {
+      return NextResponse.json(
+        { error: "No email template found. Please create a 'Cold Email' template first." },
+        { status: 400 }
+      );
+    }
+
+    // Get user profile for sender info
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, calendar_link")
+      .eq("id", userId)
+      .single();
+
     let started = 0;
+    let queued = 0;
     let pushedToInstantly = 0;
     let errors = 0;
+    const now = new Date();
 
-    for (const contactId of contactIds) {
+    for (let i = 0; i < contactIds.length; i++) {
+      const contactId = contactIds[i];
       try {
         // Get contact details
         const { data: contact, error: fetchError } = await supabase
@@ -55,7 +107,53 @@ export async function POST(request: NextRequest) {
         const typedContact = contact as Contact;
         const today = new Date().toISOString().split("T")[0];
 
-        // Update cadence status with proper initialization
+        // Calculate scheduled send time (staggered by index)
+        const scheduledAt = new Date(now);
+        scheduledAt.setMinutes(scheduledAt.getMinutes() + (i * staggerMinutes));
+
+        // Build variables for template rendering
+        const variables: Record<string, string> = {
+          sender_name: profile?.full_name || "Your Name",
+          sender_calendar: profile?.calendar_link || "[Calendar Link]",
+        };
+
+        // Render template to get subject and body
+        const { renderTemplate } = await import("@/lib/email-template-renderer");
+        const contactVariables = {
+          first_name: typedContact.first_name || "",
+          last_name: typedContact.last_name || "",
+          full_name: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
+          company: typedContact.company_name || "",
+          title: typedContact.title || "",
+          email: typedContact.email || "",
+          phone: typedContact.phone || typedContact.mobile || "",
+          ...variables,
+        };
+        const renderedSubject = renderTemplate(template.subject_template, contactVariables);
+        const renderedBody = renderTemplate(template.body_template, contactVariables);
+
+        // Queue email in database for staggered sending
+        const { error: queueError } = await supabase
+          .from("email_queue")
+          .insert({
+            user_id: userId,
+            contact_id: contactId,
+            template_id: template.id,
+            rendered_subject: renderedSubject,
+            rendered_body: renderedBody,
+            scheduled_at: scheduledAt.toISOString(),
+            status: "pending",
+          });
+
+        if (queueError) {
+          console.error(`Failed to queue email for contact ${contactId}:`, queueError);
+          errors++;
+          continue;
+        }
+
+        queued++;
+
+        // Update cadence status
         const { error: updateError } = await (supabase as any)
           .from("contacts")
           .update({
@@ -64,7 +162,7 @@ export async function POST(request: NextRequest) {
             cadence_day_started: today,
             cadence_outcome: "in_progress",
             next_action_date: today,
-            next_action_type: "email",
+            next_action_type: "call", // Immediately ready for calling queue
             cadence_started_at: new Date().toISOString(),
             stage: "fresh",
             email_opened: false,
@@ -80,60 +178,50 @@ export async function POST(request: NextRequest) {
 
         started++;
 
-        // Push to Instantly with proper error handling (Instantly handles rate limiting)
-        if (pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email) {
+        // If sendImmediately is true and it's time to send (first email), send immediately
+        // Otherwise, the email_queue processor will handle it
+        if (sendImmediately && i === 0 && pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email) {
           try {
-            const instantlyResponse = await fetch(
-              "https://api.instantly.ai/api/v2/leads",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${instantlyApiKey}`,
-                },
-                body: JSON.stringify({
-                  campaign_id: instantlyCampaignId,
-                  skip_if_in_workspace: true,
-                  leads: [
-                    {
-                      email: typedContact.email || "",
-                      first_name: typedContact.first_name,
-                      last_name: typedContact.last_name || "",
-                      company_name: typedContact.company_name || "",
-                      personalization: typedContact.title || "Decision Maker",
-                    },
-                  ],
-                }),
-              }
-            );
+            const sendResult = await sendEmailWithTemplate({
+              apiKey: instantlyApiKey,
+              campaignId: instantlyCampaignId,
+              contact: typedContact,
+              template,
+              variables,
+            });
 
-            if (!instantlyResponse.ok) {
-              const errorText = await instantlyResponse.text();
-              throw new Error(`Instantly API error: ${errorText}`);
-            }
+            if (sendResult.success) {
+              // Update email_queue with instantly_lead_id
+              await supabase
+                .from("email_queue")
+                .update({
+                  instantly_lead_id: sendResult.leadId,
+                  status: "sent",
+                  sent_at: new Date().toISOString(),
+                })
+                .eq("contact_id", contactId)
+                .eq("status", "pending")
+                .order("created_at", { ascending: true })
+                .limit(1);
 
-            const instantlyData = await instantlyResponse.json();
-            
-            // Update contact with Instantly lead ID
-            if (instantlyData.lead_id || instantlyData.status === "success") {
+              // Update contact
               await (supabase as any)
                 .from("contacts")
                 .update({ 
-                  instantly_lead_id: instantlyData.lead_id || "pushed",
+                  instantly_lead_id: sendResult.leadId || "pushed",
                   last_email_sent_at: new Date().toISOString(),
                 })
                 .eq("id", contactId);
+
+              pushedToInstantly++;
             }
-            
-            pushedToInstantly++;
           } catch (instantlyError: any) {
-            console.error(`Failed to push contact ${contactId} to Instantly:`, instantlyError);
-            errors++;
-            // Don't fail the whole operation, but track the error
+            console.error(`Failed to send email for contact ${contactId}:`, instantlyError);
+            // Don't fail - email is queued and will be processed later
           }
         }
 
-        // Log activity (don't fail if logging fails)
+        // Log activity
         try {
           await (supabase as any)
             .from("activity_log")
@@ -141,13 +229,14 @@ export async function POST(request: NextRequest) {
               user_id: userId,
               contact_id: contactId,
               activity_type: "cadence_started",
-              summary: `Sales cadence started`,
+              summary: `Sales cadence started - email queued for ${scheduledAt.toLocaleString()}`,
               metadata: {
+                template_id: template.id,
+                scheduled_at: scheduledAt.toISOString(),
                 pushed_to_instantly: pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email,
               },
             });
         } catch (logError) {
-          // Don't fail if logging fails
           console.warn("Failed to log activity:", logError);
         }
 
@@ -159,9 +248,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Started cadence for ${started} contacts${pushedToInstantly > 0 ? `, ${pushedToInstantly} pushed to Instantly` : ""}`,
+      message: `Started cadence for ${started} contacts. ${queued} emails queued${pushedToInstantly > 0 ? `, ${pushedToInstantly} sent immediately` : ""}`,
       stats: {
         started,
+        queued,
         pushedToInstantly,
         errors,
         total: contactIds.length,

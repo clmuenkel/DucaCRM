@@ -183,6 +183,26 @@ export async function deleteLead(
   }
 }
 
+/**
+ * Remove a lead from a campaign (stops future emails)
+ * This is an alias for deleteLead but with clearer naming for cadence cancellation
+ */
+export async function removeLeadFromCampaign(
+  apiKey: string,
+  campaignId: string,
+  email: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const success = await deleteLead(apiKey, campaignId, email);
+    return { success };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || "Failed to remove lead from campaign",
+    };
+  }
+}
+
 // ==========================================
 // Cadence Sequence Functions
 // ==========================================
