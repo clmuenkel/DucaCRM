@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { EMAIL_TEMPLATE_CATEGORIES, TEMPLATE_VARIABLES } from "@/lib/constants";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { EmailTemplate } from "@/types/database";
 
 const templateSchema = z.object({
@@ -45,19 +45,9 @@ interface TemplateEditorProps {
 }
 
 export function TemplateEditor({ open, onOpenChange, template }: TemplateEditorProps) {
-  const [userId, setUserId] = useState<string | null>(null);
-  const supabase = createClient();
   const createTemplate = useCreateEmailTemplate();
   const updateTemplate = useUpdateEmailTemplate();
   const isEditing = !!template;
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-    };
-    getUser();
-  }, [supabase]);
 
   const {
     register,
@@ -101,11 +91,6 @@ export function TemplateEditor({ open, onOpenChange, template }: TemplateEditorP
   };
 
   const onSubmit = async (data: TemplateFormValues) => {
-    if (!userId) {
-      toast.error("Not authenticated");
-      return;
-    }
-
     try {
       if (isEditing) {
         await updateTemplate.mutateAsync({
@@ -116,7 +101,7 @@ export function TemplateEditor({ open, onOpenChange, template }: TemplateEditorP
       } else {
         await createTemplate.mutateAsync({
           ...data,
-          user_id: userId,
+          user_id: DEFAULT_USER_ID,
         });
         toast.success("Template created!");
       }
