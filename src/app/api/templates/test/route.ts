@@ -106,12 +106,12 @@ export async function POST(request: NextRequest) {
 
     // Render template
     const subject = renderTemplate(typedTemplate.subject_template, variables);
-    const body = renderTemplate(typedTemplate.body_template, variables);
+    const renderedBody = renderTemplate(typedTemplate.body_template, variables);
 
     return NextResponse.json({
       success: true,
       subject,
-      body,
+      body: renderedBody,
       variables,
       template: {
         id: typedTemplate.id,
