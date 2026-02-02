@@ -20,300 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { InstantlyCampaign } from "@/lib/instantly/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Profile } from "@/types/database";
 
-function InstantlyCampaignStatus() {
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isDebugging, setIsDebugging] = useState(false);
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [isTestingLeadPush, setIsTestingLeadPush] = useState(false);
-  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
-  const [testResults, setTestResults] = useState<any>(null);
-  const [webhookTestEmail, setWebhookTestEmail] = useState("");
-  const [campaignStatus, setCampaignStatus] = useState<{
-    valid: boolean;
-    campaign?: { id: string; name: string; status: string };
-    error?: string;
-    debug?: any;
-  } | null>(null);
-  const [envDebug, setEnvDebug] = useState<any>(null);
-
-  const handleVerify = async () => {
-    setIsVerifying(true);
-    try {
-      const response = await fetch("/api/instantly/verify-campaign");
-      const data = await response.json();
-      setCampaignStatus(data);
-      
-      if (data.valid) {
-        toast.success(`Campaign verified: ${data.campaign?.name}`);
-      } else {
-        toast.error(data.error || "Campaign verification failed");
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to verify campaign");
-      setCampaignStatus({ valid: false, error: error.message });
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleDebugEnv = async () => {
-    setIsDebugging(true);
-    try {
-      const response = await fetch("/api/instantly/debug-env");
-      const data = await response.json();
-      setEnvDebug(data);
-      toast.info("Environment debug info loaded");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load debug info");
-    } finally {
-      setIsDebugging(false);
-    }
-  };
-
-  const handleTestConnection = async () => {
-    setIsTestingConnection(true);
-    setTestResults(null);
-    try {
-      const response = await fetch("/api/instantly/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ testType: "connection" }),
-      });
-      const data = await response.json();
-      setTestResults({ type: "connection", ...data });
-      if (data.success) {
-        toast.success("Connection test passed!");
-      } else {
-        toast.error(data.message || "Connection test failed");
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to test connection");
-    } finally {
-      setIsTestingConnection(false);
-    }
-  };
-
-  const handleTestLeadPush = async () => {
-    setIsTestingLeadPush(true);
-    setTestResults(null);
-    try {
-      const response = await fetch("/api/instantly/test-lead-push", {
-        method: "POST",
-      });
-      const data = await response.json();
-      setTestResults({ type: "leadPush", ...data });
-      if (data.success) {
-        toast.success("Test lead pushed successfully!");
-      } else {
-        toast.error(data.message || "Lead push test failed");
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to test lead push");
-    } finally {
-      setIsTestingLeadPush(false);
-    }
-  };
-
-  const handleTestWebhook = async () => {
-    if (!webhookTestEmail) {
-      toast.error("Please enter an email address");
-      return;
-    }
-    setIsTestingWebhook(true);
-    setTestResults(null);
-    try {
-      const response = await fetch("/api/instantly/test-webhook", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event: "email_opened",
-          email: webhookTestEmail,
-        }),
-      });
-      const data = await response.json();
-      setTestResults({ type: "webhook", ...data });
-      if (data.success) {
-        toast.success("Webhook test passed!");
-      } else {
-        toast.error(data.message || "Webhook test failed");
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to test webhook");
-    } finally {
-      setIsTestingWebhook(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Campaign ID is configured in .env.local (backend only)
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={handleDebugEnv}
-            disabled={isDebugging}
-            size="sm"
-          >
-            {isDebugging ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Debug Env"
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleVerify}
-            disabled={isVerifying}
-            size="sm"
-          >
-            {isVerifying ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              "Verify Campaign"
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleTestConnection}
-            disabled={isTestingConnection}
-            size="sm"
-          >
-            {isTestingConnection ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              "Test Connection"
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleTestLeadPush}
-            disabled={isTestingLeadPush}
-            size="sm"
-          >
-            {isTestingLeadPush ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              "Test Lead Push"
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {envDebug && (
-        <div className="p-3 bg-muted rounded-md border text-xs space-y-1">
-          <p className="font-semibold">Environment Debug Info:</p>
-          <p>API Key: {envDebug.hasApiKey ? `✓ (${envDebug.apiKeyLength} chars)` : "✗ Missing"}</p>
-          <p>Campaign ID: {envDebug.hasCampaignId ? `✓ ${envDebug.campaignId}` : "✗ Missing"}</p>
-          {envDebug.apiKeyHasQuotes && (
-            <p className="text-red-600">⚠ API Key has quotes - remove them from .env.local</p>
-          )}
-          {envDebug.campaignIdHasQuotes && (
-            <p className="text-red-600">⚠ Campaign ID has quotes - remove them from .env.local</p>
-          )}
-          <p className="text-muted-foreground">Node Env: {envDebug.nodeEnv}</p>
-        </div>
-      )}
-
-      {campaignStatus && (
-        <div className="space-y-2">
-          {campaignStatus.valid && campaignStatus.campaign ? (
-            <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <div className="flex-1">
-                <p className="font-medium text-green-900 dark:text-green-100">
-                  Campaign Verified
-                </p>
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  {campaignStatus.campaign.name} ({campaignStatus.campaign.status})
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-md border border-red-200 dark:border-red-800">
-              <XCircle className="h-5 w-5 text-red-600" />
-              <div className="flex-1">
-                <p className="font-medium text-red-900 dark:text-red-100">
-                  Campaign Not Found
-                </p>
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  {campaignStatus.error || "Please check your campaign ID in .env.local"}
-                </p>
-                {campaignStatus.debug && (
-                  <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 rounded text-xs">
-                    <p>Debug: {JSON.stringify(campaignStatus.debug, null, 2)}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Test Results */}
-      {testResults && (
-        <div className="p-3 bg-muted rounded-md border text-xs space-y-2">
-          <p className="font-semibold">Test Results ({testResults.type}):</p>
-          <pre className="text-xs overflow-auto max-h-40">
-            {JSON.stringify(testResults, null, 2)}
-          </pre>
-        </div>
-      )}
-
-      {/* Webhook Test */}
-      <div className="space-y-2 pt-2 border-t">
-        <Label className="text-sm font-semibold">Test Webhook</Label>
-        <div className="flex gap-2">
-          <input
-            type="email"
-            value={webhookTestEmail}
-            onChange={(e) => setWebhookTestEmail(e.target.value)}
-            placeholder="Enter contact email to test"
-            className="flex-1 px-3 py-2 text-sm border rounded-md"
-          />
-          <Button
-            variant="outline"
-            onClick={handleTestWebhook}
-            disabled={isTestingWebhook || !webhookTestEmail}
-            size="sm"
-          >
-            {isTestingWebhook ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              "Test Webhook"
-            )}
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Simulates an email_opened event for the specified contact
-        </p>
-      </div>
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const supabase = createClient();
@@ -331,12 +40,6 @@ export default function SettingsPage() {
   // API Keys
   const [apolloApiKey, setApolloApiKey] = useState("");
 
-  // Instantly Settings
-  const [instantlyApiKey, setInstantlyApiKey] = useState("");
-  const [instantlyCampaignId, setInstantlyCampaignId] = useState("");
-  const [instantlyCampaigns, setInstantlyCampaigns] = useState<InstantlyCampaign[]>([]);
-  const [isTestingInstantly, setIsTestingInstantly] = useState(false);
-  const [instantlyConnected, setInstantlyConnected] = useState<boolean | null>(null);
 
   // Cadence Settings
   const [emailsPerWeek, setEmailsPerWeek] = useState(3);
@@ -379,7 +82,7 @@ export default function SettingsPage() {
           setApolloApiKey(settings.apollo_api_key || "");
         }
 
-        // Load cadence settings (Instantly config is now in .env.local, backend only)
+        // Load cadence settings
         const { data: cadenceData } = await (supabase as any)
           .from("cadence_settings")
           .select("*")
@@ -424,7 +127,7 @@ export default function SettingsPage() {
           apollo_api_key: apolloApiKey,
         } as any);
 
-      // Update cadence settings (Instantly API key and campaign ID are now in .env.local)
+      // Update cadence settings
       await (supabase as any)
         .from("cadence_settings")
         .upsert({
@@ -476,52 +179,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleTestInstantly = async () => {
-    if (!instantlyApiKey) {
-      toast.error("Enter an API key first");
-      return;
-    }
-
-    setIsTestingInstantly(true);
-    setInstantlyConnected(null);
-
-    try {
-      // Call server-side API route instead of client function (avoids CORS)
-      const testResponse = await fetch("/api/instantly/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: instantlyApiKey }),
-      });
-
-      const result = await testResponse.json();
-      setInstantlyConnected(result.success);
-
-      if (result.success) {
-        toast.success("Connected to Instantly!");
-        // Load campaigns via API route
-        const campaignsResponse = await fetch("/api/instantly/campaigns", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apiKey: instantlyApiKey }),
-        });
-
-        const campaignsData = await campaignsResponse.json();
-        if (campaignsData.campaigns) {
-          setInstantlyCampaigns(campaignsData.campaigns);
-        } else if (campaignsData.error) {
-          toast.error(`Failed to load campaigns: ${campaignsData.error}`);
-        }
-      } else {
-        toast.error(result.message || "Connection failed");
-      }
-    } catch (error: any) {
-      console.error("Instantly test error:", error);
-      toast.error(error.message || "Connection test failed");
-      setInstantlyConnected(false);
-    } finally {
-      setIsTestingInstantly(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -640,24 +297,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Instantly Campaign Status */}
-          <Card
-            className="opacity-0 animate-fade-in"
-            style={{ animationDelay: "75ms", animationFillMode: "forwards" }}
-          >
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Instantly Campaign Status
-              </CardTitle>
-              <CardDescription>
-                Verify your Instantly campaign configuration
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <InstantlyCampaignStatus />
-            </CardContent>
-          </Card>
 
           {/* Cadence Settings */}
           <Card
@@ -686,7 +325,7 @@ export default function SettingsPage() {
                     onChange={(e) => setEmailsPerWeek(parseInt(e.target.value) || 3)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Automated via Instantly
+                    Automated via Resend
                   </p>
                 </div>
                 <div className="space-y-2">

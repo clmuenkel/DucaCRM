@@ -10,8 +10,7 @@ import type { Contact, EmailTemplate } from "@/types/database";
 import { renderTemplate } from "@/lib/email-template-renderer";
 import { createCalendarEvent, getValidAccessToken } from "@/lib/google-calendar/client";
 import { generateICSFile } from "@/lib/email/ics-generator";
-import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
-import { removeLeadFromCampaign } from "@/lib/instantly/client";
+import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
@@ -210,18 +209,16 @@ export async function POST(request: NextRequest) {
       industry: getIndustryForTemplate(typedContact), // Add industry for template rendering
     };
 
-    // Send email via Instantly if template exists
-    const instantlyApiKey = process.env.INSTANTLY_API_KEY;
-    const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
+    // Send email via Resend if template exists
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const resendFromEmail = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
     let emailSent = false;
 
-    if (template && instantlyApiKey && instantlyCampaignId) {
+    if (template && resendApiKey && resendFromEmail) {
       try {
-        // Note: Instantly may not support ICS attachments directly
-        // The ICS content would need to be included in the email body or sent separately
         const sendResult = await sendEmailWithTemplate({
-          apiKey: instantlyApiKey,
-          campaignId: instantlyCampaignId,
+          apiKey: resendApiKey,
+          fromEmail: resendFromEmail,
           contact: typedContact,
           template,
           variables,
@@ -229,22 +226,14 @@ export async function POST(request: NextRequest) {
 
         if (sendResult.success) {
           emailSent = true;
+          // Update contact with resend email ID
+          await (supabase as any)
+            .from("contacts")
+            .update({ resend_email_id: sendResult.emailId })
+            .eq("id", contactId);
         }
       } catch (emailError: any) {
         console.error("Failed to send email:", emailError);
-      }
-    }
-
-    // Cancel follow-up emails - remove from Instantly campaign
-    if (instantlyApiKey && instantlyCampaignId && typedContact.email) {
-      try {
-        await removeLeadFromCampaign(
-          instantlyApiKey,
-          instantlyCampaignId,
-          typedContact.email
-        );
-      } catch (removeError) {
-        console.error("Failed to remove lead from campaign:", removeError);
       }
     }
 

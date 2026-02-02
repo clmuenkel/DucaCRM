@@ -186,7 +186,7 @@ export interface Database {
           last_email_sent_at: string | null;
           email_count_this_week: number;
           call_count_this_week: number;
-          instantly_lead_id: string | null;
+          resend_email_id: string | null;
           cadence_step: number | null;
           cadence_day_started: string | null;
           next_action_date: string | null;
@@ -257,7 +257,7 @@ export interface Database {
           last_email_sent_at?: string | null;
           email_count_this_week?: number;
           call_count_this_week?: number;
-          instantly_lead_id?: string | null;
+          resend_email_id?: string | null;
           cadence_step?: number | null;
           cadence_day_started?: string | null;
           next_action_date?: string | null;
@@ -328,7 +328,7 @@ export interface Database {
           last_email_sent_at?: string | null;
           email_count_this_week?: number;
           call_count_this_week?: number;
-          instantly_lead_id?: string | null;
+          resend_email_id?: string | null;
           cadence_step?: number | null;
           cadence_day_started?: string | null;
           next_action_date?: string | null;

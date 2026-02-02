@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
-import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
+import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
 import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
 
@@ -25,13 +25,13 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
-    // Get Instantly config
-    const instantlyApiKey = process.env.INSTANTLY_API_KEY;
-    const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
+    // Get Resend config
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const resendFromEmail = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
 
-    if (!instantlyApiKey || !instantlyCampaignId) {
+    if (!resendApiKey || !resendFromEmail) {
       return NextResponse.json(
-        { error: "Instantly API not configured" },
+        { error: "Resend API not configured (missing API key or from email)" },
         { status: 500 }
       );
     }
@@ -127,8 +127,8 @@ export async function POST(request: NextRequest) {
 
         // Send follow-up email
         const sendResult = await sendEmailWithTemplate({
-          apiKey: instantlyApiKey,
-          campaignId: instantlyCampaignId,
+          apiKey: resendApiKey,
+          fromEmail: resendFromEmail,
           contact: typedContact,
           template,
           variables,
@@ -159,9 +159,9 @@ export async function POST(request: NextRequest) {
                 activity_type: "follow_up_sent",
                 summary: `Follow-up email sent 7 days after call`,
                 metadata: {
-                  template_id: template.id,
-                  instantly_lead_id: sendResult.leadId,
-                },
+                template_id: template.id,
+                resend_email_id: sendResult.emailId,
+              },
               });
           } catch (logError) {
             console.warn("Failed to log activity:", logError);

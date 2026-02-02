@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
 import { renderTemplate } from "@/lib/email-template-renderer";
+import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
@@ -110,46 +111,26 @@ export async function POST(request: NextRequest) {
     const subject = renderTemplate(template.subject_template, variables);
     const emailBody = renderTemplate(template.body_template, variables);
 
-    // Send email via Instantly if configured (from environment)
-    const instantlyApiKey = process.env.INSTANTLY_API_KEY;
-    const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
+    // Send email via Resend if configured (from environment)
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const resendFromEmail = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
 
-    if (instantlyApiKey && instantlyCampaignId) {
+    if (resendApiKey && resendFromEmail && template) {
       try {
-        // Send email via Instantly API
-        const instantlyResponse = await fetch(
-          "https://api.instantly.ai/api/v2/leads",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${instantlyApiKey}`,
-            },
-            body: JSON.stringify({
-              campaign_id: instantlyCampaignId,
-              skip_if_in_workspace: true,
-              leads: [
-                {
-                  email: typedContact.email,
-                  first_name: typedContact.first_name,
-                  last_name: typedContact.last_name || "",
-                  company_name: typedContact.company_name || "",
-                  personalization: subject, // Use subject as personalization
-                  custom_variables: {
-                    email_subject: subject,
-                    email_body: emailBody,
-                  },
-                },
-              ],
-            }),
-          }
-        );
+        // Send email via Resend
+        const sendResult = await sendEmailWithTemplate({
+          apiKey: resendApiKey,
+          fromEmail: resendFromEmail,
+          contact: typedContact,
+          template,
+          variables,
+        });
 
-        if (!instantlyResponse.ok) {
-          console.error("Failed to send email via Instantly:", await instantlyResponse.text());
+        if (!sendResult.success) {
+          console.error("Failed to send email via Resend:", sendResult.error);
         }
       } catch (error) {
-        console.error("Error sending email via Instantly:", error);
+        console.error("Error sending email via Resend:", error);
         // Continue even if email send fails - we still update the contact
       }
     }

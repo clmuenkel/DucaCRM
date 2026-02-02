@@ -44,7 +44,7 @@ echo ""
 echo "2️⃣  Starting cadence..."
 CADENCE_RESPONSE=$(curl -s -X POST "${API_BASE}/contacts/start-cadence" \
   -H "Content-Type: application/json" \
-  -d "{\"contactIds\": [\"$CONTACT_ID\"], \"pushToInstantly\": true}")
+  -d "{\"contactIds\": [\"$CONTACT_ID\"]}")
 
 if echo "$CADENCE_RESPONSE" | grep -q '"success":true'; then
   echo -e "${GREEN}✅ Cadence started${NC}"
@@ -70,12 +70,16 @@ echo ""
 # Test 4: Simulate email open (webhook)
 echo "4️⃣  Simulating email open webhook..."
 EMAIL=$(echo $CONTACT_RESPONSE | grep -o '"email":"[^"]*' | cut -d'"' -f4)
-WEBHOOK_RESPONSE=$(curl -s -X POST "${API_BASE}/instantly/webhook" \
+WEBHOOK_RESPONSE=$(curl -s -X POST "${API_BASE}/resend/webhook" \
   -H "Content-Type: application/json" \
   -d "{
-    \"event\": \"email_opened\",
-    \"email\": \"$EMAIL\",
-    \"campaign_id\": \"test\"
+    \"type\": \"email.opened\",
+    \"data\": {
+      \"email_id\": \"test-email-id\",
+      \"to\": [\"$EMAIL\"],
+      \"from\": \"sales@yourdomain.com\",
+      \"subject\": \"Test Email\"
+    }
   }")
 
 if echo "$WEBHOOK_RESPONSE" | grep -q '"success":true'; then
@@ -148,5 +152,5 @@ echo ""
 echo "Summary:"
 echo "  - Contact created: $CONTACT_ID"
 echo "  - Email: $EMAIL"
-echo "  - Check Instantly dashboard for lead status"
+echo "  - Check Resend dashboard for email status"
 echo "  - Check CRM work queue for contact status"

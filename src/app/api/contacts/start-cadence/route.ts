@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
-import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
+import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
 import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
 
@@ -10,7 +10,6 @@ export const dynamic = 'force-dynamic';
 
 interface StartCadenceRequest {
   contactIds: string[];
-  pushToInstantly?: boolean;
   templateId?: string; // Optional - defaults to "Cold Email"
 }
 
@@ -23,7 +22,6 @@ export async function POST(request: NextRequest) {
     const body: StartCadenceRequest = await request.json();
     const { 
       contactIds, 
-      pushToInstantly = true,
       templateId,
     } = body;
 
@@ -37,9 +35,9 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
-    // Get Instantly config from environment variables (backend only)
-    const instantlyApiKey = process.env.INSTANTLY_API_KEY;
-    const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
+    // Get Resend config from environment variables (backend only)
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const resendFromEmail = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
 
     // Get "Cold Email" template from CRM (or use provided templateId)
     let template: EmailTemplate | null = null;
@@ -82,7 +80,7 @@ export async function POST(request: NextRequest) {
     const typedProfile = profile as { full_name: string | null; calendar_link: string | null } | null;
 
     let started = 0;
-    let sentToInstantly = 0;
+    let emailsSent = 0;
     let errors = 0;
     const errorDetails: string[] = []; // Track error messages
     const today = new Date().toISOString().split("T")[0];
@@ -119,13 +117,13 @@ export async function POST(request: NextRequest) {
           sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
         };
 
-        // Send email directly to Instantly (no queue)
+        // Send email via Resend
         let emailSent = false;
-        if (pushToInstantly && instantlyApiKey && instantlyCampaignId) {
+        if (resendApiKey && resendFromEmail) {
           try {
             const sendResult = await sendEmailWithTemplate({
-              apiKey: instantlyApiKey,
-              campaignId: instantlyCampaignId,
+              apiKey: resendApiKey,
+              fromEmail: resendFromEmail,
               contact: typedContact,
               template,
               variables,
@@ -136,12 +134,12 @@ export async function POST(request: NextRequest) {
               await (supabase as any)
                 .from("contacts")
                 .update({ 
-                  instantly_lead_id: sendResult.leadId || "pushed",
+                  resend_email_id: sendResult.emailId,
                   last_email_sent_at: new Date().toISOString(),
                 })
                 .eq("id", contactId);
 
-              sentToInstantly++;
+              emailsSent++;
               emailSent = true;
             } else {
               const errorMsg = `Failed to send email: ${sendResult.error || "Unknown error"}`;
@@ -149,15 +147,15 @@ export async function POST(request: NextRequest) {
               errorDetails.push(`${typedContact.first_name} ${typedContact.last_name || ""}: ${errorMsg}`);
               // Don't continue here - still update cadence status even if email fails
             }
-          } catch (instantlyError: any) {
-            const errorMsg = `Email send error: ${instantlyError.message || "Unknown error"}`;
-            console.error(`Failed to send email for contact ${contactId}:`, instantlyError);
+          } catch (resendError: any) {
+            const errorMsg = `Email send error: ${resendError.message || "Unknown error"}`;
+            console.error(`Failed to send email for contact ${contactId}:`, resendError);
             errorDetails.push(`${typedContact.first_name} ${typedContact.last_name || ""}: ${errorMsg}`);
             // Don't continue here - still update cadence status even if email fails
           }
-        } else if (pushToInstantly) {
-          // Instantly not configured
-          const errorMsg = "Instantly API not configured (missing API key or campaign ID)";
+        } else {
+          // Resend not configured
+          const errorMsg = "Resend API not configured (missing API key or from email)";
           errorDetails.push(errorMsg);
           console.warn(errorMsg);
         }
@@ -198,12 +196,12 @@ export async function POST(request: NextRequest) {
               contact_id: contactId,
               activity_type: "cadence_started",
               summary: emailSent 
-                ? `Sales cadence started - email sent via Instantly`
+                ? `Sales cadence started - email sent via Resend`
                 : `Sales cadence started - email send failed`,
               metadata: {
                 template_id: template.id,
                 email_sent: emailSent,
-                pushed_to_instantly: pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email,
+                sent_via_resend: resendApiKey && resendFromEmail && typedContact.email,
               },
             });
         } catch (logError) {
@@ -220,10 +218,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: errors === 0,
-      message: `Started cadence for ${started} contact${started !== 1 ? "s" : ""}. ${sentToInstantly} email${sentToInstantly !== 1 ? "s" : ""} sent to Instantly${errors > 0 ? `, ${errors} error${errors !== 1 ? "s" : ""}` : ""}`,
+      message: `Started cadence for ${started} contact${started !== 1 ? "s" : ""}. ${emailsSent} email${emailsSent !== 1 ? "s" : ""} sent via Resend${errors > 0 ? `, ${errors} error${errors !== 1 ? "s" : ""}` : ""}`,
       stats: {
         started,
-        sentToInstantly,
+        emailsSent,
         errors,
         total: contactIds.length,
       },

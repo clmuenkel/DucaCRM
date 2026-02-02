@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         const stepDef = CADENCE_STEPS.find(s => s.step === currentStep);
 
         // If current step is an email step, auto-advance to next step
-        // (Instantly handles the actual sending)
+        // (Resend handles the actual sending)
         if (stepDef?.type === "email") {
           const nextStep = currentStep + 1;
           

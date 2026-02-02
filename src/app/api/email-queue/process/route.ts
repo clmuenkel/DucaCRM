@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
+import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import type { Contact, EmailTemplate } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
@@ -29,13 +29,13 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
-    // Get Instantly config
-    const instantlyApiKey = process.env.INSTANTLY_API_KEY;
-    const instantlyCampaignId = process.env.INSTANTLY_CAMPAIGN_ID;
+    // Get Resend config
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const resendFromEmail = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
 
-    if (!instantlyApiKey || !instantlyCampaignId) {
+    if (!resendApiKey || !resendFromEmail) {
       return NextResponse.json(
-        { error: "Instantly API not configured" },
+        { error: "Resend API not configured (missing API key or from email)" },
         { status: 500 }
       );
     }
@@ -115,10 +115,10 @@ export async function POST(request: NextRequest) {
           sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
         };
 
-        // Send email via Instantly
+        // Send email via Resend
         const sendResult = await sendEmailWithTemplate({
-          apiKey: instantlyApiKey,
-          campaignId: instantlyCampaignId,
+          apiKey: resendApiKey,
+          fromEmail: resendFromEmail,
           contact,
           template,
           variables,
@@ -131,7 +131,6 @@ export async function POST(request: NextRequest) {
             .update({
               status: "sent",
               sent_at: new Date().toISOString(),
-              instantly_lead_id: sendResult.leadId,
             })
             .eq("id", queuedEmail.id);
 
@@ -139,7 +138,7 @@ export async function POST(request: NextRequest) {
           await (supabase as any)
             .from("contacts")
             .update({
-              instantly_lead_id: sendResult.leadId || "pushed",
+              resend_email_id: sendResult.emailId,
               last_email_sent_at: new Date().toISOString(),
             })
             .eq("id", contact.id);
