@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic';
 // GET /api/persona-sets/[id] - Get a single persona set
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
 
     const { data, error } = await supabase
       .from("persona_sets")
@@ -38,11 +38,11 @@ export async function GET(
 // PATCH /api/persona-sets/[id] - Update a persona set
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await request.json();
 
     // If setting as default, unset other defaults first
@@ -91,11 +91,11 @@ export async function PATCH(
 // DELETE /api/persona-sets/[id] - Delete a persona set
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
 
     const { error } = await supabase
       .from("persona_sets")

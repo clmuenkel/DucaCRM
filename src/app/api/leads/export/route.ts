@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const format = searchParams.get("format") || "csv";
     const onlyDM = searchParams.get("onlyDM") === "true";
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get companies with their contacts and fallback data

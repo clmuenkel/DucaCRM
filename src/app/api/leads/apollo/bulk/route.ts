@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get API keys
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     const { data: settings } = await (supabase as any)

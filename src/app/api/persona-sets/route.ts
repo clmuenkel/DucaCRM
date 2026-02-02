@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/persona-sets - List all persona sets
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
       .from("persona_sets")
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 // POST /api/persona-sets - Create a new persona set
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const body = await request.json();
 
     const {

@@ -25,7 +25,7 @@ const ARCHIVE_DAY = 15;
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
     const today = new Date().toISOString().split("T")[0];
 
@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
     const today = new Date().toISOString().split("T")[0];
 

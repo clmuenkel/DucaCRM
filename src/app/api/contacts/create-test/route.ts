@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Check if test contact already exists

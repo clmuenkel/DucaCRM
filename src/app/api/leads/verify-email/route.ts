@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mode 3: Batch verify lead_people with guessed emails
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     let query = (supabase as any)

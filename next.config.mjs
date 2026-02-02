@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/ssr', 'twilio'],
-  },
+  serverExternalPackages: ['@supabase/ssr', 'twilio'],
 };
 
 export default nextConfig;

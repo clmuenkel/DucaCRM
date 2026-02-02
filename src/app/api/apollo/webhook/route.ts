@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, updated: 0 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
     let updated = 0;
     let failed = 0;
     const results: Array<{ apolloId: string; mobile: string; method: string; success: boolean; error?: string }> = [];

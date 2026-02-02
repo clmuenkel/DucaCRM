@@ -217,7 +217,7 @@ const DUMMY_CONTACTS_BY_COMPANY: Record<string, Array<{
 };
 
 export async function seedDummyData() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
   
   const results = {
@@ -394,7 +394,7 @@ export async function seedDummyData() {
 }
 
 export async function clearDummyData() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
 
   // Delete in order to avoid FK constraints

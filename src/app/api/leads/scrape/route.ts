@@ -404,7 +404,7 @@ export async function POST(request: NextRequest) {
     const body: ScrapeRequest = await request.json();
     const { companyIds, limit = 25 } = body;
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get companies that need scraping

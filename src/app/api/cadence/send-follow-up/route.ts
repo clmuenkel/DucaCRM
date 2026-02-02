@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const body: SendFollowUpRequest = await request.json();
     const { contactIds } = body;
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get Resend config

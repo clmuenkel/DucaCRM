@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
     const body: EnrichRequest = await request.json();
     const { companyIds, limit = 50, industry, retryFailed = false } = body;
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get Apollo API key
@@ -419,7 +419,7 @@ export async function POST(request: NextRequest) {
 // GET endpoint to get enrichment status/stats
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get counts by status

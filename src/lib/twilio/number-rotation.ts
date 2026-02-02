@@ -21,7 +21,7 @@ export async function initializeTwilioNumbers(): Promise<{
   updated: number;
   errors: string[];
 }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
   const config = getTwilioConfig();
 
@@ -95,7 +95,7 @@ export async function getNextAvailableNumber(): Promise<{
   number: TwilioNumber | null;
   error?: string;
 }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
 
   try {
@@ -148,7 +148,7 @@ export async function getNextAvailableNumber(): Promise<{
 export async function incrementCallCount(
   numberId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
 
   try {
@@ -191,7 +191,7 @@ export async function incrementCallCount(
 export async function checkDailyLimits(
   numberId: string
 ): Promise<{ withinLimit: boolean; current: number; limit: number; error?: string }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
 
   try {
@@ -237,7 +237,7 @@ export async function getAllTwilioNumbers(): Promise<{
   numbers: TwilioNumber[];
   error?: string;
 }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
 
   try {
@@ -264,7 +264,7 @@ export async function updateSpamScore(
   numberId: string,
   spamScore: number | null
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
 
   try {
@@ -293,7 +293,7 @@ export async function updateSpamScore(
 export async function deactivateNumber(
   numberId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClient();
+  const supabase = await createClient();
   const userId = DEFAULT_USER_ID;
 
   try {

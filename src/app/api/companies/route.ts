@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/companies - List all companies with stats
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const searchParams = request.nextUrl.searchParams;
     
     const search = searchParams.get("search");
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 // POST /api/companies - Create a new company
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const body = await request.json();
 
     const {

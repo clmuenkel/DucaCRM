@@ -61,7 +61,7 @@ function calculatePriorityScore(contact: {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get all contacts that need priority calculation

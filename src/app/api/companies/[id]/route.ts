@@ -7,11 +7,11 @@ export const dynamic = 'force-dynamic';
 // GET /api/companies/[id] - Get a single company with all contacts and call history
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
 
     // Get company
     const { data: companyData, error } = await supabase
@@ -92,11 +92,11 @@ export async function GET(
 // PATCH /api/companies/[id] - Update a company
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await request.json();
 
     // If location is being updated, recalculate timezone
@@ -143,11 +143,11 @@ export async function PATCH(
 // DELETE /api/companies/[id] - Delete a company
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
 
     // First unlink all contacts from this company
     await (supabase as any)

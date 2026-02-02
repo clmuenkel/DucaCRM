@@ -74,7 +74,7 @@ export function recordCall(userId: string = DEFAULT_USER_ID): void {
  */
 async function getRecentCallCount(userId: string): Promise<number> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
     const { count, error } = await supabase

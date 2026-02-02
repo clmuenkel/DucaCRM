@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = DEFAULT_USER_ID;
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Check call pacing
     const pacingCheck = shouldThrottle(userId);

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     const body: ReEnrichRequest = await request.json().catch(() => ({}));
     const { limit = 200, dryRun = false } = body;
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
     const apiKey = await getApolloApiKey(supabase);
 

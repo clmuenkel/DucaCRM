@@ -6,11 +6,11 @@ export const dynamic = 'force-dynamic';
 // POST /api/contacts/[id]/referral - Set a direct referral for a contact
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
     const body = await request.json();
 
     const { referrer_id, note } = body;
@@ -70,11 +70,11 @@ export async function POST(
 // DELETE /api/contacts/[id]/referral - Remove direct referral from a contact
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
 
     const { data, error } = await (supabase as any)
       .from("contacts")
@@ -106,11 +106,11 @@ export async function DELETE(
 // GET /api/contacts/[id]/referral - Get the referral context for a contact
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createClient();
-    const { id } = params;
+    const supabase = await createClient();
+    const { id } = await params;
 
     // Get the contact with referral info
     const { data: contactData, error } = await supabase

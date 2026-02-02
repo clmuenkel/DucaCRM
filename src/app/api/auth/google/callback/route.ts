@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       : null;
 
     // Store tokens in database
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     const { error: updateError } = await (supabase as any)

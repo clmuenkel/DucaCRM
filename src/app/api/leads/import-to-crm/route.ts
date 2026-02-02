@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const body: ImportRequest = await request.json();
     const { companyIds, personIds, importAll = false, onlyDM = false } = body;
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Build query for lead companies to import
@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Count enriched companies by contact type

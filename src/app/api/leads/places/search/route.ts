@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Search for each keyword and collect results
@@ -317,7 +317,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const limit = parseInt(searchParams.get("limit") || "100");
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     let query = (supabase as any)

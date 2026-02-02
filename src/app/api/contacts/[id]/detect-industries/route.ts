@@ -11,10 +11,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const contactId = params.id;
+    const { id: contactId } = await params;
 
     if (!contactId) {
       return NextResponse.json(
@@ -23,7 +23,7 @@ export async function POST(
       );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get contact

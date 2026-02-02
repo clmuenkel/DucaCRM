@@ -143,7 +143,7 @@ async function testApollo(apiKey: string): Promise<TestResult> {
  */
 async function testSupabase(): Promise<TestResult> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // Try to read from profiles table
     const { data, error } = await supabase
@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
   let apolloKeyFromDb: string | null = null;
   if (supabaseResult.status === "pass") {
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       const { data: settings } = await (supabase as any)
         .from("user_settings")
         .select("apollo_api_key")

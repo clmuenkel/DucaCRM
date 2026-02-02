@@ -121,7 +121,7 @@ export async function calculateSpamScoreFromOutcomes(
   numberId: string
 ): Promise<{ spamScore: number | null; error?: string }> {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get recent calls for this number (last 7 days)
