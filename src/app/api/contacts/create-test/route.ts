@@ -23,9 +23,21 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       const typedExisting = existing as { id: string };
+      // Update existing contact with phone number
+      const { error: updateError } = await (supabase as any)
+        .from("contacts")
+        .update({
+          phone: "+18322941575",
+        })
+        .eq("id", typedExisting.id);
+      
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+      
       return NextResponse.json({
         success: true,
-        message: "Test contact already exists",
+        message: "Test contact updated with phone number",
         contactId: typedExisting.id,
       });
     }
@@ -38,8 +50,9 @@ export async function POST(request: NextRequest) {
         first_name: "Carl-Luca",
         last_name: "Muenkel",
         email: "18cmuenkel@gmail.com",
+        phone: "+18322941575",
         company_name: "Test Company",
-        industry: "hvac",
+        industry: "swag",
         employee_count: 50,
         employee_range: "11-50",
         status: "active",

@@ -84,8 +84,17 @@ export async function POST(request: NextRequest) {
     let errors = 0;
     const errorDetails: string[] = []; // Track error messages
     const today = new Date().toISOString().split("T")[0];
+    
+    // Stagger emails: 1 per minute (60 seconds delay between sends)
+    const STAGGER_DELAY_MS = 60000; // 60 seconds = 1 minute
 
-    for (const contactId of contactIds) {
+    for (let i = 0; i < contactIds.length; i++) {
+      const contactId = contactIds[i];
+      
+      // Add delay between emails (except for the first one)
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, STAGGER_DELAY_MS));
+      }
       try {
         // Get contact details
         const { data: contact, error: fetchError } = await supabase
