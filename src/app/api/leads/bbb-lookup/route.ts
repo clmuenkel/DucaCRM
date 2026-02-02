@@ -245,7 +245,6 @@ async function searchSecretaryOfState(companyName: string, state: string): Promi
 /**
  * POST handler - Look up business on BBB
  */
-export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {

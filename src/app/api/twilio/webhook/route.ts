@@ -5,7 +5,6 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Tables } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 /**
  * POST /api/twilio/webhook

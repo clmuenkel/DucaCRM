@@ -4,7 +4,6 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 // Cadence step definitions (matches migration)
 const CADENCE_STEPS = [
@@ -26,6 +25,17 @@ const ARCHIVE_DAY = 15;
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check for Vercel cron authorization
+    const authHeader = request.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
+    
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     const supabase = await createClient();
     const userId = DEFAULT_USER_ID;
     const today = new Date().toISOString().split("T")[0];

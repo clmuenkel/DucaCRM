@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getTimezoneFromLocation } from "@/lib/timezone";
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 // GET /api/companies - List all companies with stats
 export async function GET(request: NextRequest) {

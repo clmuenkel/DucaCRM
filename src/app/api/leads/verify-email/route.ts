@@ -4,7 +4,6 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { verifyEmail, verifyEmailsBatch, generateEmailPatterns, findValidEmail } from "@/lib/email-verifier";
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 interface VerifyRequest {
   // Single email verification

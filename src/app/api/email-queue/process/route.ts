@@ -11,7 +11,6 @@ import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import type { Contact, EmailTemplate } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {

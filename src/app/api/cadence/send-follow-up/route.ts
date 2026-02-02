@@ -12,7 +12,6 @@ import { getIndustryForTemplate } from "@/lib/utils";
 import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 interface SendFollowUpRequest {
   contactIds?: string[]; // Optional - if not provided, finds all due contacts
@@ -20,7 +19,34 @@ interface SendFollowUpRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const body: SendFollowUpRequest = await request.json();
+    // Check for Vercel cron authorization (if called by cron, no body will be sent)
+    const authHeader = request.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
+    
+    // If CRON_SECRET is set and this is a cron call, verify authorization
+    // Allow manual calls (with body) to bypass cron auth
+    let body: SendFollowUpRequest = { contactIds: undefined };
+    try {
+      body = await request.json();
+    } catch {
+      // No body - this is a cron call, verify auth
+      if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json(
+          { error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+    }
+    
+    // If body was provided but no auth header, this is a manual call - allow it
+    // If auth header is present, verify it matches cron secret
+    if (body.contactIds && cronSecret && authHeader && authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    
     const { contactIds } = body;
 
     const supabase = await createClient();

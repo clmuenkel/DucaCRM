@@ -4,7 +4,6 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 
 // Cadence step definitions
 const CADENCE_STEPS = [

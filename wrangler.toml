@@ -1,6 +1,0 @@
-name = "ducacrm"
-compatibility_date = "2024-02-02"
-pages_build_output_dir = ".vercel/output/static"
-
-[compatibility_flags]
-nodejs_compat = true

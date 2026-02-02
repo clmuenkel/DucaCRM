@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchApolloContacts, type EnhancedSearchParams } from "@/lib/apollo/client";
 
-export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {

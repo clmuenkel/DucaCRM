@@ -3,7 +3,6 @@ import Twilio from "twilio";
 import { getTwilioConfig } from "@/lib/twilio/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
-export const runtime = 'edge';
 
 /**
  * GET /api/twilio/token
