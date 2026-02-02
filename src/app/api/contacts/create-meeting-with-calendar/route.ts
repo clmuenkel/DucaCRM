@@ -12,6 +12,7 @@ import { createCalendarEvent, getValidAccessToken } from "@/lib/google-calendar/
 import { generateICSFile } from "@/lib/email/ics-generator";
 import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
 import { removeLeadFromCampaign } from "@/lib/instantly/client";
+import { getIndustryForTemplate } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -206,6 +207,7 @@ export async function POST(request: NextRequest) {
       sender_calendar: typedProfile.calendar_link || "[Calendar Link]",
       meeting_date: meetingDate,
       meeting_time: meetingTime,
+      industry: getIndustryForTemplate(typedContact), // Add industry for template rendering
     };
 
     // Send email via Instantly if template exists

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { renderTemplate } from "@/lib/email-template-renderer";
+import { getIndustryForTemplate } from "@/lib/utils";
 import type { EmailTemplate, Contact } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       title: "VP of Operations",
       email: "john.smith@acme.com",
       phone: "(555) 123-4567",
+      industry: "home services",
       sender_name: "Your Name",
       sender_calendar: "https://calendly.com/your-link",
       meeting_date: "Tuesday, January 20th",
@@ -81,6 +83,7 @@ export async function POST(request: NextRequest) {
           title: typedContact.title || "",
           email: typedContact.email || "",
           phone: typedContact.phone || typedContact.mobile || "",
+          industry: getIndustryForTemplate(typedContact),
           sender_name: "Your Name", // Would come from profile
           sender_calendar: "https://calendly.com/your-link", // Would come from profile
           meeting_date: "Tuesday, January 20th",

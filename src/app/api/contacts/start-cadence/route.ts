@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
 import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
+import { getIndustryForTemplate } from "@/lib/utils";
 import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +12,6 @@ interface StartCadenceRequest {
   contactIds: string[];
   pushToInstantly?: boolean;
   templateId?: string; // Optional - defaults to "Cold Email"
-  staggerMinutes?: number; // Default: 1 minute between emails
-  sendImmediately?: boolean; // Default: true
 }
 
 /**
@@ -26,8 +25,6 @@ export async function POST(request: NextRequest) {
       contactIds, 
       pushToInstantly = true,
       templateId,
-      staggerMinutes = 1,
-      sendImmediately = true,
     } = body;
 
     if (!contactIds || contactIds.length === 0) {
@@ -85,13 +82,11 @@ export async function POST(request: NextRequest) {
     const typedProfile = profile as { full_name: string | null; calendar_link: string | null } | null;
 
     let started = 0;
-    let queued = 0;
-    let pushedToInstantly = 0;
+    let sentToInstantly = 0;
     let errors = 0;
-    const now = new Date();
+    const today = new Date().toISOString().split("T")[0];
 
-    for (let i = 0; i < contactIds.length; i++) {
-      const contactId = contactIds[i];
+    for (const contactId of contactIds) {
       try {
         // Get contact details
         const { data: contact, error: fetchError } = await supabase
@@ -107,11 +102,12 @@ export async function POST(request: NextRequest) {
         }
 
         const typedContact = contact as Contact;
-        const today = new Date().toISOString().split("T")[0];
 
-        // Calculate scheduled send time (staggered by index)
-        const scheduledAt = new Date(now);
-        scheduledAt.setMinutes(scheduledAt.getMinutes() + (i * staggerMinutes));
+        if (!typedContact.email) {
+          console.error(`Contact ${contactId} has no email address`);
+          errors++;
+          continue;
+        }
 
         // Build variables for template rendering
         const variables: Record<string, string> = {
@@ -119,41 +115,39 @@ export async function POST(request: NextRequest) {
           sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
         };
 
-        // Render template to get subject and body
-        const { renderTemplate } = await import("@/lib/email-template-renderer");
-        const contactVariables = {
-          first_name: typedContact.first_name || "",
-          last_name: typedContact.last_name || "",
-          full_name: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
-          company: typedContact.company_name || "",
-          title: typedContact.title || "",
-          email: typedContact.email || "",
-          phone: typedContact.phone || typedContact.mobile || "",
-          ...variables,
-        };
-        const renderedSubject = renderTemplate(template.subject_template, contactVariables);
-        const renderedBody = renderTemplate(template.body_template, contactVariables);
+        // Send email directly to Instantly (no queue)
+        if (pushToInstantly && instantlyApiKey && instantlyCampaignId) {
+          try {
+            const sendResult = await sendEmailWithTemplate({
+              apiKey: instantlyApiKey,
+              campaignId: instantlyCampaignId,
+              contact: typedContact,
+              template,
+              variables,
+            });
 
-        // Queue email in database for staggered sending
-        const { error: queueError } = await (supabase as any)
-          .from("email_queue")
-          .insert({
-            user_id: userId,
-            contact_id: contactId,
-            template_id: template.id,
-            rendered_subject: renderedSubject,
-            rendered_body: renderedBody,
-            scheduled_at: scheduledAt.toISOString(),
-            status: "pending",
-          });
+            if (sendResult.success) {
+              // Update contact with email sent info
+              await (supabase as any)
+                .from("contacts")
+                .update({ 
+                  instantly_lead_id: sendResult.leadId || "pushed",
+                  last_email_sent_at: new Date().toISOString(),
+                })
+                .eq("id", contactId);
 
-        if (queueError) {
-          console.error(`Failed to queue email for contact ${contactId}:`, queueError);
-          errors++;
-          continue;
+              sentToInstantly++;
+            } else {
+              console.error(`Failed to send email for contact ${contactId}:`, sendResult.error);
+              errors++;
+              continue;
+            }
+          } catch (instantlyError: any) {
+            console.error(`Failed to send email for contact ${contactId}:`, instantlyError);
+            errors++;
+            continue;
+          }
         }
-
-        queued++;
 
         // Update cadence status
         const { error: updateError } = await (supabase as any)
@@ -180,49 +174,6 @@ export async function POST(request: NextRequest) {
 
         started++;
 
-        // If sendImmediately is true and it's time to send (first email), send immediately
-        // Otherwise, the email_queue processor will handle it
-        if (sendImmediately && i === 0 && pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email) {
-          try {
-            const sendResult = await sendEmailWithTemplate({
-              apiKey: instantlyApiKey,
-              campaignId: instantlyCampaignId,
-              contact: typedContact,
-              template,
-              variables,
-            });
-
-            if (sendResult.success) {
-              // Update email_queue with instantly_lead_id
-              await (supabase as any)
-                .from("email_queue")
-                .update({
-                  instantly_lead_id: sendResult.leadId,
-                  status: "sent",
-                  sent_at: new Date().toISOString(),
-                })
-                .eq("contact_id", contactId)
-                .eq("status", "pending")
-                .order("created_at", { ascending: true })
-                .limit(1);
-
-              // Update contact
-              await (supabase as any)
-                .from("contacts")
-                .update({ 
-                  instantly_lead_id: sendResult.leadId || "pushed",
-                  last_email_sent_at: new Date().toISOString(),
-                })
-                .eq("id", contactId);
-
-              pushedToInstantly++;
-            }
-          } catch (instantlyError: any) {
-            console.error(`Failed to send email for contact ${contactId}:`, instantlyError);
-            // Don't fail - email is queued and will be processed later
-          }
-        }
-
         // Log activity
         try {
           await (supabase as any)
@@ -231,10 +182,9 @@ export async function POST(request: NextRequest) {
               user_id: userId,
               contact_id: contactId,
               activity_type: "cadence_started",
-              summary: `Sales cadence started - email queued for ${scheduledAt.toLocaleString()}`,
+              summary: `Sales cadence started - email sent via Instantly`,
               metadata: {
                 template_id: template.id,
-                scheduled_at: scheduledAt.toISOString(),
                 pushed_to_instantly: pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email,
               },
             });
@@ -250,11 +200,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Started cadence for ${started} contacts. ${queued} emails queued${pushedToInstantly > 0 ? `, ${pushedToInstantly} sent immediately` : ""}`,
+      message: `Started cadence for ${started} contacts. ${sentToInstantly} emails sent to Instantly${errors > 0 ? `, ${errors} errors` : ""}`,
       stats: {
         started,
-        queued,
-        pushedToInstantly,
+        sentToInstantly,
         errors,
         total: contactIds.length,
       },

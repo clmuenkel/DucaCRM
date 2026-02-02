@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
 import { renderTemplate } from "@/lib/email-template-renderer";
+import { getIndustryForTemplate } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
       title: typedContact.title || "",
       email: typedContact.email || "",
       phone: typedContact.phone || typedContact.mobile || "",
+      industry: getIndustryForTemplate(typedContact),
       sender_name: typedProfile?.full_name || "Your Name",
       sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
     };

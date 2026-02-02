@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
 import { sendEmailWithTemplate } from "@/lib/instantly/template-sender";
+import { getIndustryForTemplate } from "@/lib/utils";
 import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
 
 export const dynamic = 'force-dynamic';
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        // Build variables
+        // Build variables (industry is included in sendEmailWithTemplate via contact)
         const variables: Record<string, string> = {
           sender_name: typedProfile?.full_name || "Your Name",
           sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",

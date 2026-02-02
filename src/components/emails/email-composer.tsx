@@ -48,6 +48,14 @@ export function EmailComposer({
   const [body, setBody] = useState("");
 
   // Build variables from contact
+  const getIndustryForTemplate = (c: Contact): string => {
+    const industry = c.industries?.[0] || c.industry || "";
+    if (industry === "not_found" || industry === "other" || !industry) {
+      return "home services";
+    }
+    return industry;
+  };
+
   const variables = {
     first_name: contact.first_name || "",
     last_name: contact.last_name || "",
@@ -56,6 +64,7 @@ export function EmailComposer({
     title: contact.title || "",
     email: contact.email || "",
     phone: contact.phone || "",
+    industry: getIndustryForTemplate(contact),
     sender_name: senderName,
     sender_calendar: senderCalendar,
     meeting_date: "[Meeting Date]",

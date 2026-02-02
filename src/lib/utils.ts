@@ -58,3 +58,16 @@ export function getInitials(name: string): string {
 export function copyToClipboard(text: string): Promise<void> {
   return navigator.clipboard.writeText(text);
 }
+
+/**
+ * Get industry for template rendering
+ * Returns "home services" if industry is "not_found", "other", or empty
+ */
+export function getIndustryForTemplate(contact: { industries?: string[] | null; industry?: string | null }): string {
+  const industry = contact.industries?.[0] || contact.industry || "";
+  // Replace "not_found" or "other" with "home services"
+  if (industry === "not_found" || industry === "other" || !industry) {
+    return "home services";
+  }
+  return industry;
+}

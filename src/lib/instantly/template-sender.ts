@@ -5,6 +5,7 @@
 
 import { renderTemplate } from "@/lib/email-template-renderer";
 import { addLeadToCampaign } from "./client";
+import { getIndustryForTemplate } from "@/lib/utils";
 import type { Contact, EmailTemplate } from "@/types/database";
 
 export interface SendEmailWithTemplateParams {
@@ -33,6 +34,7 @@ export async function sendEmailWithTemplate(
     const { apiKey, campaignId, contact, template, variables = {}, scheduledAt } = params;
 
     // Build variables from contact
+    const industry = getIndustryForTemplate(contact);
     const contactVariables: Record<string, string> = {
       first_name: contact.first_name || "",
       last_name: contact.last_name || "",
@@ -41,6 +43,7 @@ export async function sendEmailWithTemplate(
       title: contact.title || "",
       email: contact.email || "",
       phone: contact.phone || contact.mobile || "",
+      industry: industry, // Add industry variable for template rendering
       // Merge with custom variables (overrides contact data)
       ...variables,
     };
@@ -64,7 +67,7 @@ export async function sendEmailWithTemplate(
         email_subject: renderedSubject,
         email_body: renderedBody,
         // Also include raw variables for Instantly's template system
-        industry: contact.industries?.[0] || contact.industry || "home services",
+        industry: industry,
         title: contact.title || "Owner",
         city: contact.city || "",
         ...variables,
