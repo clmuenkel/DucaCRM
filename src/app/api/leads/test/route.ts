@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 const PLACES_API_BASE = "https://places.googleapis.com/v1/places:searchText";
 const APOLLO_API_BASE = "https://api.apollo.io/v1";

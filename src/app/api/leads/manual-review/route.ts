@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 /**
  * POST /api/leads/manual-review

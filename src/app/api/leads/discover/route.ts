@@ -61,6 +61,8 @@ function extractCityState(address: string): { city: string; state: string } {
   return { city: "", state: "" };
 }
 
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
     const body: DiscoverRequest = await request.json();

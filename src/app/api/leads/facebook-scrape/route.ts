@@ -190,6 +190,8 @@ async function scrapeFacebookPage(facebookUrl: string): Promise<{
 /**
  * POST handler - Scrape website and/or Facebook page for contact info
  */
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

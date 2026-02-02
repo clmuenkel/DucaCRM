@@ -6,6 +6,7 @@ import { getIndustryForTemplate } from "@/lib/utils";
 import type { EmailTemplate, Contact } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 interface TestTemplateRequest {
   templateId: string;

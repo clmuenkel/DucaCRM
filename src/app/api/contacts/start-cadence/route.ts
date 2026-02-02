@@ -7,6 +7,7 @@ import { getIndustryForTemplate } from "@/lib/utils";
 import { EMAIL_TEMPLATE_CATEGORIES } from "@/lib/constants";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 interface StartCadenceRequest {
   contactIds: string[];

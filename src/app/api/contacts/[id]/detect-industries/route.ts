@@ -4,6 +4,7 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { inferCompanyTags } from "@/lib/csv-parser";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 /**
  * POST /api/contacts/[id]/detect-industries

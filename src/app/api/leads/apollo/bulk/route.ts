@@ -4,6 +4,7 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { extractPersonMobile, findTopDecisionMakers, scoreDecisionMakerTitle } from "@/lib/apollo/client";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 const PLACES_API_BASE = "https://places.googleapis.com/v1/places:searchText";
 

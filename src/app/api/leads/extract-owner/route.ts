@@ -168,6 +168,8 @@ function extractOwnerNameWithRegex(text: string): {
 /**
  * POST handler - Extract owner from place reviews or provided text
  */
+export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

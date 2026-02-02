@@ -4,6 +4,7 @@ import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 // Cadence step definitions (matches migration)
 const CADENCE_STEPS = [

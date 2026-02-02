@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
  * Returns TwiML instructions for outbound calls
  * This endpoint is called by Twilio when a call is initiated via Voice SDK
  */
+// Note: Cannot use edge runtime - Twilio SDK uses Node.js-only modules
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();

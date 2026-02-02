@@ -5,6 +5,7 @@ import { enrichPersonById, extractPersonMobile } from "@/lib/apollo/client";
 import type { Contact } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 const APOLLO_API_BASE = "https://api.apollo.io/v1";
 

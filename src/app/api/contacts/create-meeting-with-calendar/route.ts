@@ -14,6 +14,7 @@ import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
 
 interface CreateMeetingWithCalendarRequest {
   contactId: string;
