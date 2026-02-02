@@ -98,23 +98,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const typedProfile = profile as {
+      full_name: string | null;
+      calendar_link: string | null;
+      email: string;
+      google_calendar_access_token: string | null;
+      google_calendar_refresh_token: string | null;
+      google_calendar_token_expires_at: string | null;
+    };
+
     let calendarEventId: string | null = null;
     let calendarHtmlLink: string | null = null;
     let icsContent: string | null = null;
 
     // Create Google Calendar event if requested and tokens are available
-    if (createCalendarInvite && profile.google_calendar_access_token) {
+    if (createCalendarInvite && typedProfile.google_calendar_access_token) {
       try {
         const accessToken = await getValidAccessToken(
-          profile.google_calendar_access_token,
-          profile.google_calendar_refresh_token,
-          profile.google_calendar_token_expires_at
+          typedProfile.google_calendar_access_token,
+          typedProfile.google_calendar_refresh_token,
+          typedProfile.google_calendar_token_expires_at
         );
 
         // Update tokens if refreshed
-        if (accessToken !== profile.google_calendar_access_token) {
+        if (accessToken !== typedProfile.google_calendar_access_token) {
           const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour
-          await supabase
+          await (supabase as any)
             .from("profiles")
             .update({
               google_calendar_access_token: accessToken,
@@ -144,8 +153,8 @@ export async function POST(request: NextRequest) {
           description: description || `Meeting with ${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
           startTime,
           endTime,
-          organizerEmail: profile.email || "noreply@crm.com",
-          organizerName: profile.full_name || "CRM User",
+          organizerEmail: typedProfile.email || "noreply@crm.com",
+          organizerName: typedProfile.full_name || "CRM User",
           attendeeEmail: typedContact.email,
           attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
           location,
@@ -193,8 +202,8 @@ export async function POST(request: NextRequest) {
 
     // Build variables for template
     const variables: Record<string, string> = {
-      sender_name: profile.full_name || "Your Name",
-      sender_calendar: profile.calendar_link || "[Calendar Link]",
+      sender_name: typedProfile.full_name || "Your Name",
+      sender_calendar: typedProfile.calendar_link || "[Calendar Link]",
       meeting_date: meetingDate,
       meeting_time: meetingTime,
     };
@@ -238,14 +247,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Cancel queued emails
-    await supabase
+    await (supabase as any)
       .from("email_queue")
       .update({ status: "failed", error_message: "Cancelled - meeting scheduled" })
       .eq("contact_id", contactId)
       .eq("status", "pending");
 
     // Create meeting record in database
-    const { data: meeting, error: meetingError } = await supabase
+    const { data: meeting, error: meetingError } = await (supabase as any)
       .from("meetings")
       .insert({
         user_id: userId,

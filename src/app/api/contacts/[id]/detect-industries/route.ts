@@ -41,7 +41,8 @@ export async function POST(
       );
     }
 
-    const companyName = contact.company_name || "";
+    const typedContact = contact as { company_name: string | null; industries: string[] | null };
+    const companyName = typedContact.company_name || "";
     
     if (!companyName) {
       return NextResponse.json(
@@ -57,7 +58,7 @@ export async function POST(
       success: true,
       companyName,
       detectedIndustries,
-      currentIndustries: contact.industries || [],
+      currentIndustries: typedContact.industries || [],
     });
   } catch (error: any) {
     console.error("Detect industries error:", error);

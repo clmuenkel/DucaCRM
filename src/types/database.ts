@@ -27,6 +27,9 @@ export interface Database {
           email_signature: string | null;
           daily_call_goal: number;
           daily_email_goal: number;
+          google_calendar_access_token: string | null;
+          google_calendar_refresh_token: string | null;
+          google_calendar_token_expires_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -41,6 +44,9 @@ export interface Database {
           email_signature?: string | null;
           daily_call_goal?: number;
           daily_email_goal?: number;
+          google_calendar_access_token?: string | null;
+          google_calendar_refresh_token?: string | null;
+          google_calendar_token_expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -55,6 +61,9 @@ export interface Database {
           email_signature?: string | null;
           daily_call_goal?: number;
           daily_email_goal?: number;
+          google_calendar_access_token?: string | null;
+          google_calendar_refresh_token?: string | null;
+          google_calendar_token_expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };

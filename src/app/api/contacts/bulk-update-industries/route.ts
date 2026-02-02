@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     // Update each contact
     for (const contact of contacts || []) {
       try {
+        const typedContact = contact as { id: string; industries: string[] | null };
         let newIndustries: string[] = [];
 
         switch (action) {
@@ -70,11 +71,11 @@ export async function POST(request: NextRequest) {
             newIndustries = industries;
             break;
           case "add":
-            const current = (contact.industries || []) as string[];
+            const current = (typedContact.industries || []) as string[];
             newIndustries = [...new Set([...current, ...industries])];
             break;
           case "remove":
-            const currentRemove = (contact.industries || []) as string[];
+            const currentRemove = (typedContact.industries || []) as string[];
             newIndustries = currentRemove.filter((ind) => !industries.includes(ind));
             break;
         }
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await (supabase as any)
           .from("contacts")
           .update({ industries: newIndustries })
-          .eq("id", contact.id)
+          .eq("id", typedContact.id)
           .eq("user_id", userId);
 
         if (updateError) {

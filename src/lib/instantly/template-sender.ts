@@ -68,15 +68,10 @@ export async function sendEmailWithTemplate(
         title: contact.title || "Owner",
         city: contact.city || "",
         ...variables,
+        // If scheduledAt is provided, add it to custom variables
+        ...(scheduledAt ? { scheduled_at: scheduledAt.toISOString() } : {}),
       },
     };
-
-    // If scheduledAt is provided, add it to the lead data
-    // Note: Instantly API may not support scheduling directly, so we'll handle it via email_queue
-    if (scheduledAt) {
-      // Store scheduled time in custom variables for reference
-      leadData.custom_variables.scheduled_at = scheduledAt.toISOString();
-    }
 
     // Push to Instantly
     const response = await addLeadToCampaign(apiKey, campaignId, leadData);

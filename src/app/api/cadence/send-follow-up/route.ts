@@ -100,6 +100,8 @@ export async function POST(request: NextRequest) {
       .eq("id", userId)
       .single();
 
+    const typedProfile = profile as { full_name: string | null; calendar_link: string | null } | null;
+
     let sent = 0;
     let failed = 0;
     const today = new Date().toISOString().split("T")[0];
@@ -118,8 +120,8 @@ export async function POST(request: NextRequest) {
       try {
         // Build variables
         const variables: Record<string, string> = {
-          sender_name: profile?.full_name || "Your Name",
-          sender_calendar: profile?.calendar_link || "[Calendar Link]",
+          sender_name: typedProfile?.full_name || "Your Name",
+          sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
         };
 
         // Send follow-up email

@@ -82,6 +82,8 @@ export async function POST(request: NextRequest) {
       .eq("id", userId)
       .single();
 
+    const typedProfile = profile as { full_name: string | null; calendar_link: string | null } | null;
+
     let started = 0;
     let queued = 0;
     let pushedToInstantly = 0;
@@ -113,8 +115,8 @@ export async function POST(request: NextRequest) {
 
         // Build variables for template rendering
         const variables: Record<string, string> = {
-          sender_name: profile?.full_name || "Your Name",
-          sender_calendar: profile?.calendar_link || "[Calendar Link]",
+          sender_name: typedProfile?.full_name || "Your Name",
+          sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
         };
 
         // Render template to get subject and body
@@ -133,7 +135,7 @@ export async function POST(request: NextRequest) {
         const renderedBody = renderTemplate(template.body_template, contactVariables);
 
         // Queue email in database for staggered sending
-        const { error: queueError } = await supabase
+        const { error: queueError } = await (supabase as any)
           .from("email_queue")
           .insert({
             user_id: userId,
@@ -192,7 +194,7 @@ export async function POST(request: NextRequest) {
 
             if (sendResult.success) {
               // Update email_queue with instantly_lead_id
-              await supabase
+              await (supabase as any)
                 .from("email_queue")
                 .update({
                   instantly_lead_id: sendResult.leadId,

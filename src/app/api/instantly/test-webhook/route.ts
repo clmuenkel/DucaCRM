@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
+    const typedContact = contact as { id: string; email: string; email_open_count: number | null };
+
     // Simulate webhook by calling the webhook handler
     const webhookResponse = await fetch(
       `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/instantly/webhook`,
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           event,
-          email: contact.email,
+          email: typedContact.email,
           campaign_id: process.env.INSTANTLY_CAMPAIGN_ID,
           test: true,
         }),
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
     switch (event) {
       case "email_opened":
         updates.email_opened = true;
-        updates.email_open_count = (contact.email_open_count || 0) + 1;
+        updates.email_open_count = (typedContact.email_open_count || 0) + 1;
         break;
       case "email_replied":
         updates.email_replied = true;
@@ -75,15 +77,15 @@ export async function POST(request: NextRequest) {
       await (supabase as any)
         .from("contacts")
         .update(updates)
-        .eq("id", contact.id);
+        .eq("id", typedContact.id);
     }
 
     return NextResponse.json({
       success: true,
       message: `Webhook event '${event}' simulated successfully`,
       contact: {
-        id: contact.id,
-        email: contact.email,
+        id: typedContact.id,
+        email: typedContact.email,
       },
       updates,
       webhookResponse: webhookResponse ? await webhookResponse.json().catch(() => null) : null,

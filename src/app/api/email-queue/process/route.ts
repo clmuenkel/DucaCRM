@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     // Find emails that are due to be sent
-    const { data: queuedEmails, error: fetchError } = await supabase
+    const { data: queuedEmails, error: fetchError } = await (supabase as any)
       .from("email_queue")
       .select(`
         *,
@@ -83,6 +83,8 @@ export async function POST(request: NextRequest) {
       .eq("id", userId)
       .single();
 
+    const typedProfile = profile as { full_name: string | null; calendar_link: string | null } | null;
+
     for (const queuedEmail of queuedEmails) {
       try {
         const contact = queuedEmail.contacts as Contact;
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
 
         if (!contact || !template || !contact.email) {
           // Mark as failed
-          await supabase
+          await (supabase as any)
             .from("email_queue")
             .update({
               status: "failed",
@@ -102,15 +104,15 @@ export async function POST(request: NextRequest) {
         }
 
         // Update status to "sending"
-        await supabase
+        await (supabase as any)
           .from("email_queue")
           .update({ status: "sending" })
           .eq("id", queuedEmail.id);
 
         // Build variables
         const variables: Record<string, string> = {
-          sender_name: profile?.full_name || "Your Name",
-          sender_calendar: profile?.calendar_link || "[Calendar Link]",
+          sender_name: typedProfile?.full_name || "Your Name",
+          sender_calendar: typedProfile?.calendar_link || "[Calendar Link]",
         };
 
         // Send email via Instantly
@@ -124,7 +126,7 @@ export async function POST(request: NextRequest) {
 
         if (sendResult.success) {
           // Update queue entry
-          await supabase
+          await (supabase as any)
             .from("email_queue")
             .update({
               status: "sent",
@@ -145,7 +147,7 @@ export async function POST(request: NextRequest) {
           sent++;
         } else {
           // Mark as failed
-          await supabase
+          await (supabase as any)
             .from("email_queue")
             .update({
               status: "failed",
@@ -160,7 +162,7 @@ export async function POST(request: NextRequest) {
         console.error(`Error processing queued email ${queuedEmail.id}:`, error);
         
         // Mark as failed
-        await supabase
+        await (supabase as any)
           .from("email_queue")
           .update({
             status: "failed",

@@ -96,9 +96,11 @@ export async function POST(request: NextRequest) {
       .eq("id", userId)
       .single();
 
-    if (profile) {
-      variables.sender_name = profile.full_name || variables.sender_name;
-      variables.sender_calendar = profile.calendar_link || variables.sender_calendar;
+    const typedProfile = profile as { full_name: string | null; calendar_link: string | null } | null;
+
+    if (typedProfile) {
+      variables.sender_name = typedProfile.full_name || variables.sender_name;
+      variables.sender_calendar = typedProfile.calendar_link || variables.sender_calendar;
     }
 
     // Override with custom variables

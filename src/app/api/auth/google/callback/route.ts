@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from("profiles")
       .update({
         google_calendar_access_token: access_token,
