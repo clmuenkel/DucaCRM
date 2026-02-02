@@ -5,30 +5,18 @@ import { Header } from "@/components/layout/header";
 import { ContactForm } from "@/components/contacts/contact-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCreateContact } from "@/hooks/use-contacts";
-import { createClient } from "@/lib/supabase/client";
+import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+export const dynamic = 'force-dynamic';
 
 export default function NewContactPage() {
   const router = useRouter();
   const createContact = useCreateContact();
-  const [userId, setUserId] = useState<string | null>(null);
-  const supabase = createClient();
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-    };
-    getUser();
-  }, [supabase]);
+  const userId = DEFAULT_USER_ID;
 
   const handleSubmit = async (data: any) => {
-    if (!userId) {
-      toast.error("Not authenticated");
-      return;
-    }
-
     try {
       const contact = await createContact.mutateAsync({
         ...data,
