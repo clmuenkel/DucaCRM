@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     let started = 0;
     let sentToInstantly = 0;
     let errors = 0;
+    const errorDetails: string[] = []; // Track error messages
     const today = new Date().toISOString().split("T")[0];
 
     for (const contactId of contactIds) {
@@ -98,14 +99,17 @@ export async function POST(request: NextRequest) {
 
         if (fetchError || !contact) {
           errors++;
+          errorDetails.push(`Contact ${contactId}: ${fetchError?.message || "Not found"}`);
           continue;
         }
 
         const typedContact = contact as Contact;
 
         if (!typedContact.email) {
-          console.error(`Contact ${contactId} has no email address`);
+          const errorMsg = `Contact ${typedContact.first_name} ${typedContact.last_name || ""} has no email address`;
+          console.error(errorMsg);
           errors++;
+          errorDetails.push(errorMsg);
           continue;
         }
 
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
         };
 
         // Send email directly to Instantly (no queue)
+        let emailSent = false;
         if (pushToInstantly && instantlyApiKey && instantlyCampaignId) {
           try {
             const sendResult = await sendEmailWithTemplate({
@@ -137,19 +142,27 @@ export async function POST(request: NextRequest) {
                 .eq("id", contactId);
 
               sentToInstantly++;
+              emailSent = true;
             } else {
+              const errorMsg = `Failed to send email: ${sendResult.error || "Unknown error"}`;
               console.error(`Failed to send email for contact ${contactId}:`, sendResult.error);
-              errors++;
-              continue;
+              errorDetails.push(`${typedContact.first_name} ${typedContact.last_name || ""}: ${errorMsg}`);
+              // Don't continue here - still update cadence status even if email fails
             }
           } catch (instantlyError: any) {
+            const errorMsg = `Email send error: ${instantlyError.message || "Unknown error"}`;
             console.error(`Failed to send email for contact ${contactId}:`, instantlyError);
-            errors++;
-            continue;
+            errorDetails.push(`${typedContact.first_name} ${typedContact.last_name || ""}: ${errorMsg}`);
+            // Don't continue here - still update cadence status even if email fails
           }
+        } else if (pushToInstantly) {
+          // Instantly not configured
+          const errorMsg = "Instantly API not configured (missing API key or campaign ID)";
+          errorDetails.push(errorMsg);
+          console.warn(errorMsg);
         }
 
-        // Update cadence status
+        // Update cadence status (even if email failed)
         const { error: updateError } = await (supabase as any)
           .from("contacts")
           .update({
@@ -168,7 +181,9 @@ export async function POST(request: NextRequest) {
           .eq("id", contactId);
 
         if (updateError) {
+          const errorMsg = `Failed to update cadence status: ${updateError.message}`;
           errors++;
+          errorDetails.push(errorMsg);
           continue;
         }
 
@@ -182,9 +197,12 @@ export async function POST(request: NextRequest) {
               user_id: userId,
               contact_id: contactId,
               activity_type: "cadence_started",
-              summary: `Sales cadence started - email sent via Instantly`,
+              summary: emailSent 
+                ? `Sales cadence started - email sent via Instantly`
+                : `Sales cadence started - email send failed`,
               metadata: {
                 template_id: template.id,
+                email_sent: emailSent,
                 pushed_to_instantly: pushToInstantly && instantlyApiKey && instantlyCampaignId && typedContact.email,
               },
             });
@@ -193,20 +211,23 @@ export async function POST(request: NextRequest) {
         }
 
       } catch (e: any) {
+        const errorMsg = `Unexpected error: ${e.message || "Unknown error"}`;
         console.error(`Error starting cadence for contact ${contactId}:`, e);
         errors++;
+        errorDetails.push(errorMsg);
       }
     }
 
     return NextResponse.json({
-      success: true,
-      message: `Started cadence for ${started} contacts. ${sentToInstantly} emails sent to Instantly${errors > 0 ? `, ${errors} errors` : ""}`,
+      success: errors === 0,
+      message: `Started cadence for ${started} contact${started !== 1 ? "s" : ""}. ${sentToInstantly} email${sentToInstantly !== 1 ? "s" : ""} sent to Instantly${errors > 0 ? `, ${errors} error${errors !== 1 ? "s" : ""}` : ""}`,
       stats: {
         started,
         sentToInstantly,
         errors,
         total: contactIds.length,
       },
+      errorDetails: errorDetails.length > 0 ? errorDetails : undefined, // Include error details
     });
   } catch (error: any) {
     console.error("Start cadence error:", error);

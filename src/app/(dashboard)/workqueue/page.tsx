@@ -183,10 +183,19 @@ export default function WorkQueuePage() {
 
       // Show detailed stats
       if (data.stats) {
-        const { started, pushedToInstantly, errors, total } = data.stats;
+        const { started, sentToInstantly, errors, total } = data.stats;
         if (errors > 0) {
+          // Show error details if available
+          const errorMessage = data.errorDetails && data.errorDetails.length > 0
+            ? `${data.message}\n\nErrors:\n${data.errorDetails.map((e: string, i: number) => `${i + 1}. ${e}`).join('\n')}`
+            : data.message;
+          
+          toast.error(errorMessage, {
+            duration: 10000, // Show longer for errors
+          });
+        } else if (sentToInstantly === 0 && started > 0) {
           toast.warning(
-            `Started ${started}/${total} contacts. ${pushedToInstantly} emails sent. ${errors} errors.`
+            `Started ${started}/${total} contact${started !== 1 ? 's' : ''}, but no emails were sent. Check Instantly configuration.`
           );
         } else {
           toast.success(data.message);
