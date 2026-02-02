@@ -189,3 +189,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// GET handler for Vercel cron jobs (cron calls GET by default)
+export async function GET(request: NextRequest) {
+  return POST(request);
+}

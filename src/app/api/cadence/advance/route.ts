@@ -224,46 +224,8 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/cadence/advance
- * Get cadence summary stats
+ * Vercel cron calls GET - forward to POST for cadence advancement
  */
 export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
-    const today = new Date().toISOString().split("T")[0];
-
-    // Get contacts by cadence status
-    const { data: contacts } = await supabase
-      .from("contacts")
-      .select("cadence_status, cadence_outcome, cadence_step, next_action_date, next_action_type")
-      .eq("user_id", userId)
-      .eq("cadence_status", "active");
-
-    const stats = {
-      total: contacts?.length || 0,
-      inProgress: contacts?.filter((c: any) => c.cadence_outcome === "in_progress").length || 0,
-      callsDueToday: contacts?.filter((c: any) => 
-        c.next_action_date === today && c.next_action_type === "call"
-      ).length || 0,
-      emailsDueToday: contacts?.filter((c: any) => 
-        c.next_action_date === today && c.next_action_type === "email"
-      ).length || 0,
-      snoozed: contacts?.filter((c: any) => c.cadence_outcome === "callback").length || 0,
-      byStep: {} as Record<number, number>,
-    };
-
-    // Count by step
-    contacts?.forEach((c: any) => {
-      if (c.cadence_step !== null) {
-        stats.byStep[c.cadence_step] = (stats.byStep[c.cadence_step] || 0) + 1;
-      }
-    });
-
-    return NextResponse.json({ stats });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
-  }
+  return POST(request);
 }
