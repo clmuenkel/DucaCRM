@@ -2,15 +2,15 @@
   "crons": [
     {
       "path": "/api/email-queue/process",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cadence/send-follow-up",
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cadence/send-follow-up",
+      "schedule": "0 10 * * *"
+    },
+    {
       "path": "/api/cadence/advance",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 11 * * *"
     }
   ]
 }

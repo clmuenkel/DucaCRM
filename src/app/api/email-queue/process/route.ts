@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       .eq("status", "pending")
       .lte("scheduled_at", now.toISOString())
       .order("scheduled_at", { ascending: true })
-      .limit(10); // Process 10 at a time to avoid rate limits
+      .limit(100); // Process all pending emails in daily batch (Vercel Hobby limit: once per day)
 
     if (fetchError) {
       console.error("Error fetching queued emails:", fetchError);
