@@ -1,6 +1,8 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+// Phone number normalization for Twilio E.164 format
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
