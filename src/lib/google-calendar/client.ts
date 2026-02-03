@@ -178,9 +178,11 @@ export async function createCalendarEvent(
     },
   };
 
-  // Add query parameter to get conference data (Meet link)
+  // Add query parameters:
+  // - conferenceDataVersion=1: Get Google Meet link in response
+  // - sendUpdates=all: Automatically send calendar invites to all attendees
   const response = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1",
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
     {
       method: "POST",
       headers: {

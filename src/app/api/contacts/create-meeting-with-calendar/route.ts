@@ -194,21 +194,12 @@ export async function POST(request: NextRequest) {
         
         // Log final link being used
         console.log('Final Meet Link for template:', generatedMeetLink ? `${generatedMeetLink.substring(0, 50)}...` : 'NULL');
+        console.log('Google Calendar invite sent automatically to:', typedContact.email);
 
-        // Generate ICS file for email attachment
-        icsContent = generateICSFile({
-          summary: title,
-          description: description || `Meeting with ${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
-          startTime,
-          endTime,
-          organizerEmail: typedProfile.email || "noreply@crm.com",
-          organizerName: typedProfile.full_name || "Your Name",
-          attendeeEmail: typedContact.email,
-          attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
-          location,
-          meetingLink: generatedMeetLink || undefined,
-          eventId: calendarResult.eventId,
-        });
+        // Note: Google Calendar automatically sends invite email to attendee via sendUpdates=all
+        // ICS file is optional - only generate if needed for backup or custom email
+        // For now, we'll skip ICS since Google handles the invite
+        icsContent = null; // Google sends the official invite, no need for ICS
       } catch (calendarError: any) {
         console.error("Failed to create calendar event:", calendarError);
         // Continue without calendar event - still send email
