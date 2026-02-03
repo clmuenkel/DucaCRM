@@ -6,16 +6,23 @@
 /**
  * Convert Imgur links to image tags
  * Handles both album links (imgur.com/a/ID) and direct links (imgur.com/ID)
+ * For album links, tries multiple image format fallbacks
  */
 function convertImgurLinksToImages(text: string): string {
   // Match Imgur album links: https://imgur.com/a/ID or imgur.com/a/ID
-  // Note: For albums, we convert to a clickable image that links to the album
   const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/a\/([a-zA-Z0-9]+)/g;
   text = text.replace(albumPattern, (match, protocol, www, id) => {
     const fullUrl = protocol ? match : `https://${match}`;
-    // For album links, try to use the album ID as image ID (may not work, but better than nothing)
-    // User should update template to use direct image URL for best results
-    return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="https://i.imgur.com/${id}.png" alt="Logo" style="max-width: 200px; height: auto; display: inline-block; border: none;" onerror="this.style.display='none';" /></div>`;
+    // For album links, try jpg first (most common), then png as fallback
+    // Note: Album IDs don't always map to image IDs, but we try common formats
+    return `<div style="margin: 24px 0 0 0; text-align: center;">
+      <img 
+        src="https://i.imgur.com/${id}.jpg" 
+        alt="Logo" 
+        style="max-width: 200px; height: auto; display: inline-block; border: none;" 
+        onerror="if(this.src.indexOf('.jpg')!==-1){this.src='https://i.imgur.com/${id}.png';this.onerror=null;}else{this.style.display='none';}"
+      />
+    </div>`;
   });
 
   // Match direct Imgur links: https://imgur.com/ID or imgur.com/ID
@@ -32,13 +39,51 @@ function convertImgurLinksToImages(text: string): string {
       return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="${fullUrl}" alt="Logo" style="max-width: 200px; height: auto; display: inline-block; border: none;" /></div>`;
     }
     
-    // For direct links without extension, try common formats
-    const fullUrl = protocol ? `https://${www || ''}imgur.com/${id}` : `https://imgur.com/${id}`;
-    // Try .jpg first (most common), with fallback
-    return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="https://i.imgur.com/${id}.jpg" alt="Logo" style="max-width: 200px; height: auto; display: inline-block; border: none;" onerror="this.src='https://i.imgur.com/${id}.png'; this.onerror=null;" /></div>`;
+    // For direct links without extension, try jpg first, then png as fallback
+    return `<div style="margin: 24px 0 0 0; text-align: center;">
+      <img 
+        src="https://i.imgur.com/${id}.jpg" 
+        alt="Logo" 
+        style="max-width: 200px; height: auto; display: inline-block; border: none;" 
+        onerror="if(this.src.indexOf('.jpg')!==-1){this.src='https://i.imgur.com/${id}.png';this.onerror=null;}else{this.style.display='none';}"
+      />
+    </div>`;
   });
 
   return text;
+}
+
+/**
+ * Helper function to convert a line to a clickable link if it's a URL
+ */
+function convertLineToLink(line: string): string {
+  const trimmed = line.trim();
+  
+  // Check if line is a website link
+  if (/^(www\.|http)/i.test(trimmed)) {
+    const url = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+    return `<a href="${url}" style="color: #2563eb; text-decoration: none;">${trimmed}</a>`;
+  }
+  
+  return trimmed;
+}
+
+/**
+ * Helper function to detect if a line is part of a signature
+ */
+function isSignatureLine(line: string): boolean {
+  const trimmed = line.trim();
+  return /^(Founder|CEO|President|Director|Manager|VP|Vice President|Owner|www\.|http)/i.test(trimmed) ||
+         /^\|/.test(trimmed) || // Lines starting with |
+         /@/.test(trimmed) && /\.(com|net|org|io|co)/i.test(trimmed); // Email-like patterns
+}
+
+/**
+ * Helper function to detect if a paragraph starts a signature
+ */
+function isSignatureStart(paragraph: string): boolean {
+  const trimmed = paragraph.trim();
+  return /^(Best regards|Regards|Sincerely|Thanks|Thank you|Best|Warm regards)/i.test(trimmed);
 }
 
 /**
@@ -54,57 +99,85 @@ function convertPlainTextToHTML(text: string): string {
   // Split by double line breaks (paragraphs)
   const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
   
+  const htmlParagraphs: string[] = [];
+  let inSignatureSequence = false;
+  let signatureStartIndex = -1;
+  
+  // First pass: identify signature sequence
+  for (let i = 0; i < paragraphs.length; i++) {
+    const paragraph = paragraphs[i];
+    const paragraphText = paragraph.trim();
+    
+    if (isSignatureStart(paragraphText)) {
+      inSignatureSequence = true;
+      signatureStartIndex = i;
+      break;
+    }
+  }
+  
   // Convert each paragraph with proper styling
-  const htmlParagraphs = paragraphs.map((paragraph, index) => {
+  paragraphs.forEach((paragraph, index) => {
     const lines = paragraph.split('\n').filter(line => line.trim());
     const paragraphText = paragraph.trim();
     
     // Check if this looks like a greeting (starts with "Hi" or "Hello")
     const isGreeting = /^(Hi|Hello|Hey|Dear)/i.test(paragraphText);
     
-    // Check if this looks like a signature block (contains "Best regards" or similar)
-    const isSignature = /^(Best regards|Regards|Sincerely|Thanks|Thank you)/i.test(paragraphText);
-    
-    // Check if this looks like a signature line (name, title, website)
-    const isSignatureLine = /^(Founder|CEO|President|Director|Manager|www\.|http)/i.test(paragraphText) || 
-                           (index === paragraphs.length - 1 && lines.length <= 3);
+    // Check if we're in signature sequence
+    const isInSignature = inSignatureSequence && index >= signatureStartIndex;
     
     // Format greeting with proper spacing
     if (isGreeting) {
-      return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraphText}</p>`;
+      htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraphText}</p>`);
+      return;
     }
     
-    // Format signature block
-    if (isSignature || isSignatureLine) {
-      const signatureLines = lines.map((line, lineIndex) => {
-        const trimmedLine = line.trim();
-        
-        // Check if line is a website link
-        if (/^(www\.|http)/i.test(trimmedLine)) {
-          const url = trimmedLine.startsWith('http') ? trimmedLine : `https://${trimmedLine}`;
-          return `<a href="${url}" style="color: #2563eb; text-decoration: none;">${trimmedLine}</a>`;
-        }
-        
-        // First line of signature (usually "Best regards,")
-        if (lineIndex === 0 && isSignature) {
-          return trimmedLine;
-        }
-        
-        return trimmedLine;
-      });
+    // Format signature block - each line should be its own paragraph
+    if (isInSignature) {
+      // Check if this paragraph contains signature components
+      const hasSignatureComponents = lines.some(line => isSignatureLine(line.trim()) || isSignatureStart(line.trim()));
       
-      // Add extra spacing before signature
-      const marginTop = index > 0 ? '24px' : '16px';
-      return `<p style="margin: ${marginTop} 0 0 0; line-height: 1.6;">${signatureLines.join('<br>')}</p>`;
+      if (hasSignatureComponents || isSignatureStart(paragraphText)) {
+        // Format each line of signature separately
+        lines.forEach((line, lineIndex) => {
+          const trimmedLine = line.trim();
+          
+          // Skip empty lines
+          if (!trimmedLine) return;
+          
+          // Convert to link if it's a URL
+          const formattedLine = convertLineToLink(trimmedLine);
+          
+          // Determine margin top
+          let marginTop = '0';
+          if (index === signatureStartIndex && lineIndex === 0) {
+            // First line of signature - add spacing before
+            marginTop = index > 0 ? '24px' : '16px';
+          } else if (lineIndex === 0 && index > signatureStartIndex) {
+            // First line of a new signature paragraph
+            marginTop = '0';
+          }
+          
+          htmlParagraphs.push(`<p style="margin: ${marginTop} 0 0 0; line-height: 1.6;">${formattedLine}</p>`);
+        });
+        return;
+      }
     }
     
     // Regular paragraph with proper spacing
     if (lines.length === 1) {
-      return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${lines[0].trim()}</p>`;
+      const formattedLine = convertLineToLink(lines[0].trim());
+      htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${formattedLine}</p>`);
+      return;
     }
     
-    // Multiple lines - join with <br> and wrap in <p>
-    return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${lines.map(line => line.trim()).join('<br>')}</p>`;
+    // Multiple lines - check if any are links and format accordingly
+    const formattedLines = lines.map(line => {
+      const trimmed = line.trim();
+      return convertLineToLink(trimmed);
+    });
+    
+    htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${formattedLines.join('<br>')}</p>`);
   });
 
   return htmlParagraphs.join('');
