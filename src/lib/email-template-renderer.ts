@@ -73,7 +73,7 @@ function convertLineToLink(line: string): string {
  */
 function isSignatureLine(line: string): boolean {
   const trimmed = line.trim();
-  return /^(Founder|CEO|President|Director|Manager|VP|Vice President|Owner|www\.|http)/i.test(trimmed) ||
+  return /^(Founder|CEO|President|Director|Manager|VP|Vice President|Owner|www\.|http|https:\/\/imgur)/i.test(trimmed) ||
          /^\|/.test(trimmed) || // Lines starting with |
          /@/.test(trimmed) && /\.(com|net|org|io|co)/i.test(trimmed); // Email-like patterns
 }
@@ -88,7 +88,7 @@ function isSignatureStart(paragraph: string): boolean {
 
 /**
  * Convert plain text to HTML with proper formatting
- * Preserves line breaks and converts to paragraphs with professional spacing
+ * Handles both single and double line breaks
  */
 function convertPlainTextToHTML(text: string): string {
   // If already HTML (contains HTML tags), return as-is
@@ -96,90 +96,86 @@ function convertPlainTextToHTML(text: string): string {
     return text;
   }
 
-  // Split by double line breaks (paragraphs)
-  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+  // Normalize line breaks and split into lines
+  const lines = text.split(/\r?\n/).map(line => line.trim());
   
   const htmlParagraphs: string[] = [];
-  let inSignatureSequence = false;
-  let signatureStartIndex = -1;
+  let currentParagraph: string[] = [];
+  let foundSignatureStart = false;
+  let signatureLineCount = 0;
   
-  // First pass: identify signature sequence
-  for (let i = 0; i < paragraphs.length; i++) {
-    const paragraph = paragraphs[i];
-    const paragraphText = paragraph.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isEmpty = !line;
     
-    if (isSignatureStart(paragraphText)) {
-      inSignatureSequence = true;
-      signatureStartIndex = i;
-      break;
-    }
-  }
-  
-  // Convert each paragraph with proper styling
-  paragraphs.forEach((paragraph, index) => {
-    const lines = paragraph.split('\n').filter(line => line.trim());
-    const paragraphText = paragraph.trim();
+    // Check if this line starts a signature
+    const isSignatureStartLine = isSignatureStart(line);
     
-    // Check if this looks like a greeting (starts with "Hi" or "Hello")
-    const isGreeting = /^(Hi|Hello|Hey|Dear)/i.test(paragraphText);
-    
-    // Check if we're in signature sequence
-    const isInSignature = inSignatureSequence && index >= signatureStartIndex;
-    
-    // Format greeting with proper spacing
-    if (isGreeting) {
-      htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraphText}</p>`);
-      return;
+    // If we hit signature start, process current paragraph first
+    if (isSignatureStartLine && currentParagraph.length > 0) {
+      // Process accumulated paragraph
+      const paraText = currentParagraph.join(' ').trim();
+      if (paraText) {
+        htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+      }
+      currentParagraph = [];
+      foundSignatureStart = true;
+      signatureLineCount = 0;
     }
     
-    // Format signature block - each line should be its own paragraph
-    if (isInSignature) {
-      // Check if this paragraph contains signature components
-      const hasSignatureComponents = lines.some(line => isSignatureLine(line.trim()) || isSignatureStart(line.trim()));
+    // Handle signature lines
+    if (foundSignatureStart) {
+      if (isEmpty) {
+        // Empty line in signature - if we have accumulated signature lines, continue
+        // (don't reset, as signature might continue after empty line)
+        continue;
+      }
       
-      if (hasSignatureComponents || isSignatureStart(paragraphText)) {
-        // Format each line of signature separately
-        lines.forEach((line, lineIndex) => {
-          const trimmedLine = line.trim();
-          
-          // Skip empty lines
-          if (!trimmedLine) return;
-          
-          // Convert to link if it's a URL
-          const formattedLine = convertLineToLink(trimmedLine);
-          
-          // Determine margin top
-          let marginTop = '0';
-          if (index === signatureStartIndex && lineIndex === 0) {
-            // First line of signature - add spacing before
-            marginTop = index > 0 ? '24px' : '16px';
-          } else if (lineIndex === 0 && index > signatureStartIndex) {
-            // First line of a new signature paragraph
-            marginTop = '0';
-          }
-          
-          htmlParagraphs.push(`<p style="margin: ${marginTop} 0 0 0; line-height: 1.6;">${formattedLine}</p>`);
-        });
-        return;
+      // Check if this is still part of signature (name, title, website, or image link)
+      const isSignatureComponent = isSignatureLine(line) || 
+                                   /^(www\.|http|https:\/\/imgur)/i.test(line) ||
+                                   signatureLineCount < 5; // Allow up to 5 lines after "Best regards"
+      
+      if (isSignatureComponent || isSignatureStartLine) {
+        signatureLineCount++;
+        const formattedLine = convertLineToLink(line);
+        const marginTop = signatureLineCount === 1 ? '24px' : '0';
+        htmlParagraphs.push(`<p style="margin: ${marginTop} 0 0 0; line-height: 1.6;">${formattedLine}</p>`);
+        continue;
+      } else {
+        // No longer in signature, reset and treat as regular content
+        foundSignatureStart = false;
+        signatureLineCount = 0;
+        // Fall through to regular content handling
       }
     }
     
-    // Regular paragraph with proper spacing
-    if (lines.length === 1) {
-      const formattedLine = convertLineToLink(lines[0].trim());
-      htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${formattedLine}</p>`);
-      return;
+    // Handle regular content
+    if (!foundSignatureStart) {
+      if (isEmpty) {
+        // Empty line - if we have accumulated content, process it as a paragraph
+        if (currentParagraph.length > 0) {
+          const paraText = currentParagraph.join(' ').trim();
+          if (paraText) {
+            htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+          }
+          currentParagraph = [];
+        }
+      } else {
+        // Add line to current paragraph
+        currentParagraph.push(line);
+      }
     }
-    
-    // Multiple lines - check if any are links and format accordingly
-    const formattedLines = lines.map(line => {
-      const trimmed = line.trim();
-      return convertLineToLink(trimmed);
-    });
-    
-    htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${formattedLines.join('<br>')}</p>`);
-  });
-
+  }
+  
+  // Process any remaining paragraph
+  if (currentParagraph.length > 0) {
+    const paraText = currentParagraph.join(' ').trim();
+    if (paraText) {
+      htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+    }
+  }
+  
   return htmlParagraphs.join('');
 }
 
