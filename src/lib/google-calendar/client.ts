@@ -208,25 +208,79 @@ export async function createCalendarEvent(
     conferenceDataType: eventData.conferenceData?.conferenceSolution?.key?.type,
   });
 
-  // Extract Meet link - try multiple paths
+  // Extract Meet link - try multiple paths with comprehensive fallbacks
   let generatedMeetLink = null;
+  let extractionMethod = null;
+  
   if (eventData.conferenceData) {
-    // Try primary entry point (most common)
+    console.log('Conference Data Structure:', {
+      hasEntryPoints: !!eventData.conferenceData.entryPoints,
+      entryPointsCount: eventData.conferenceData.entryPoints?.length || 0,
+      hasHangoutLink: !!eventData.conferenceData.hangoutLink,
+      conferenceId: eventData.conferenceData.conferenceId,
+      conferenceSolution: eventData.conferenceData.conferenceSolution,
+    });
+
+    // Method 1: Try entryPoints array (most common)
     if (eventData.conferenceData.entryPoints && eventData.conferenceData.entryPoints.length > 0) {
-      const entryPoint = eventData.conferenceData.entryPoints.find(
-        (ep: any) => ep.entryPointType === 'video' || ep.uri?.includes('meet.google.com')
-      ) || eventData.conferenceData.entryPoints[0];
-      generatedMeetLink = entryPoint?.uri;
-      console.log('Extracted Meet Link from entryPoints:', generatedMeetLink);
+      // First, try to find video entry point
+      const videoEntryPoint = eventData.conferenceData.entryPoints.find(
+        (ep: any) => ep.entryPointType === 'video' || ep.entryPointType === 'hangoutsMeet'
+      );
+      
+      if (videoEntryPoint?.uri) {
+        generatedMeetLink = videoEntryPoint.uri;
+        extractionMethod = 'entryPoints[video]';
+      } else {
+        // Fallback to first entry point that contains meet.google.com
+        const meetEntryPoint = eventData.conferenceData.entryPoints.find(
+          (ep: any) => ep.uri?.includes('meet.google.com')
+        );
+        if (meetEntryPoint?.uri) {
+          generatedMeetLink = meetEntryPoint.uri;
+          extractionMethod = 'entryPoints[meet.google.com]';
+        } else {
+          // Last resort: use first entry point
+          const firstEntryPoint = eventData.conferenceData.entryPoints[0];
+          if (firstEntryPoint?.uri) {
+            generatedMeetLink = firstEntryPoint.uri;
+            extractionMethod = 'entryPoints[0]';
+          }
+        }
+      }
+      console.log('Extracted Meet Link from entryPoints:', generatedMeetLink, 'Method:', extractionMethod);
     }
-    // Try hangoutLink as fallback
+    
+    // Method 2: Try hangoutLink property (older format)
     if (!generatedMeetLink && eventData.conferenceData.hangoutLink) {
       generatedMeetLink = eventData.conferenceData.hangoutLink;
+      extractionMethod = 'hangoutLink';
       console.log('Extracted Meet Link from hangoutLink:', generatedMeetLink);
     }
+    
+    // Method 3: Try to construct from conferenceId if available
+    if (!generatedMeetLink && eventData.conferenceData.conferenceId) {
+      // Some Meet links can be constructed from conference ID
+      // Format: https://meet.google.com/[conference-id]
+      const conferenceId = eventData.conferenceData.conferenceId;
+      if (conferenceId && typeof conferenceId === 'string') {
+        // Try to extract the meeting code from conference ID
+        // Conference ID format varies, but sometimes contains the meeting code
+        generatedMeetLink = `https://meet.google.com/${conferenceId}`;
+        extractionMethod = 'conferenceId';
+        console.log('Constructed Meet Link from conferenceId:', generatedMeetLink);
+      }
+    }
+  } else {
+    console.warn('No conferenceData in API response - Meet link may not have been generated');
   }
 
-  console.log('Final Extracted Meet Link:', generatedMeetLink);
+  console.log('Final Extracted Meet Link:', generatedMeetLink, 'Method:', extractionMethod);
+  
+  // Validate the link format
+  if (generatedMeetLink && !generatedMeetLink.includes('meet.google.com')) {
+    console.warn('Extracted link does not appear to be a Google Meet link:', generatedMeetLink);
+  }
 
   return {
     eventId: eventData.id,
