@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       sender_calendar: "https://calendly.com/your-link",
       meeting_date: "Tuesday, January 20th",
       meeting_time: "2:00 PM EST",
+      meeting_link: "https://meet.google.com/xxx-xxxx-xxx",
     };
 
     if (contactId) {
@@ -88,6 +89,7 @@ export async function POST(request: NextRequest) {
           sender_calendar: "https://calendly.com/your-link", // Would come from profile
           meeting_date: "Tuesday, January 20th",
           meeting_time: "2:00 PM EST",
+          meeting_link: "https://meet.google.com/xxx-xxxx-xxx",
         };
       }
     }

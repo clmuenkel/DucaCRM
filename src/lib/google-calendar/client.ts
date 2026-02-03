@@ -19,6 +19,7 @@ export interface CalendarEventResult {
   eventId: string;
   htmlLink: string;
   iCalUID?: string;
+  meetLink?: string | null; // Add this - generated Google Meet link
 }
 
 /**
@@ -125,10 +126,11 @@ export async function createCalendarEvent(
       },
     ],
     location: location || undefined,
-    conferenceData: meetingLink
+    // Always request Google Meet link unless custom meetingLink is provided
+    conferenceData: !meetingLink
       ? {
           createRequest: {
-            requestId: `meeting-${Date.now()}`,
+            requestId: `meeting-${Date.now()}-${Math.random().toString(36).substring(7)}`,
             conferenceSolutionKey: { type: "hangoutsMeet" },
           },
         }
@@ -142,8 +144,9 @@ export async function createCalendarEvent(
     },
   };
 
+  // Add query parameter to get conference data (Meet link)
   const response = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1",
     {
       method: "POST",
       headers: {
@@ -161,9 +164,13 @@ export async function createCalendarEvent(
 
   const eventData = await response.json();
 
+  // Extract Meet link from response
+  const generatedMeetLink = eventData.conferenceData?.entryPoints?.[0]?.uri || null;
+
   return {
     eventId: eventData.id,
     htmlLink: eventData.htmlLink,
     iCalUID: eventData.iCalUID,
+    meetLink: generatedMeetLink || meetingLink || null,
   };
 }

@@ -89,6 +89,7 @@ export const TEMPLATE_VARIABLES = [
   { key: "sender_calendar", label: "Calendar Link", example: "https://calendly.com/..." },
   { key: "meeting_date", label: "Meeting Date", example: "Tuesday, January 20th" },
   { key: "meeting_time", label: "Meeting Time", example: "2:00 PM EST" },
+  { key: "meeting_link", label: "Meeting Link", example: "https://meet.google.com/xxx-xxxx-xxx" },
 ] as const;
 
 // ============================================

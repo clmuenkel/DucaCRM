@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
     let calendarEventId: string | null = null;
     let calendarHtmlLink: string | null = null;
     let icsContent: string | null = null;
+    let generatedMeetLink: string | null = null;
 
     // Create Google Calendar event if requested and tokens are available
     if (createCalendarInvite && typedProfile.google_calendar_access_token) {
@@ -141,11 +142,13 @@ export async function POST(request: NextRequest) {
           attendeeEmail: typedContact.email,
           attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
           location,
-          meetingLink,
+          meetingLink: meetingLink || undefined, // Only pass if user provided custom
         });
 
         calendarEventId = calendarResult.eventId;
         calendarHtmlLink = calendarResult.htmlLink;
+        // Extract generated Meet link (or use custom if provided)
+        generatedMeetLink = calendarResult.meetLink || meetingLink || null;
 
         // Generate ICS file for email attachment
         icsContent = generateICSFile({
@@ -158,7 +161,7 @@ export async function POST(request: NextRequest) {
           attendeeEmail: typedContact.email,
           attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
           location,
-          meetingLink,
+          meetingLink: generatedMeetLink || undefined,
           eventId: calendarResult.eventId,
         });
       } catch (calendarError: any) {
@@ -200,12 +203,14 @@ export async function POST(request: NextRequest) {
       timeZoneName: "short",
     });
 
-    // Build variables for template
+    // Build variables for template (use generated Meet link or custom link)
+    const finalMeetLink = generatedMeetLink || meetingLink || null;
     const variables: Record<string, string> = {
       sender_name: typedProfile.full_name || "Your Name",
       sender_calendar: typedProfile.calendar_link || "[Calendar Link]",
       meeting_date: meetingDate,
       meeting_time: meetingTime,
+      meeting_link: finalMeetLink || "", // Add generated Meet link to template variables
       industry: getIndustryForTemplate(typedContact), // Add industry for template rendering
     };
 
@@ -255,7 +260,7 @@ export async function POST(request: NextRequest) {
         scheduled_time: time,
         duration_minutes: duration,
         location: location || null,
-        meeting_link: meetingLink || null,
+        meeting_link: generatedMeetLink || meetingLink || null,
         description: description || null,
         status: "scheduled",
         google_calendar_event_id: calendarEventId,
