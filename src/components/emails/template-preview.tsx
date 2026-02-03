@@ -100,8 +100,21 @@ export function TemplatePreview({ open, onOpenChange, template, contactId }: Tem
             <div className="space-y-2">
               <Label>Email Body</Label>
               <div className="p-4 bg-muted rounded-md border min-h-[200px]">
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+                    .template-preview-content img {
+                      display: block !important;
+                      margin: 0 !important;
+                      text-align: left !important;
+                      max-width: 200px;
+                    }
+                    .template-preview-content {
+                      text-align: left;
+                    }
+                  `
+                }} />
                 <div
-                  className="prose prose-sm max-w-none"
+                  className="prose prose-sm max-w-none template-preview-content"
                   dangerouslySetInnerHTML={{ 
                     __html: preview.html || preview.htmlPreview || preview.body.replace(/\n/g, "<br />") 
                   }}

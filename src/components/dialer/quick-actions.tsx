@@ -13,6 +13,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -21,7 +29,11 @@ import {
   UserPlus,
   Loader2,
   CheckCircle2,
+  Clock,
+  MapPin,
+  Link as LinkIcon,
 } from "lucide-react";
+import { format, addDays } from "date-fns";
 import type { Contact } from "@/types/database";
 
 interface QuickActionsProps {
@@ -29,6 +41,32 @@ interface QuickActionsProps {
   onActionComplete: () => void;
   onNextContact: () => void;
 }
+
+const DURATION_OPTIONS = [
+  { value: "15", label: "15 minutes" },
+  { value: "30", label: "30 minutes" },
+  { value: "45", label: "45 minutes" },
+  { value: "60", label: "1 hour" },
+  { value: "90", label: "1.5 hours" },
+  { value: "120", label: "2 hours" },
+];
+
+// Generate time slots from 6 AM to 9 PM in 15 min increments
+const generateTimeSlots = () => {
+  const slots: { value: string; label: string }[] = [];
+  for (let hour = 6; hour <= 21; hour++) {
+    for (let min = 0; min < 60; min += 15) {
+      const time = `${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
+      const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+      const ampm = hour >= 12 ? "PM" : "AM";
+      const label = `${displayHour}:${min.toString().padStart(2, "0")} ${ampm}`;
+      slots.push({ value: time, label });
+    }
+  }
+  return slots;
+};
+
+const TIME_SLOTS = generateTimeSlots();
 
 export function QuickActions({ contact, onActionComplete, onNextContact }: QuickActionsProps) {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -46,24 +84,65 @@ export function QuickActions({ contact, onActionComplete, onNextContact }: Quick
     notes: "",
   });
 
+  // Meeting scheduling state
+  const tomorrow = addDays(new Date(), 1);
+  const defaultDate = format(tomorrow, "yyyy-MM-dd");
+  const [meetingTitle, setMeetingTitle] = useState(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
+  const [meetingDate, setMeetingDate] = useState(defaultDate);
+  const [meetingTime, setMeetingTime] = useState("10:00");
+  const [meetingDuration, setMeetingDuration] = useState("30");
+  const [meetingLocation, setMeetingLocation] = useState("");
+  const [meetingLink, setMeetingLink] = useState("");
+  const [meetingDescription, setMeetingDescription] = useState("");
+  const [createCalendarInvite, setCreateCalendarInvite] = useState(true);
+
   const handleScheduleMeeting = async () => {
+    if (!meetingTitle.trim() || !meetingDate || !meetingTime) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      const response = await fetch("/api/contacts/schedule-meeting", {
+      const response = await fetch("/api/contacts/create-meeting-with-calendar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contactId: contact.id }),
+        body: JSON.stringify({
+          contactId: contact.id,
+          title: meetingTitle.trim(),
+          date: meetingDate,
+          time: meetingTime,
+          duration: parseInt(meetingDuration),
+          location: meetingLocation.trim() || undefined,
+          meetingLink: meetingLink.trim() || undefined,
+          description: meetingDescription.trim() || undefined,
+          createCalendarInvite: createCalendarInvite,
+        }),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) throw new Error(data.error || "Failed to create meeting");
 
-      toast.success("Meeting scheduling email sent!");
+      if (data.calendar?.htmlLink) {
+        toast.success("Meeting scheduled with Google Calendar invite!");
+      } else {
+        toast.success("Meeting scheduled! (Calendar invite may not be available)");
+      }
+
+      // Reset form
+      setMeetingTitle(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
+      setMeetingDate(defaultDate);
+      setMeetingTime("10:00");
+      setMeetingDuration("30");
+      setMeetingLocation("");
+      setMeetingLink("");
+      setMeetingDescription("");
+      
       setShowScheduleDialog(false);
       onActionComplete();
       onNextContact();
     } catch (error: any) {
-      toast.error(error.message || "Failed to send scheduling email");
+      toast.error(error.message || "Failed to schedule meeting");
     } finally {
       setIsProcessing(false);
     }
@@ -226,13 +305,135 @@ export function QuickActions({ contact, onActionComplete, onNextContact }: Quick
 
       {/* Schedule Meeting Dialog */}
       <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Schedule Meeting</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Schedule Meeting
+            </DialogTitle>
             <DialogDescription>
-              Send a scheduling email to {contact.first_name} {contact.last_name}
+              Schedule a meeting with {contact.first_name} {contact.last_name}
+              {contact.company_name && ` from ${contact.company_name}`}
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Title */}
+            <div className="space-y-2">
+              <Label htmlFor="meeting-title">Meeting Title *</Label>
+              <Input
+                id="meeting-title"
+                value={meetingTitle}
+                onChange={(e) => setMeetingTitle(e.target.value)}
+                placeholder="Demo call, Discovery meeting, etc."
+              />
+            </div>
+
+            {/* Date and Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="meeting-date">Date *</Label>
+                <Input
+                  id="meeting-date"
+                  type="date"
+                  value={meetingDate}
+                  onChange={(e) => setMeetingDate(e.target.value)}
+                  min={format(new Date(), "yyyy-MM-dd")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="meeting-time">Time *</Label>
+                <Select value={meetingTime} onValueChange={setMeetingTime}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {TIME_SLOTS.map((slot) => (
+                      <SelectItem key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Duration */}
+            <div className="space-y-2">
+              <Label htmlFor="meeting-duration" className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Duration
+              </Label>
+              <Select value={meetingDuration} onValueChange={setMeetingDuration}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label htmlFor="meeting-location" className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                Location (Optional)
+              </Label>
+              <Input
+                id="meeting-location"
+                value={meetingLocation}
+                onChange={(e) => setMeetingLocation(e.target.value)}
+                placeholder="Office, Zoom, etc."
+              />
+            </div>
+
+            {/* Meeting Link */}
+            <div className="space-y-2">
+              <Label htmlFor="meeting-link" className="flex items-center gap-1">
+                <LinkIcon className="h-3 w-3" />
+                Meeting Link (Optional)
+              </Label>
+              <Input
+                id="meeting-link"
+                value={meetingLink}
+                onChange={(e) => setMeetingLink(e.target.value)}
+                placeholder="https://zoom.us/j/..."
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="meeting-description">Description (Optional)</Label>
+              <Textarea
+                id="meeting-description"
+                value={meetingDescription}
+                onChange={(e) => setMeetingDescription(e.target.value)}
+                placeholder="Meeting agenda, topics to discuss..."
+                rows={3}
+              />
+            </div>
+
+            {/* Create Calendar Invite */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="create-calendar-invite"
+                checked={createCalendarInvite}
+                onCheckedChange={(checked) => setCreateCalendarInvite(checked === true)}
+              />
+              <Label
+                htmlFor="create-calendar-invite"
+                className="text-sm font-normal cursor-pointer"
+              >
+                Create Google Calendar invite
+              </Label>
+            </div>
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowScheduleDialog(false)}>
               Cancel
@@ -243,7 +444,7 @@ export function QuickActions({ contact, onActionComplete, onNextContact }: Quick
               ) : (
                 <CheckCircle2 className="h-4 w-4 mr-2" />
               )}
-              Send Email
+              Schedule Meeting
             </Button>
           </DialogFooter>
         </DialogContent>

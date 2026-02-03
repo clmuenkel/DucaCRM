@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
           startTime,
           endTime,
           organizerEmail: typedProfile.email || "noreply@crm.com",
-          organizerName: typedProfile.full_name || "CRM User",
+          organizerName: typedProfile.full_name || "Your Name",
           attendeeEmail: typedContact.email,
           attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
           location,

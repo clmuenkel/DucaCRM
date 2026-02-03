@@ -63,7 +63,11 @@ export async function sendEmailWithTemplate(
     let formattedFrom = fromEmail;
     // contactVariables already includes merged variables, so check there
     const senderName = contactVariables.sender_name;
-    if (!fromEmail.includes('<') && senderName && senderName !== "Your Name" && senderName !== "[Your Name]") {
+    // Ensure we never use "CRM User" as sender name
+    if (!fromEmail.includes('<') && senderName && 
+        senderName !== "Your Name" && 
+        senderName !== "[Your Name]" && 
+        senderName !== "CRM User") {
       formattedFrom = `${senderName} <${fromEmail}>`;
     }
 

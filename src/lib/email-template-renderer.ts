@@ -21,8 +21,8 @@ function convertImgurLinksToImages(text: string): string {
     
     const fullUrl = protocol ? match : `https://${match}`;
     
-    // Direct image URL - convert to clean, single-line image tag
-    return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="${fullUrl}" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none;" /></div>`;
+    // Direct image URL - convert to clean, single-line image tag (left-aligned)
+    return `<div style="margin: 24px 0 0 0; text-align: left;"><img src="${fullUrl}" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0; border: none;" /></div>`;
   });
 
   // Then handle regular imgur.com links (album/post links)
@@ -39,8 +39,8 @@ function convertImgurLinksToImages(text: string): string {
       return match; // Already in an image tag, don't process
     }
     
-    // For regular imgur.com links, try to display as image
-    return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="https://i.imgur.com/${id}.jpg" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none;" onerror="this.onerror=null;this.src='https://i.imgur.com/${id}.png';" /></div>`;
+    // For regular imgur.com links, try to display as image (left-aligned)
+    return `<div style="margin: 24px 0 0 0; text-align: left;"><img src="https://i.imgur.com/${id}.jpg" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0; border: none;" onerror="this.onerror=null;this.src='https://i.imgur.com/${id}.png';" /></div>`;
   });
 
   return text;
