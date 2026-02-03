@@ -10,43 +10,37 @@
 function convertImgurLinksToImages(text: string): string {
   // First, handle direct i.imgur.com image URLs (these are guaranteed to be images)
   // Match: https://i.imgur.com/ID.png or i.imgur.com/ID.jpg, etc.
+  // Only match if not already inside an img src attribute
   const directImagePattern = /(https?:\/\/)?i\.imgur\.com\/([a-zA-Z0-9]+)(\.[a-z]+)?/g;
-  text = text.replace(directImagePattern, (match, protocol, id, ext) => {
-    const fullUrl = protocol ? match : `https://${match}`;
-    
-    // Direct image URL - convert to image tag
-    return `<div style="margin: 24px 0 0 0; text-align: center;">
-      <img 
-        src="${fullUrl}" 
-        alt="Logo" 
-        style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" 
-      />
-    </div>`;
-  });
-
-  // Then handle regular imgur.com links (album/post links)
-  // Try to convert to images, but these may not always work
-  const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/(a\/)?([a-zA-Z0-9]+)/g;
-  text = text.replace(albumPattern, (match, protocol, www, albumPrefix, id) => {
-    // Skip if this was already processed as a direct image URL
-    if (match.includes('i.imgur.com')) {
-      return match;
+  text = text.replace(directImagePattern, (match, protocol, id, ext, offset, fullString) => {
+    // Check if this URL is already inside an img src attribute
+    const beforeMatch = fullString.substring(Math.max(0, offset - 50), offset);
+    if (beforeMatch.includes('src="') || beforeMatch.includes("src='")) {
+      return match; // Already in an image tag, don't process
     }
     
     const fullUrl = protocol ? match : `https://${match}`;
     
+    // Direct image URL - convert to clean, single-line image tag
+    return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="${fullUrl}" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none;" /></div>`;
+  });
+
+  // Then handle regular imgur.com links (album/post links)
+  const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/(a\/)?([a-zA-Z0-9]+)/g;
+  text = text.replace(albumPattern, (match, protocol, www, albumPrefix, id, offset, fullString) => {
+    // Skip if already processed as direct image URL
+    if (match.includes('i.imgur.com')) {
+      return match;
+    }
+    
+    // Check if this URL is already inside an img src attribute
+    const beforeMatch = fullString.substring(Math.max(0, offset - 50), offset);
+    if (beforeMatch.includes('src="') || beforeMatch.includes("src='")) {
+      return match; // Already in an image tag, don't process
+    }
+    
     // For regular imgur.com links, try to display as image
-    // Try jpg first (most common), then png as fallback
-    return `<div style="margin: 24px 0 0 0; text-align: center;">
-      <a href="${fullUrl}" target="_blank" style="display: inline-block; text-decoration: none;">
-        <img 
-          src="https://i.imgur.com/${id}.jpg" 
-          alt="Logo" 
-          style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" 
-          onerror="this.onerror=null; this.src='https://i.imgur.com/${id}.png';"
-        />
-      </a>
-    </div>`;
+    return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="https://i.imgur.com/${id}.jpg" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none;" onerror="this.onerror=null;this.src='https://i.imgur.com/${id}.png';" /></div>`;
   });
 
   return text;
@@ -114,6 +108,13 @@ function convertPlainTextToHTML(text: string): string {
     const isEmpty = !trimmedLine;
     const prevLineWasEmpty = i > 0 && !rawLines[i - 1].trim();
     
+    // Skip lines that already contain HTML image tags (from convertImgurLinksToImages)
+    // These should be inserted as-is, not wrapped in paragraphs
+    if (trimmedLine.includes('<div') && trimmedLine.includes('<img')) {
+      htmlParagraphs.push(trimmedLine);
+      continue;
+    }
+    
     // Check if this line starts a signature
     const isSignatureStartLine = isSignatureStart(trimmedLine);
     
@@ -139,9 +140,13 @@ function convertPlainTextToHTML(text: string): string {
       }
       
       // Check if this is still part of signature
-      const isSignatureComponent = isSignatureLine(trimmedLine) || 
-                                   /^(www\.|http|https:\/\/imgur)/i.test(trimmedLine) ||
-                                   (signatureLineCount > 0 && signatureLineCount < 5);
+      // Skip if it's already image HTML
+      const isImageHTML = trimmedLine.includes('<div') && trimmedLine.includes('<img');
+      const isSignatureComponent = !isImageHTML && (
+        isSignatureLine(trimmedLine) || 
+        /^(www\.|http|https:\/\/imgur)/i.test(trimmedLine) ||
+        (signatureLineCount > 0 && signatureLineCount < 5)
+      );
       
       if (isSignatureComponent || isSignatureStartLine) {
         signatureLineCount++;
@@ -298,12 +303,12 @@ export function renderHTMLTemplate(
   // First render variables
   let rendered = renderTemplate(template, variables);
   
-  // Convert plain text to HTML FIRST (before adding image HTML)
-  // This ensures text formatting happens before images are added
-  rendered = convertPlainTextToHTML(rendered);
-  
-  // THEN convert Imgur links to images (after text is formatted)
+  // Convert Imgur links to images FIRST (before paragraph formatting)
+  // This prevents URLs from being wrapped in <p> tags
   rendered = convertImgurLinksToImages(rendered);
+  
+  // THEN convert plain text to HTML (this will leave image HTML as-is)
+  rendered = convertPlainTextToHTML(rendered);
   
   // Wrap in proper email HTML structure
   return wrapEmailHTML(rendered);
