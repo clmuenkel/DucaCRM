@@ -13,6 +13,7 @@ export interface CreateCalendarEventParams {
   attendeeName: string;
   location?: string;
   meetingLink?: string;
+  timezone?: string; // Contact's timezone for calendar event
 }
 
 export interface CalendarEventResult {
@@ -101,10 +102,38 @@ export async function createCalendarEvent(
     attendeeName,
     location,
     meetingLink,
+    timezone,
   } = params;
 
-  // Format dates in RFC3339 format
-  const formatDate = (date: Date): string => {
+  // Format dates in RFC3339 format without timezone
+  // Google Calendar will interpret this according to the timeZone field
+  const formatDate = (date: Date, tz?: string): string => {
+    // If timezone is provided, format the date as if it's in that timezone
+    // We need to convert the Date to the specified timezone's local time
+    if (tz) {
+      // Use Intl.DateTimeFormat to get the date components in the specified timezone
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+      
+      const parts = formatter.formatToParts(date);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const hour = parts.find(p => p.type === 'hour')?.value;
+      const minute = parts.find(p => p.type === 'minute')?.value;
+      const second = parts.find(p => p.type === 'second')?.value || '00';
+      
+      // Format as RFC3339 without timezone (Google Calendar will use timeZone field)
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+    }
     return date.toISOString();
   };
 
@@ -112,12 +141,12 @@ export async function createCalendarEvent(
     summary,
     description: description || "",
     start: {
-      dateTime: formatDate(startTime),
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      dateTime: formatDate(startTime, timezone),
+      timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
     end: {
-      dateTime: formatDate(endTime),
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      dateTime: formatDate(endTime, timezone),
+      timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
     },
     attendees: [
       {
@@ -164,8 +193,33 @@ export async function createCalendarEvent(
 
   const eventData = await response.json();
 
-  // Extract Meet link from response
-  const generatedMeetLink = eventData.conferenceData?.entryPoints?.[0]?.uri || null;
+  // Debug logging
+  console.log('Google Calendar API Response - Conference Data:', JSON.stringify(eventData.conferenceData, null, 2));
+  console.log('Google Calendar API Response - Full Event:', {
+    id: eventData.id,
+    hasConferenceData: !!eventData.conferenceData,
+    conferenceDataType: eventData.conferenceData?.conferenceSolution?.key?.type,
+  });
+
+  // Extract Meet link - try multiple paths
+  let generatedMeetLink = null;
+  if (eventData.conferenceData) {
+    // Try primary entry point (most common)
+    if (eventData.conferenceData.entryPoints && eventData.conferenceData.entryPoints.length > 0) {
+      const entryPoint = eventData.conferenceData.entryPoints.find(
+        (ep: any) => ep.entryPointType === 'video' || ep.uri?.includes('meet.google.com')
+      ) || eventData.conferenceData.entryPoints[0];
+      generatedMeetLink = entryPoint?.uri;
+      console.log('Extracted Meet Link from entryPoints:', generatedMeetLink);
+    }
+    // Try hangoutLink as fallback
+    if (!generatedMeetLink && eventData.conferenceData.hangoutLink) {
+      generatedMeetLink = eventData.conferenceData.hangoutLink;
+      console.log('Extracted Meet Link from hangoutLink:', generatedMeetLink);
+    }
+  }
+
+  console.log('Final Extracted Meet Link:', generatedMeetLink);
 
   return {
     eventId: eventData.id,

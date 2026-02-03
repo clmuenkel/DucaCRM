@@ -12,6 +12,7 @@ import { createCalendarEvent, getValidAccessToken } from "@/lib/google-calendar/
 import { generateICSFile } from "@/lib/email/ics-generator";
 import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
+import { getTimezoneFromLocation } from "@/lib/timezone";
 
 export const dynamic = 'force-dynamic';
 
@@ -78,9 +79,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse date and time
+    // Get contact's timezone from company or derive from state
+    let contactTimezone = "America/New_York"; // Default fallback
+
+    if (typedContact.company_id) {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("timezone")
+        .eq("id", typedContact.company_id)
+        .single();
+      
+      if (company?.timezone) {
+        contactTimezone = company.timezone;
+        console.log('Using company timezone:', contactTimezone);
+      }
+    }
+
+    // If no company timezone, derive from contact's state
+    if (contactTimezone === "America/New_York" && typedContact.state) {
+      contactTimezone = getTimezoneFromLocation(
+        typedContact.city,
+        typedContact.state,
+        typedContact.country
+      );
+      console.log('Derived timezone from state:', contactTimezone);
+    }
+
+    // Parse date and time - interpret as contact's timezone
     const [year, month, day] = date.split("-").map(Number);
     const [hours, minutes] = time.split(":").map(Number);
+    
+    // Create Date objects for formatting and calculations
+    // Note: These Date objects will be in server timezone, but we'll format them
+    // using the contact's timezone for display and Google Calendar
     const startTime = new Date(year, month - 1, day, hours, minutes);
     const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
 
@@ -143,12 +174,24 @@ export async function POST(request: NextRequest) {
           attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
           location,
           meetingLink: meetingLink || undefined, // Only pass if user provided custom
+          timezone: contactTimezone, // Use contact's timezone
         });
 
         calendarEventId = calendarResult.eventId;
         calendarHtmlLink = calendarResult.htmlLink;
         // Extract generated Meet link (or use custom if provided)
         generatedMeetLink = calendarResult.meetLink || meetingLink || null;
+        
+        // Log calendar result for debugging
+        console.log('Calendar Result:', {
+          eventId: calendarResult.eventId,
+          meetLink: calendarResult.meetLink,
+          hasMeetLink: !!calendarResult.meetLink,
+          meetLinkLength: calendarResult.meetLink?.length || 0,
+        });
+        
+        // Log final link being used
+        console.log('Final Meet Link for template:', generatedMeetLink ? `${generatedMeetLink.substring(0, 50)}...` : 'NULL');
 
         // Generate ICS file for email attachment
         icsContent = generateICSFile({
@@ -190,16 +233,18 @@ export async function POST(request: NextRequest) {
       template = (templates?.[0] as EmailTemplate | undefined) || null;
     }
 
-    // Format meeting date/time for template
+    // Format meeting date/time for template using contact's timezone
     const meetingDate = startTime.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: contactTimezone,
     });
     const meetingTime = startTime.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
+      timeZone: contactTimezone, // Use contact's timezone
       timeZoneName: "short",
     });
 
@@ -213,6 +258,14 @@ export async function POST(request: NextRequest) {
       meeting_link: finalMeetLink || "", // Add generated Meet link to template variables
       industry: getIndustryForTemplate(typedContact), // Add industry for template rendering
     };
+    
+    // Log variables being sent to template (truncate meeting_link for logging)
+    console.log('Template variables:', {
+      ...variables,
+      meeting_link: finalMeetLink ? `${finalMeetLink.substring(0, 50)}...` : 'EMPTY',
+      meeting_time: meetingTime,
+      contact_timezone: contactTimezone,
+    });
 
     // Send email via Resend if template exists
     const resendApiKey = process.env.RESEND_API_KEY;
