@@ -4,6 +4,7 @@ import { shouldThrottle, recordCall } from "@/lib/twilio/call-pacing";
 import { getTwilioConfig } from "@/lib/twilio/client";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import { normalizeToE164 } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,15 @@ export async function POST(request: NextRequest) {
 
     if (!toNumber) {
       return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
+    }
+
+    // Normalize phone number to E.164 format required by Twilio
+    const normalizedNumber = normalizeToE164(toNumber);
+    if (!normalizedNumber) {
+      return NextResponse.json(
+        { error: `Invalid phone number format: ${toNumber}. Must be in E.164 format (e.g., +18322941575)` },
+        { status: 400 }
+      );
     }
 
     const userId = DEFAULT_USER_ID;
@@ -64,7 +74,7 @@ export async function POST(request: NextRequest) {
         contact_id: contactId || null,
         twilio_number_id: number.id,
         from_number: number.phone_number,
-        to_number: toNumber,
+        to_number: normalizedNumber, // Store normalized number
         status: "queued",
         direction: "outbound-api",
       })

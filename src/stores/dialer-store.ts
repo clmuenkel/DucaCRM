@@ -351,6 +351,14 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       throw new Error("No contact selected");
     }
 
+    // Normalize phone number to E.164 format required by Twilio
+    const { normalizeToE164 } = await import("@/lib/utils");
+    const normalizedNumber = normalizeToE164(phoneNumber);
+    
+    if (!normalizedNumber) {
+      throw new Error(`Invalid phone number format: ${phoneNumber}. Please use E.164 format (e.g., +18322941575)`);
+    }
+
     set({ isConnecting: true, twilioError: null });
 
     try {
@@ -360,7 +368,7 @@ export const useDialerStore = create<DialerState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId: currentContact.id,
-          toNumber: phoneNumber,
+          toNumber: normalizedNumber, // Use normalized number
         }),
       });
 
@@ -372,10 +380,13 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       const { phoneNumber: twilioNumberUsed, twilioCallId } = await initiateResponse.json();
       set({ twilioNumberUsed });
 
+      // Normalize Twilio number as well (should already be E.164, but be safe)
+      const normalizedTwilioNumber = normalizeToE164(twilioNumberUsed) || twilioNumberUsed;
+
       // Connect call using Twilio Voice SDK
       const params = {
-        To: phoneNumber, // Contact's phone number
-        From: twilioNumberUsed, // Twilio number to use
+        To: normalizedNumber, // Contact's phone number (normalized to E.164)
+        From: normalizedTwilioNumber, // Twilio number to use (normalized to E.164)
       };
 
       const call = await twilioDevice.connect({ params });

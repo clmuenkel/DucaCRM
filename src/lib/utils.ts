@@ -29,6 +29,72 @@ export function getValidPhone(phone: string | null | undefined, mobile: string |
   return null;
 }
 
+/**
+ * Normalize phone number to E.164 format required by Twilio
+ * E.164 format: +[country code][number] (max 15 digits total)
+ * Examples:
+ *   "+18322941575" -> "+18322941575" (already correct)
+ *   "(832) 294-1575" -> "+18322941575"
+ *   "832-294-1575" -> "+18322941575"
+ *   "18322941575" -> "+18322941575"
+ *   "8322941575" -> "+18322941575"
+ */
+export function normalizeToE164(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  
+  // Remove all non-digit characters except +
+  let cleaned = phone.replace(/[^\d+]/g, "");
+  
+  // If it already starts with +, validate and return
+  if (cleaned.startsWith("+")) {
+    const digits = cleaned.slice(1);
+    // E.164 allows 1-15 digits after the +
+    if (digits.length >= 1 && digits.length <= 15 && /^\d+$/.test(digits)) {
+      return cleaned;
+    }
+    // If invalid format, try to fix it
+    if (digits.length > 15) {
+      // Too long, truncate to 15 digits
+      return `+${digits.slice(0, 15)}`;
+    }
+  }
+  
+  // Remove leading + if present for processing
+  if (cleaned.startsWith("+")) {
+    cleaned = cleaned.slice(1);
+  }
+  
+  // If it's 11 digits starting with 1 (US/Canada with country code)
+  if (cleaned.length === 11 && cleaned.startsWith("1")) {
+    return `+${cleaned}`;
+  }
+  
+  // If it's 10 digits (US/Canada without country code)
+  if (cleaned.length === 10) {
+    return `+1${cleaned}`;
+  }
+  
+  // If it's already digits but not matching above patterns
+  if (cleaned.length > 0 && /^\d+$/.test(cleaned)) {
+    // If starts with 1 and is 11 digits, add +
+    if (cleaned.startsWith("1") && cleaned.length === 11) {
+      return `+${cleaned}`;
+    }
+    // If 10 digits, assume US and add +1
+    if (cleaned.length === 10) {
+      return `+1${cleaned}`;
+    }
+    // For other lengths, assume it's already correct format and add +
+    // But limit to 15 digits max
+    if (cleaned.length <= 15) {
+      return `+${cleaned}`;
+    }
+  }
+  
+  // If we can't normalize it, return null
+  return null;
+}
+
 export function formatPhone(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
   if (cleaned.length === 10) {
