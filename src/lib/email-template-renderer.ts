@@ -4,49 +4,20 @@
  */
 
 /**
- * Convert Imgur links to image tags
+ * Convert Imgur links to clickable text links
  * Handles both album links (imgur.com/a/ID) and direct links (imgur.com/ID)
- * For album links, tries multiple image format fallbacks
+ * Converts to clickable buttons instead of broken images
  */
 function convertImgurLinksToImages(text: string): string {
-  // Match Imgur album links: https://imgur.com/a/ID or imgur.com/a/ID
-  const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/a\/([a-zA-Z0-9]+)/g;
-  text = text.replace(albumPattern, (match, protocol, www, id) => {
+  // Match Imgur album/post links: https://imgur.com/a/ID or imgur.com/ID
+  const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/(a\/)?([a-zA-Z0-9]+)/g;
+  text = text.replace(albumPattern, (match, protocol, www, albumPrefix, id) => {
     const fullUrl = protocol ? match : `https://${match}`;
-    // For album links, try jpg first (most common), then png as fallback
-    // Note: Album IDs don't always map to image IDs, but we try common formats
-    return `<div style="margin: 24px 0 0 0; text-align: center;">
-      <img 
-        src="https://i.imgur.com/${id}.jpg" 
-        alt="Logo" 
-        style="max-width: 200px; height: auto; display: inline-block; border: none;" 
-        onerror="if(this.src.indexOf('.jpg')!==-1){this.src='https://i.imgur.com/${id}.png';this.onerror=null;}else{this.style.display='none';}"
-      />
-    </div>`;
-  });
-
-  // Match direct Imgur links: https://imgur.com/ID or imgur.com/ID
-  const directPattern = /(https?:\/\/)?(www\.)?imgur\.com\/([a-zA-Z0-9]+)(?:\.[a-z]+)?(?:\?.*)?$/g;
-  text = text.replace(directPattern, (match, protocol, www, id, ext) => {
-    // Skip if it's an album link (already handled above)
-    if (match.includes('/a/')) {
-      return match;
-    }
     
-    // If it's already a direct image link with extension, convert to image tag
-    if (ext && ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext.toLowerCase())) {
-      const fullUrl = protocol ? match : `https://${match}`;
-      return `<div style="margin: 24px 0 0 0; text-align: center;"><img src="${fullUrl}" alt="Logo" style="max-width: 200px; height: auto; display: inline-block; border: none;" /></div>`;
-    }
-    
-    // For direct links without extension, try jpg first, then png as fallback
+    // For album/post links, convert to clickable text link instead of broken image
+    // This works regardless of privacy settings
     return `<div style="margin: 24px 0 0 0; text-align: center;">
-      <img 
-        src="https://i.imgur.com/${id}.jpg" 
-        alt="Logo" 
-        style="max-width: 200px; height: auto; display: inline-block; border: none;" 
-        onerror="if(this.src.indexOf('.jpg')!==-1){this.src='https://i.imgur.com/${id}.png';this.onerror=null;}else{this.style.display='none';}"
-      />
+      <a href="${fullUrl}" target="_blank" style="color: #2563eb; text-decoration: none; font-size: 14px; display: inline-block; padding: 8px 16px; border: 1px solid #2563eb; border-radius: 4px;">View Logo</a>
     </div>`;
   });
 
