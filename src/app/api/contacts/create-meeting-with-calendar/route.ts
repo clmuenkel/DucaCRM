@@ -89,8 +89,10 @@ export async function POST(request: NextRequest) {
         .eq("id", typedContact.company_id)
         .single();
       
-      if (company?.timezone) {
-        contactTimezone = company.timezone;
+      // Type assertion for partial company data
+      const companyData = company as { timezone: string | null } | null;
+      if (companyData?.timezone) {
+        contactTimezone = companyData.timezone;
         console.log('Using company timezone:', contactTimezone);
       }
     }
