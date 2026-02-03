@@ -22,6 +22,8 @@ export function TemplatePreview({ open, onOpenChange, template, contactId }: Tem
   const [preview, setPreview] = useState<{
     subject: string;
     body: string;
+    html?: string;
+    htmlPreview?: string;
     variables: Record<string, string>;
   } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -100,7 +102,9 @@ export function TemplatePreview({ open, onOpenChange, template, contactId }: Tem
               <div className="p-4 bg-muted rounded-md border min-h-[200px]">
                 <div
                   className="prose prose-sm max-w-none"
-                  dangerouslySetInnerHTML={{ __html: preview.body.replace(/\n/g, "<br />") }}
+                  dangerouslySetInnerHTML={{ 
+                    __html: preview.html || preview.htmlPreview || preview.body.replace(/\n/g, "<br />") 
+                  }}
                 />
               </div>
             </div>

@@ -101,29 +101,33 @@ function convertPlainTextToHTML(text: string): string {
   // Process text even if it contains some HTML tags (e.g., from variable replacement)
   // This allows us to format plain text that might have some HTML mixed in
 
-  // Normalize line breaks and split into lines
-  const lines = text.split(/\r?\n/).map(line => line.trim());
+  // Split by line breaks - preserve structure
+  const rawLines = text.split(/\r?\n/);
   
   const htmlParagraphs: string[] = [];
   let currentParagraph: string[] = [];
   let foundSignatureStart = false;
   let signatureLineCount = 0;
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const isEmpty = !line;
+  for (let i = 0; i < rawLines.length; i++) {
+    const rawLine = rawLines[i];
+    const trimmedLine = rawLine.trim();
+    const isEmpty = !trimmedLine;
+    const prevLineWasEmpty = i > 0 && !rawLines[i - 1].trim();
     
     // Check if this line starts a signature
-    const isSignatureStartLine = isSignatureStart(line);
+    const isSignatureStartLine = isSignatureStart(trimmedLine);
     
-    // If we hit signature start, process current paragraph first
-    if (isSignatureStartLine && currentParagraph.length > 0) {
-      // Process accumulated paragraph
-      const paraText = currentParagraph.join(' ').trim();
-      if (paraText) {
-        htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+    // If we hit signature start, finalize current paragraph first
+    if (isSignatureStartLine) {
+      // Finalize any accumulated paragraph
+      if (currentParagraph.length > 0) {
+        const paraText = currentParagraph.join(' ').trim();
+        if (paraText) {
+          htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+        }
+        currentParagraph = [];
       }
-      currentParagraph = [];
       foundSignatureStart = true;
       signatureLineCount = 0;
     }
@@ -131,34 +135,34 @@ function convertPlainTextToHTML(text: string): string {
     // Handle signature lines
     if (foundSignatureStart) {
       if (isEmpty) {
-        // Empty line in signature - if we have accumulated signature lines, continue
-        // (don't reset, as signature might continue after empty line)
+        // Empty line in signature - skip
         continue;
       }
       
-      // Check if this is still part of signature (name, title, website, or image link)
-      const isSignatureComponent = isSignatureLine(line) || 
-                                   /^(www\.|http|https:\/\/imgur)/i.test(line) ||
-                                   signatureLineCount < 5; // Allow up to 5 lines after "Best regards"
+      // Check if this is still part of signature
+      const isSignatureComponent = isSignatureLine(trimmedLine) || 
+                                   /^(www\.|http|https:\/\/imgur)/i.test(trimmedLine) ||
+                                   (signatureLineCount > 0 && signatureLineCount < 5);
       
       if (isSignatureComponent || isSignatureStartLine) {
         signatureLineCount++;
-        const formattedLine = convertLineToLink(line);
+        const formattedLine = convertLineToLink(trimmedLine);
         const marginTop = signatureLineCount === 1 ? '24px' : '0';
         htmlParagraphs.push(`<p style="margin: ${marginTop} 0 0 0; line-height: 1.6;">${formattedLine}</p>`);
         continue;
       } else {
-        // No longer in signature, reset and treat as regular content
+        // No longer in signature
         foundSignatureStart = false;
         signatureLineCount = 0;
-        // Fall through to regular content handling
+        // Fall through to regular content
       }
     }
     
     // Handle regular content
     if (!foundSignatureStart) {
       if (isEmpty) {
-        // Empty line - if we have accumulated content, process it as a paragraph
+        // Empty line = paragraph break
+        // Finalize current paragraph if we have content
         if (currentParagraph.length > 0) {
           const paraText = currentParagraph.join(' ').trim();
           if (paraText) {
@@ -167,13 +171,24 @@ function convertPlainTextToHTML(text: string): string {
           currentParagraph = [];
         }
       } else {
-        // Add line to current paragraph
-        currentParagraph.push(line);
+        // Non-empty line
+        // If previous line was empty, this starts a new paragraph
+        // Otherwise, add to current paragraph
+        if (prevLineWasEmpty && currentParagraph.length === 0) {
+          // Starting new paragraph after empty line
+          currentParagraph.push(trimmedLine);
+        } else if (currentParagraph.length === 0) {
+          // First line of paragraph (no previous empty line)
+          currentParagraph.push(trimmedLine);
+        } else {
+          // Continuation of current paragraph - join with space
+          currentParagraph.push(trimmedLine);
+        }
       }
     }
   }
   
-  // Process any remaining paragraph
+  // Finalize any remaining paragraph
   if (currentParagraph.length > 0) {
     const paraText = currentParagraph.join(' ').trim();
     if (paraText) {
