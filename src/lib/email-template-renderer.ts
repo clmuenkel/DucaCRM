@@ -4,20 +4,48 @@
  */
 
 /**
- * Convert Imgur links to clickable text links
- * Handles both album links (imgur.com/a/ID) and direct links (imgur.com/ID)
- * Converts to clickable buttons instead of broken images
+ * Convert Imgur links to actual image tags
+ * Handles direct i.imgur.com URLs and regular imgur.com links
  */
 function convertImgurLinksToImages(text: string): string {
-  // Match Imgur album/post links: https://imgur.com/a/ID or imgur.com/ID
-  const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/(a\/)?([a-zA-Z0-9]+)/g;
-  text = text.replace(albumPattern, (match, protocol, www, albumPrefix, id) => {
+  // First, handle direct i.imgur.com image URLs (these are guaranteed to be images)
+  // Match: https://i.imgur.com/ID.png or i.imgur.com/ID.jpg, etc.
+  const directImagePattern = /(https?:\/\/)?i\.imgur\.com\/([a-zA-Z0-9]+)(\.[a-z]+)?/g;
+  text = text.replace(directImagePattern, (match, protocol, id, ext) => {
     const fullUrl = protocol ? match : `https://${match}`;
     
-    // For album/post links, convert to clickable text link instead of broken image
-    // This works regardless of privacy settings
+    // Direct image URL - convert to image tag
     return `<div style="margin: 24px 0 0 0; text-align: center;">
-      <a href="${fullUrl}" target="_blank" style="color: #2563eb; text-decoration: none; font-size: 14px; display: inline-block; padding: 8px 16px; border: 1px solid #2563eb; border-radius: 4px;">View Logo</a>
+      <img 
+        src="${fullUrl}" 
+        alt="Logo" 
+        style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" 
+      />
+    </div>`;
+  });
+
+  // Then handle regular imgur.com links (album/post links)
+  // Try to convert to images, but these may not always work
+  const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/(a\/)?([a-zA-Z0-9]+)/g;
+  text = text.replace(albumPattern, (match, protocol, www, albumPrefix, id) => {
+    // Skip if this was already processed as a direct image URL
+    if (match.includes('i.imgur.com')) {
+      return match;
+    }
+    
+    const fullUrl = protocol ? match : `https://${match}`;
+    
+    // For regular imgur.com links, try to display as image
+    // Try jpg first (most common), then png as fallback
+    return `<div style="margin: 24px 0 0 0; text-align: center;">
+      <a href="${fullUrl}" target="_blank" style="display: inline-block; text-decoration: none;">
+        <img 
+          src="https://i.imgur.com/${id}.jpg" 
+          alt="Logo" 
+          style="max-width: 200px; height: auto; display: block; margin: 0 auto; border: none; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" 
+          onerror="this.onerror=null; this.src='https://i.imgur.com/${id}.png';"
+        />
+      </a>
     </div>`;
   });
 
