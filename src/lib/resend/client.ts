@@ -7,10 +7,11 @@ import { Resend } from 'resend';
 
 export interface SendEmailParams {
   apiKey: string;
-  from: string; // e.g., "sales@yourdomain.com"
+  from: string; // e.g., "sales@yourdomain.com" or "Name <sales@yourdomain.com>"
   to: string;
   subject: string;
   html: string;
+  text?: string; // Plain text version for better deliverability
   scheduledAt?: Date;
   tags?: Array<{ name: string; value: string }>;
   replyTo?: string;
@@ -44,6 +45,11 @@ export async function sendEmailViaResend(
       subject: params.subject,
       html: params.html,
     };
+
+    // Add plain text version if provided (better deliverability)
+    if (params.text) {
+      emailData.text = params.text;
+    }
 
     // Add reply-to if provided
     if (params.replyTo) {

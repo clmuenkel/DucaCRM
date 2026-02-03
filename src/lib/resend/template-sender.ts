@@ -3,7 +3,7 @@
  * Renders CRM templates and sends via Resend with custom content
  */
 
-import { renderTemplate } from "@/lib/email-template-renderer";
+import { renderTemplate, renderHTMLTemplate, htmlToPlainText } from "@/lib/email-template-renderer";
 import { sendEmailViaResend } from "./client";
 import { getIndustryForTemplate } from "@/lib/utils";
 import type { Contact, EmailTemplate } from "@/types/database";
@@ -51,15 +51,30 @@ export async function sendEmailWithTemplate(
 
     // Render template with variables
     const renderedSubject = renderTemplate(template.subject_template, contactVariables);
-    const renderedBody = renderTemplate(template.body_template, contactVariables);
+    
+    // Render HTML version with proper formatting
+    const renderedHTML = renderHTMLTemplate(template.body_template, contactVariables);
+    
+    // Generate plain text version for better deliverability
+    const renderedText = htmlToPlainText(renderedHTML);
+
+    // Format "From" with name for better inbox placement
+    // If fromEmail doesn't already have a name, add sender name
+    let formattedFrom = fromEmail;
+    // contactVariables already includes merged variables, so check there
+    const senderName = contactVariables.sender_name;
+    if (!fromEmail.includes('<') && senderName && senderName !== "Your Name" && senderName !== "[Your Name]") {
+      formattedFrom = `${senderName} <${fromEmail}>`;
+    }
 
     // Send via Resend
     const result = await sendEmailViaResend({
       apiKey,
-      from: fromEmail,
+      from: formattedFrom,
       to: contact.email!,
       subject: renderedSubject,
-      html: renderedBody,
+      html: renderedHTML,
+      text: renderedText, // Plain text version for better deliverability
       scheduledAt,
       replyTo,
       tags: [
