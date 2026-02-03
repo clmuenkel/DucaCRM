@@ -91,10 +91,15 @@ function isSignatureStart(paragraph: string): boolean {
  * Handles both single and double line breaks
  */
 function convertPlainTextToHTML(text: string): string {
-  // If already HTML (contains HTML tags), return as-is
-  if (/<[a-z][\s\S]*>/i.test(text)) {
-    return text;
+  // Check if text is already fully formatted HTML email
+  // Only skip if it's a complete HTML document, not just partial HTML
+  const isFullHTML = /^<!DOCTYPE|^<html/i.test(text.trim());
+  if (isFullHTML) {
+    return text; // Already fully formatted HTML email
   }
+  
+  // Process text even if it contains some HTML tags (e.g., from variable replacement)
+  // This allows us to format plain text that might have some HTML mixed in
 
   // Normalize line breaks and split into lines
   const lines = text.split(/\r?\n/).map(line => line.trim());
@@ -279,11 +284,12 @@ export function renderHTMLTemplate(
   // First render variables
   let rendered = renderTemplate(template, variables);
   
-  // Convert Imgur links to images
-  rendered = convertImgurLinksToImages(rendered);
-  
-  // Convert plain text to HTML if needed
+  // Convert plain text to HTML FIRST (before adding image HTML)
+  // This ensures text formatting happens before images are added
   rendered = convertPlainTextToHTML(rendered);
+  
+  // THEN convert Imgur links to images (after text is formatted)
+  rendered = convertImgurLinksToImages(rendered);
   
   // Wrap in proper email HTML structure
   return wrapEmailHTML(rendered);

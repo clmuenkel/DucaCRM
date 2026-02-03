@@ -1,31 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { renderTemplate, renderHTMLTemplate, htmlToPlainText } from "@/lib/email-template-renderer";
+import { renderTemplate, renderHTMLTemplate } from "@/lib/email-template-renderer";
 import { getIndustryForTemplate } from "@/lib/utils";
 import type { EmailTemplate, Contact } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
 
-interface TestTemplateRequest {
-  templateId: string;
-  contactId?: string;
-  customVariables?: Record<string, string>;
-}
-
 /**
- * POST /api/templates/test
- * Test template rendering with sample or real contact data
+ * GET /api/templates/preview?templateId=XXX&contactId=YYY
+ * Visual HTML preview of email template that can be opened in browser
  */
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const body: TestTemplateRequest = await request.json();
-    const { templateId, contactId, customVariables = {} } = body;
+    const { searchParams } = new URL(request.url);
+    const templateId = searchParams.get("templateId");
+    const contactId = searchParams.get("contactId");
 
     if (!templateId) {
-      return NextResponse.json(
-        { error: "templateId is required" },
-        { status: 400 }
+      return new NextResponse(
+        "<html><body><h1>Error</h1><p>templateId parameter is required</p></body></html>",
+        {
+          status: 400,
+          headers: { "Content-Type": "text/html" },
+        }
       );
     }
 
@@ -41,9 +39,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (templateError || !template) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
+      return new NextResponse(
+        "<html><body><h1>Error</h1><p>Template not found</p></body></html>",
+        {
+          status: 404,
+          headers: { "Content-Type": "text/html" },
+        }
       );
     }
 
@@ -84,8 +85,8 @@ export async function POST(request: NextRequest) {
           email: typedContact.email || "",
           phone: typedContact.phone || typedContact.mobile || "",
           industry: getIndustryForTemplate(typedContact),
-          sender_name: "Your Name", // Would come from profile
-          sender_calendar: "https://calendly.com/your-link", // Would come from profile
+          sender_name: "Your Name",
+          sender_calendar: "https://calendly.com/your-link",
           meeting_date: "Tuesday, January 20th",
           meeting_time: "2:00 PM EST",
         };
@@ -106,32 +107,25 @@ export async function POST(request: NextRequest) {
       variables.sender_calendar = typedProfile.calendar_link || variables.sender_calendar;
     }
 
-    // Override with custom variables
-    Object.assign(variables, customVariables);
-
-    // Render template - use HTML template rendering to get actual email output
+    // Render template to get actual HTML output
     const subject = renderTemplate(typedTemplate.subject_template, variables);
     const renderedHTML = renderHTMLTemplate(typedTemplate.body_template, variables);
-    const renderedText = htmlToPlainText(renderedHTML);
 
-    return NextResponse.json({
-      success: true,
-      subject,
-      body: renderedText, // Plain text version
-      html: renderedHTML, // Full HTML version (what actually gets sent)
-      htmlPreview: renderedHTML, // For preview
-      variables,
-      template: {
-        id: typedTemplate.id,
-        name: typedTemplate.name,
-        category: typedTemplate.category,
+    // Return HTML that can be viewed in browser
+    return new NextResponse(renderedHTML, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html",
       },
     });
   } catch (error: any) {
-    console.error("Test template error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to test template" },
-      { status: 500 }
+    console.error("Preview template error:", error);
+    return new NextResponse(
+      `<html><body><h1>Error</h1><p>${error.message || "Failed to preview template"}</p></body></html>`,
+      {
+        status: 500,
+        headers: { "Content-Type": "text/html" },
+      }
     );
   }
 }
