@@ -8,6 +8,41 @@ import { sendEmailViaResend } from "./client";
 import { getIndustryForTemplate } from "@/lib/utils";
 import type { Contact, EmailTemplate } from "@/types/database";
 
+/**
+ * Convert external image URL to base64 data URI
+ * Only converts images < 50KB for instant loading
+ */
+async function convertImageToBase64(imageUrl: string): Promise<string | null> {
+  try {
+    // Fetch image
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; EmailBot/1.0)',
+      },
+    });
+    
+    if (!response.ok) {
+      console.warn(`Failed to fetch image: ${imageUrl} - Status: ${response.status}`);
+      return null;
+    }
+    
+    const buffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/png';
+    
+    // Only use base64 for small images (< 50KB)
+    if (buffer.byteLength > 50 * 1024) {
+      console.warn(`Image too large for base64: ${imageUrl} (${buffer.byteLength} bytes)`);
+      return null;
+    }
+    
+    const base64 = Buffer.from(buffer).toString('base64');
+    return `data:${contentType};base64,${base64}`;
+  } catch (error) {
+    console.warn(`Error converting image to base64: ${imageUrl}`, error);
+    return null;
+  }
+}
+
 export interface SendEmailWithTemplateParams {
   apiKey: string;
   fromEmail: string; // e.g., "sales@yourdomain.com"
@@ -53,7 +88,42 @@ export async function sendEmailWithTemplate(
     const renderedSubject = renderTemplate(template.subject_template, contactVariables);
     
     // Render HTML version with proper formatting
-    const renderedHTML = renderHTMLTemplate(template.body_template, contactVariables);
+    let renderedHTML = renderHTMLTemplate(template.body_template, contactVariables);
+    
+    // Convert external images to base64 for instant loading (small images only)
+    // This regex finds all img src attributes with external URLs
+    const imgSrcPattern = /<img([^>]*)\ssrc=["'](https?:\/\/[^"']+)["']([^>]*)>/gi;
+    const imagePromises: Promise<void>[] = [];
+    const imageReplacements = new Map<string, string>();
+    
+    renderedHTML = renderedHTML.replace(imgSrcPattern, (match, before, url, after) => {
+      // Skip if already base64
+      if (url.startsWith('data:')) return match;
+      
+      // Only process Imgur URLs or other external image URLs
+      if (url.includes('i.imgur.com') || url.includes('imgur.com')) {
+        // Convert to base64 (only for small images)
+        const promise = convertImageToBase64(url).then(base64 => {
+          if (base64) {
+            imageReplacements.set(url, base64);
+          }
+        });
+        imagePromises.push(promise);
+      }
+      
+      return match;
+    });
+    
+    // Wait for all image conversions (with timeout)
+    await Promise.race([
+      Promise.all(imagePromises),
+      new Promise(resolve => setTimeout(resolve, 2000)) // 2 second timeout
+    ]);
+    
+    // Replace URLs with base64 data URIs
+    imageReplacements.forEach((base64, url) => {
+      renderedHTML = renderedHTML.replace(new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), base64);
+    });
     
     // Generate plain text version for better deliverability
     const renderedText = htmlToPlainText(renderedHTML);

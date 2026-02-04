@@ -21,10 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Clock, MapPin, Link as LinkIcon, Bell, Loader2 } from "lucide-react";
+import { Calendar, Clock, MapPin, Link as LinkIcon, Bell, Loader2, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { format, addMinutes, setHours, setMinutes, addDays } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getUSTimezones } from "@/lib/timezone";
 import type { Contact } from "@/types/database";
 
 interface MeetingDialogProps {
@@ -68,6 +69,7 @@ const generateTimeSlots = () => {
 };
 
 const TIME_SLOTS = generateTimeSlots();
+const US_TIMEZONES = getUSTimezones();
 
 export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDialogProps) {
   const createMeeting = useCreateMeeting();
@@ -79,6 +81,7 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
   const [title, setTitle] = useState(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState("10:00");
+  const [timezone, setTimezone] = useState("America/New_York");
   const [duration, setDuration] = useState("30");
   const [location, setLocation] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -106,6 +109,7 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
             title: title.trim(),
             date,
             time,
+            timezone, // Include timezone
             duration: parseInt(duration),
             location: location.trim() || undefined,
             meetingLink: meetingLink.trim() || undefined,
@@ -159,6 +163,7 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
       setTitle(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
       setDate(defaultDate);
       setTime("10:00");
+      setTimezone("America/New_York");
       setDuration("30");
       setLocation("");
       setMeetingLink("");
@@ -224,6 +229,26 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Timezone */}
+          <div className="space-y-2">
+            <Label htmlFor="timezone" className="flex items-center gap-1">
+              <Globe className="h-3 w-3" />
+              Timezone *
+            </Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {US_TIMEZONES.map((tz) => (
+                  <SelectItem key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Duration and Reminder */}

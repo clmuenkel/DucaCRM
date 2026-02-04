@@ -288,3 +288,18 @@ export function getFriendlyTimezoneName(timezone: string): string {
 
   return mapping[timezone] || timezone.split("/").pop()?.replace(/_/g, " ") || timezone;
 }
+
+/**
+ * Get list of US timezones for selector dropdown
+ */
+export function getUSTimezones(): Array<{ value: string; label: string }> {
+  return [
+    { value: "America/New_York", label: "Eastern Time (ET)" },
+    { value: "America/Chicago", label: "Central Time (CT)" },
+    { value: "America/Denver", label: "Mountain Time (MT)" },
+    { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
+    { value: "America/Phoenix", label: "Arizona (MST)" },
+    { value: "America/Anchorage", label: "Alaska Time (AKT)" },
+    { value: "America/Honolulu", label: "Hawaii Time (HST)" },
+  ];
+}

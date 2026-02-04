@@ -470,6 +470,19 @@ export function CallControlsHeader() {
                 </span>
               </div>
               
+              {/* Schedule Meeting Button - Available during active call */}
+              {currentContact && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => setShowMeetingDialog(true)}
+                  className="h-12 px-4 gap-2"
+                >
+                  <Calendar className="h-5 w-5" />
+                  Meeting
+                </Button>
+              )}
+              
               {/* End Call Button */}
               <Button 
                 variant="destructive" 

@@ -34,17 +34,17 @@ export async function POST(request: NextRequest) {
     const userId = DEFAULT_USER_ID;
     const supabase = await createClient();
 
-    // Check call pacing
-    const pacingCheck = shouldThrottle(userId);
-    if (!pacingCheck.canCall) {
-      return NextResponse.json(
-        {
-          error: "Call pacing: Please wait before next call",
-          waitSeconds: pacingCheck.waitSeconds,
-        },
-        { status: 429 }
-      );
-    }
+    // Call pacing disabled - allow immediate calls when rotating numbers
+    // const pacingCheck = shouldThrottle(userId);
+    // if (!pacingCheck.canCall) {
+    //   return NextResponse.json(
+    //     {
+    //       error: "Call pacing: Please wait before next call",
+    //       waitSeconds: pacingCheck.waitSeconds,
+    //     },
+    //     { status: 429 }
+    //   );
+    // }
 
     // Get next available number
     const { number, error: numberError } = await getNextAvailableNumber();

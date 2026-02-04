@@ -21,6 +21,7 @@ interface CreateMeetingWithCalendarRequest {
   title: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
+  timezone?: string; // IANA timezone (e.g., "America/New_York")
   duration: number; // minutes
   location?: string;
   meetingLink?: string;
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest) {
       title,
       date,
       time,
+      timezone: providedTimezone,
       duration,
       location,
       meetingLink,
@@ -79,10 +81,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get contact's timezone from company or derive from state
+    // Get contact's timezone - use provided timezone first, then company, then derive from state
     let contactTimezone = "America/New_York"; // Default fallback
 
-    if (typedContact.company_id) {
+    // Use provided timezone if given (user manually selected)
+    if (providedTimezone) {
+      contactTimezone = providedTimezone;
+      console.log('Using provided timezone:', contactTimezone);
+    } else if (typedContact.company_id) {
       const { data: company } = await supabase
         .from("companies")
         .select("timezone")
@@ -97,8 +103,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If no company timezone, derive from contact's state
-    if (contactTimezone === "America/New_York" && typedContact.state) {
+    // If no company timezone and no provided timezone, derive from contact's state
+    if (contactTimezone === "America/New_York" && !providedTimezone && typedContact.state) {
       contactTimezone = getTimezoneFromLocation(
         typedContact.city,
         typedContact.state,
@@ -107,15 +113,23 @@ export async function POST(request: NextRequest) {
       console.log('Derived timezone from state:', contactTimezone);
     }
 
-    // Parse date and time - interpret as contact's timezone
+    // Parse date and time - these are in the contact's timezone
     const [year, month, day] = date.split("-").map(Number);
     const [hours, minutes] = time.split(":").map(Number);
     
-    // Create Date objects for formatting and calculations
-    // Note: These Date objects will be in server timezone, but we'll format them
-    // using the contact's timezone for display and Google Calendar
-    const startTime = new Date(year, month - 1, day, hours, minutes);
+    // Create Date objects representing the local time in the target timezone
+    // The Google Calendar API will handle timezone conversion when we pass the timezone parameter
+    // For the Date objects, we create them as if they're in UTC, but the calendar API
+    // will interpret them according to the timezone parameter we provide
+    
+    // Create a date string and parse it (JavaScript will interpret as local server time)
+    // But we'll pass the timezone to Google Calendar API which will handle conversion
+    const dateTimeString = `${date}T${time}:00`;
+    const startTime = new Date(dateTimeString);
     const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
+    
+    // Note: The Google Calendar API's createCalendarEvent function will properly convert
+    // these Date objects to the specified timezone using the timezone parameter
 
     // Get user profile
     const { data: profile } = await supabase

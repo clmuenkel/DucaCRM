@@ -3,8 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { enrichPersonById, extractPersonMobile, scoreDecisionMakerTitle } from "@/lib/apollo/client";
 
-export const dynamic = 'force-dynamic';
-
 const APOLLO_API_BASE = "https://api.apollo.io/v1";
 
 // Decision maker titles to search for (in priority order for home services)
@@ -177,7 +175,7 @@ export async function POST(request: NextRequest) {
     const body: EnrichRequest = await request.json();
     const { companyIds, limit = 50, industry, retryFailed = false } = body;
 
-    const supabase = await createClient();
+    const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get Apollo API key
@@ -419,7 +417,7 @@ export async function POST(request: NextRequest) {
 // GET endpoint to get enrichment status/stats
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createClient();
     const userId = DEFAULT_USER_ID;
 
     // Get counts by status

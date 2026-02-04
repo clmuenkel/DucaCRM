@@ -22,6 +22,7 @@ function convertImgurLinksToImages(text: string): string {
     const fullUrl = protocol ? match : `https://${match}`;
     
     // Direct image URL - convert to clean, single-line image tag (left-aligned)
+    // Remove the URL text and only show the image
     return `<div style="margin: 24px 0 0 0; text-align: left;"><img src="${fullUrl}" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0; border: none;" /></div>`;
   });
 
@@ -40,17 +41,29 @@ function convertImgurLinksToImages(text: string): string {
     }
     
     // For regular imgur.com links, try to display as image (left-aligned)
+    // Remove the URL text and only show the image
     return `<div style="margin: 24px 0 0 0; text-align: left;"><img src="https://i.imgur.com/${id}.jpg" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0; border: none;" onerror="this.onerror=null;this.src='https://i.imgur.com/${id}.png';" /></div>`;
   });
+
+  // Remove any remaining plain text Imgur URLs that weren't converted
+  // This handles cases where URLs appear on their own line
+  const remainingImgurPattern = /(?:^|\s)(https?:\/\/)?(www\.)?imgur\.com\/[^\s<>"]+(?:\s|$)/gi;
+  text = text.replace(remainingImgurPattern, '');
 
   return text;
 }
 
 /**
  * Helper function to convert a line to a clickable link if it's a URL
+ * Excludes Imgur URLs to prevent showing link text for images
  */
 function convertLineToLink(line: string): string {
   const trimmed = line.trim();
+  
+  // Skip Imgur URLs - these should be converted to images, not links
+  if (/imgur\.com/i.test(trimmed)) {
+    return ''; // Remove Imgur URLs from text
+  }
   
   // Check if line is a website link
   if (/^(www\.|http)/i.test(trimmed)) {
@@ -63,10 +76,17 @@ function convertLineToLink(line: string): string {
 
 /**
  * Helper function to detect if a line is part of a signature
+ * Excludes Imgur URLs from being treated as signature links
  */
 function isSignatureLine(line: string): boolean {
   const trimmed = line.trim();
-  return /^(Founder|CEO|President|Director|Manager|VP|Vice President|Owner|www\.|http|https:\/\/imgur)/i.test(trimmed) ||
+  
+  // Exclude Imgur URLs - these should be converted to images, not signature links
+  if (/imgur\.com/i.test(trimmed)) {
+    return false;
+  }
+  
+  return /^(Founder|CEO|President|Director|Manager|VP|Vice President|Owner|www\.|http)/i.test(trimmed) ||
          /^\|/.test(trimmed) || // Lines starting with |
          /@/.test(trimmed) && /\.(com|net|org|io|co)/i.test(trimmed); // Email-like patterns
 }
@@ -142,9 +162,11 @@ function convertPlainTextToHTML(text: string): string {
       // Check if this is still part of signature
       // Skip if it's already image HTML
       const isImageHTML = trimmedLine.includes('<div') && trimmedLine.includes('<img');
-      const isSignatureComponent = !isImageHTML && (
+      // Exclude Imgur URLs from signature detection
+      const isImgurUrl = /imgur\.com/i.test(trimmedLine);
+      const isSignatureComponent = !isImageHTML && !isImgurUrl && (
         isSignatureLine(trimmedLine) || 
-        /^(www\.|http|https:\/\/imgur)/i.test(trimmedLine) ||
+        /^(www\.|http)/i.test(trimmedLine) ||
         (signatureLineCount > 0 && signatureLineCount < 5)
       );
       
