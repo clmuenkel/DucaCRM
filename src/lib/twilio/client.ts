@@ -58,6 +58,7 @@ export function getTwilioConfig() {
   const twimlAppSid = process.env.TWILIO_TWIML_APP_SID;
   const apiKeySid = process.env.TWILIO_API_KEY_SID;
   const apiKeySecret = process.env.TWILIO_API_KEY_SECRET;
+  const businessProfileSid = process.env.TWILIO_BUSINESS_PROFILE_SID;
 
   // Get phone numbers from env (TWILIO_PHONE_NUMBER_1 through TWILIO_PHONE_NUMBER_5)
   const phoneNumbers: string[] = [];
@@ -82,10 +83,12 @@ export function getTwilioConfig() {
     twimlAppSid,
     apiKeySid,
     apiKeySecret,
+    businessProfileSid,
     phoneNumbers,
     hasCredentials: !!(accountSid && authToken),
     hasTwimlApp: !!twimlAppSid,
     hasApiKey: !!(apiKeySid && apiKeySecret),
+    hasBusinessProfile: !!businessProfileSid,
     hasPhoneNumbers: phoneNumbers.length > 0,
   };
 }
