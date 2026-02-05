@@ -4,6 +4,67 @@ import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+
+// Helper function to add delays between requests
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry function with exponential backoff for rate limit errors
+async function retryWithBackoff<T>(
+  fn: () => Promise<{ data: T | null; error: any }>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<{ data: T | null; error: any }> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const result = await fn();
+      
+      // Check if result has an error that indicates rate limiting
+      if (result.error) {
+        const isRateLimit = 
+          result.error?.message?.toLowerCase().includes("too many requests") ||
+          result.error?.message?.toLowerCase().includes("rate limit") ||
+          result.error?.code === "429" ||
+          result.error?.status === 429;
+        
+        if (isRateLimit && attempt < maxRetries - 1) {
+          // Exponential backoff: 1s, 2s, 4s
+          const delayMs = baseDelay * Math.pow(2, attempt);
+          console.log(`[Rate Limit] Retrying after ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+          await delay(delayMs);
+          continue;
+        }
+      }
+      
+      return result;
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's a rate limit error
+      const isRateLimit = 
+        error?.message?.toLowerCase().includes("too many requests") ||
+        error?.message?.toLowerCase().includes("rate limit") ||
+        error?.code === "429" ||
+        error?.status === 429;
+      
+      if (isRateLimit && attempt < maxRetries - 1) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delayMs = baseDelay * Math.pow(2, attempt);
+        console.log(`[Rate Limit] Retrying after ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await delay(delayMs);
+        continue;
+      }
+      
+      // If not rate limit or max retries reached, throw
+      throw error;
+    }
+  }
+  
+  throw lastError;
+}
 import {
   parseCSV,
   dedupeByLink,
@@ -421,84 +482,119 @@ export function CSVImport() {
           } else {
             // Check if company exists by domain
             if (domain) {
-              const { data: existingCompany } = await insforge.database
-                .from("companies")
-                .select("id")
-                .eq("user_id", userId)
-                .eq("domain", domain)
-                .maybeSingle();
-              
-              if (existingCompany?.id) {
-                companyId = existingCompany.id;
-                if (companyId) companyCache.set(cacheKey, companyId);
-                
-                // Update company with new data
-                const companyData = mapApolloToCompany(row, userId, domain);
-                if (companyData) {
-                  await insforge.database
+              try {
+                const result = await retryWithBackoff(async () =>
+                  insforge.database
                     .from("companies")
-                    .update({
-                      employee_count: companyData.employee_count,
-                      employee_range: companyData.employee_range,
-                      city: companyData.city,
-                      state: companyData.state,
-                      industry: companyData.industry,
-                    })
-                    .eq("id", companyId);
-                  companiesUpdated++;
+                    .select("id")
+                    .eq("user_id", userId)
+                    .eq("domain", domain)
+                    .maybeSingle()
+                );
+                const existingCompany = result.data as { id: string } | null;
+                
+                if (existingCompany?.id) {
+                  companyId = existingCompany.id;
+                  if (companyId) companyCache.set(cacheKey, companyId);
+                  
+                  // Update company with new data
+                  const companyData = mapApolloToCompany(row, userId, domain);
+                  if (companyData) {
+                    await retryWithBackoff(async () =>
+                      insforge.database
+                        .from("companies")
+                        .update({
+                          employee_count: companyData.employee_count,
+                          employee_range: companyData.employee_range,
+                          city: companyData.city,
+                          state: companyData.state,
+                          industry: companyData.industry,
+                        })
+                        .eq("id", companyId)
+                    );
+                    companiesUpdated++;
+                  }
                 }
+              } catch (error) {
+                console.error(`[Apollo Import] Error checking company by domain:`, error);
               }
+              
+              // Add delay after each database call
+              await delay(50);
             }
             
             // If no company found, check by name
             if (!companyId) {
-              const { data: existingByName } = await insforge.database
-                .from("companies")
-                .select("id")
-                .eq("user_id", userId)
-                .eq("name", row.companyName)
-                .maybeSingle();
-              
-              if (existingByName?.id) {
-                companyId = existingByName.id;
-                if (companyId) companyCache.set(cacheKey, companyId);
-                
-                // Update company with new data
-                const companyData = mapApolloToCompany(row, userId, domain);
-                if (companyData) {
-                  await insforge.database
+              try {
+                const result = await retryWithBackoff(async () =>
+                  insforge.database
                     .from("companies")
-                    .update({
-                      domain: domain || undefined,
-                      employee_count: companyData.employee_count,
-                      employee_range: companyData.employee_range,
-                      city: companyData.city,
-                      state: companyData.state,
-                      industry: companyData.industry,
-                    })
-                    .eq("id", companyId);
-                  companiesUpdated++;
+                    .select("id")
+                    .eq("user_id", userId)
+                    .eq("name", row.companyName)
+                    .maybeSingle()
+                );
+                const existingByName = result.data as { id: string } | null;
+                
+                if (existingByName?.id) {
+                  companyId = existingByName.id;
+                  if (companyId) companyCache.set(cacheKey, companyId);
+                  
+                  // Update company with new data
+                  const companyData = mapApolloToCompany(row, userId, domain);
+                  if (companyData) {
+                    await retryWithBackoff(async () =>
+                      insforge.database
+                        .from("companies")
+                        .update({
+                          domain: domain || undefined,
+                          employee_count: companyData.employee_count,
+                          employee_range: companyData.employee_range,
+                          city: companyData.city,
+                          state: companyData.state,
+                          industry: companyData.industry,
+                        })
+                        .eq("id", companyId)
+                    );
+                    companiesUpdated++;
+                  }
                 }
+              } catch (error) {
+                console.error(`[Apollo Import] Error checking company by name:`, error);
               }
+              
+              // Add delay after each database call
+              await delay(50);
             }
             
             // Create new company if not found
             if (!companyId) {
               const companyData = mapApolloToCompany(row, userId, domain);
               if (companyData) {
-                const { data: newCompany, error: companyError } = await insforge.database
-                  .from("companies")
-                  .insert([companyData])
-                  .select("id")
-                  .single();
-                
-                if (!companyError && newCompany) {
-                  companyId = newCompany.id;
-                  companiesCreated++;
-                  if (companyId) companyCache.set(cacheKey, companyId);
-                } else if (companyError) {
-                  console.error("Company insert error:", companyError);
+                try {
+                  const result = await retryWithBackoff(async () =>
+                    insforge.database
+                      .from("companies")
+                      .insert([companyData])
+                      .select("id")
+                      .single()
+                  );
+                  const newCompany = result.data as { id: string } | null;
+                  const companyError = result.error;
+                  
+                  if (!companyError && newCompany) {
+                    companyId = newCompany.id;
+                    companiesCreated++;
+                    if (companyId) companyCache.set(cacheKey, companyId);
+                  } else if (companyError) {
+                    console.error("Company insert error:", companyError);
+                  }
+                } catch (error) {
+                  console.error(`[Apollo Import] Error creating company:`, error);
                 }
+                
+                // Add delay after each database call
+                await delay(50);
               }
             }
           }
@@ -508,14 +604,24 @@ export function CSVImport() {
         let existingContactId: string | null = null;
         
         if (row.email) {
-          const { data: byEmail } = await insforge.database
-            .from("contacts")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("email", row.email.toLowerCase())
-            .maybeSingle();
+          try {
+            const result = await retryWithBackoff(async () =>
+              insforge.database
+                .from("contacts")
+                .select("id")
+                .eq("user_id", userId)
+                .eq("email", row.email.toLowerCase())
+                .maybeSingle()
+            );
+            const byEmail = result.data as { id: string } | null;
+            
+            if (byEmail?.id) existingContactId = byEmail.id;
+          } catch (error) {
+            console.error(`[Apollo Import] Error checking contact by email:`, error);
+          }
           
-          if (byEmail?.id) existingContactId = byEmail.id;
+          // Add delay after each database call
+          await delay(50);
         }
 
         // 3. Insert or update contact
@@ -558,75 +664,127 @@ export function CSVImport() {
           if (!updateData.phone) delete updateData.phone;
           if (!updateData.mobile) delete updateData.mobile;
           
-          const { error: updateError } = await insforge.database
-            .from("contacts")
-            .update(updateData)
-            .eq("id", existingContactId);
-          
-          if (updateError) {
-            console.error(`[Apollo Import] Update error for ${contactIdentifier}:`, updateError);
+          try {
+            const { error: updateError } = await retryWithBackoff(async () =>
+              insforge.database
+                .from("contacts")
+                .update(updateData)
+                .eq("id", existingContactId)
+            );
+            
+            if (updateError) {
+              console.error(`[Apollo Import] Update error for ${contactIdentifier}:`, updateError);
+              failures.push({
+                row,
+                type: "contact",
+                error: updateError.message,
+                errorCode: (updateError as any).code,
+              });
+              failed++;
+            } else {
+              updated++;
+              console.log(`[Apollo Import] ✓ Updated contact: ${contactIdentifier}`);
+              
+              // Create note for extra phones if present
+              if (row.extraPhonesNote) {
+                try {
+                  const { error: noteError } = await retryWithBackoff(async () =>
+                    insforge.database
+                      .from("notes")
+                      .insert([{
+                        user_id: userId,
+                        contact_id: existingContactId,
+                        company_id: companyId,
+                        content: row.extraPhonesNote,
+                        is_pinned: false,
+                        is_company_wide: false,
+                      }])
+                  );
+                  
+                  if (!noteError) notesCreated++;
+                  
+                  // Add delay after note insert
+                  await delay(50);
+                } catch (error) {
+                  console.error(`[Apollo Import] Error creating note:`, error);
+                }
+              }
+            }
+            
+            // Add delay after each database call
+            await delay(50);
+          } catch (error: any) {
+            console.error(`[Apollo Import] Update failed after retries for ${contactIdentifier}:`, error);
             failures.push({
               row,
               type: "contact",
-              error: updateError.message,
-              errorCode: (updateError as any).code,
+              error: error?.message || "Update failed after retries",
+              errorCode: error?.code || "RETRY_FAILED",
             });
             failed++;
-          } else {
-            updated++;
-            console.log(`[Apollo Import] ✓ Updated contact: ${contactIdentifier}`);
-            
-            // Create note for extra phones if present
-            if (row.extraPhonesNote) {
-              const { error: noteError } = await insforge.database
-                .from("notes")
-                .insert([{
-                  user_id: userId,
-                  contact_id: existingContactId,
-                  company_id: companyId,
-                  content: row.extraPhonesNote,
-                  is_pinned: false,
-                  is_company_wide: false,
-                }]);
-              
-              if (!noteError) notesCreated++;
-            }
           }
         } else {
           // Insert new contact
-          const { data: newContact, error: insertError } = await insforge.database
-            .from("contacts")
-            .insert([contactData])
-            .select("id")
-            .single();
-          
-          if (insertError) {
-            console.error("Insert error:", insertError);
+          try {
+            const result = await retryWithBackoff(async () =>
+              insforge.database
+                .from("contacts")
+                .insert([contactData])
+                .select("id")
+                .single()
+            );
+            const newContact = result.data as { id: string } | null;
+            const insertError = result.error;
+            
+            if (insertError) {
+              console.error("Insert error:", insertError);
+              failures.push({
+                row,
+                type: "contact",
+                error: insertError.message,
+                errorCode: (insertError as any).code,
+              });
+              failed++;
+            } else {
+              created++;
+              
+              // Create note for extra phones if present
+              if (row.extraPhonesNote && newContact) {
+                try {
+                  const { error: noteError } = await retryWithBackoff(async () =>
+                    insforge.database
+                      .from("notes")
+                      .insert([{
+                        user_id: userId,
+                        contact_id: newContact.id,
+                        company_id: companyId,
+                        content: row.extraPhonesNote,
+                        is_pinned: false,
+                        is_company_wide: false,
+                      }])
+                  );
+                  
+                  if (!noteError) notesCreated++;
+                  
+                  // Add delay after note insert
+                  await delay(50);
+                } catch (error) {
+                  console.error(`[Apollo Import] Error creating note:`, error);
+                }
+              }
+            }
+            
+            // Add delay after each database call
+            await delay(50);
+          } catch (error: any) {
+            console.error(`[Apollo Import] Insert failed after retries for ${contactIdentifier}:`, error);
             failures.push({
               row,
               type: "contact",
-              error: insertError.message,
-              errorCode: (insertError as any).code,
+              error: error?.message || "Insert failed after retries",
+              errorCode: error?.code || "RETRY_FAILED",
             });
             failed++;
-          } else {
-            created++;
-            
-            // Create note for extra phones if present
-            if (row.extraPhonesNote && newContact) {
-              const { error: noteError } = await insforge.database
-                .from("notes")
-                .insert({
-                  user_id: userId,
-                  contact_id: newContact.id,
-                  company_id: companyId,
-                  content: row.extraPhonesNote,
-                  is_pinned: false,
-                  is_company_wide: false,
-                });
-              
-              if (!noteError) notesCreated++;
-            }
           }
         }
       } catch (error) {
@@ -652,6 +810,12 @@ export function CSVImport() {
         failed,
         notesCreated,
       }));
+      
+      // Add a small delay between contacts to avoid rate limiting
+      // This ensures we don't hit the rate limit even with retries
+      if (i < toImport.length - 1) {
+        await delay(100); // 100ms delay between each contact
+      }
     }
 
     // Invalidate all queries to refresh dashboard tabs
