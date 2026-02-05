@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import {
@@ -118,6 +119,7 @@ function getTagColor(tag: string): string {
 }
 
 export function CSVImport() {
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<ImportStep>("upload");
   const [csvType, setCsvType] = useState<CSVType>("legacy");
   const [isDragging, setIsDragging] = useState(false);
@@ -388,10 +390,12 @@ export function CSVImport() {
     const sourceList = listName || `Apollo Import ${new Date().toLocaleDateString()}`;
     let created = 0;
     let updated = 0;
+    let skipped = 0; // True duplicates (already exists, no update needed)
     let companiesCreated = 0;
     let companiesUpdated = 0;
     let failed = 0;
     let notesCreated = 0;
+    let processed = 0;
     const failures: FailedImport[] = [];
 
     // Cache for companies by domain to avoid duplicates
@@ -399,7 +403,9 @@ export function CSVImport() {
 
     for (let i = 0; i < toImport.length; i++) {
       const row = toImport[i];
-      console.log(`[Apollo Import] Processing ${i + 1}/${toImport.length}: ${row.firstName} ${row.lastName}`);
+      processed++;
+      const contactIdentifier = row.email || `${row.firstName} ${row.lastName}`.trim() || `Row ${i + 1}`;
+      console.log(`[Apollo Import] Processing ${i + 1}/${toImport.length}: ${contactIdentifier}`);
       
       try {
         // 1. Find or create company
@@ -420,9 +426,9 @@ export function CSVImport() {
                 .select("id")
                 .eq("user_id", userId)
                 .eq("domain", domain)
-                .single();
+                .maybeSingle();
               
-              if (existingCompany) {
+              if (existingCompany?.id) {
                 companyId = existingCompany.id;
                 if (companyId) companyCache.set(cacheKey, companyId);
                 
@@ -451,9 +457,9 @@ export function CSVImport() {
                 .select("id")
                 .eq("user_id", userId)
                 .eq("name", row.companyName)
-                .single();
+                .maybeSingle();
               
-              if (existingByName) {
+              if (existingByName?.id) {
                 companyId = existingByName.id;
                 if (companyId) companyCache.set(cacheKey, companyId);
                 
@@ -507,9 +513,9 @@ export function CSVImport() {
             .select("id")
             .eq("user_id", userId)
             .eq("email", row.email.toLowerCase())
-            .single();
+            .maybeSingle();
           
-          if (byEmail) existingContactId = byEmail.id;
+          if (byEmail?.id) existingContactId = byEmail.id;
         }
 
         // 3. Insert or update contact
@@ -519,6 +525,7 @@ export function CSVImport() {
         };
 
         if (existingContactId) {
+          console.log(`[Apollo Import] Contact exists (email: ${row.email}), updating: ${existingContactId}`);
           // Update existing contact - but don't overwrite phone/mobile with empty values
           const updateData: Record<string, unknown> = { ...contactData };
           
@@ -532,7 +539,7 @@ export function CSVImport() {
             .eq("id", existingContactId);
           
           if (updateError) {
-            console.error("Update error:", updateError);
+            console.error(`[Apollo Import] Update error for ${contactIdentifier}:`, updateError);
             failures.push({
               row,
               type: "contact",
@@ -542,19 +549,20 @@ export function CSVImport() {
             failed++;
           } else {
             updated++;
+            console.log(`[Apollo Import] ✓ Updated contact: ${contactIdentifier}`);
             
             // Create note for extra phones if present
             if (row.extraPhonesNote) {
               const { error: noteError } = await insforge.database
                 .from("notes")
-                .insert({
+                .insert([{
                   user_id: userId,
                   contact_id: existingContactId,
                   company_id: companyId,
                   content: row.extraPhonesNote,
                   is_pinned: false,
                   is_company_wide: false,
-                });
+                }]);
               
               if (!noteError) notesCreated++;
             }
@@ -597,7 +605,8 @@ export function CSVImport() {
           }
         }
       } catch (error) {
-        console.error("Import error for row:", row, error);
+        const contactIdentifier = row.email || `${row.firstName} ${row.lastName}`.trim() || `Row ${i + 1}`;
+        console.error(`[Apollo Import] Unexpected error for ${contactIdentifier}:`, error);
         
         failures.push({
           row,
@@ -620,14 +629,29 @@ export function CSVImport() {
       }));
     }
 
+    // Invalidate all queries to refresh dashboard tabs
+    console.log("[Apollo Import] Invalidating query cache to refresh dashboard...");
+    queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    queryClient.invalidateQueries({ queryKey: ["companies"] });
+    queryClient.invalidateQueries({ queryKey: ["activity"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    // Invalidate all queries to ensure all tabs refresh
+    queryClient.invalidateQueries();
+
     // Set final state
     setFailedImports(failures);
     setStep("done");
     
+    const totalProcessed = created + updated;
+    const summary = `Processed ${processed}/${toImport.length}: ${created} created, ${updated} updated${failed > 0 ? `, ${failed} failed` : ""}`;
+    console.log(`[Apollo Import] Import complete: ${summary}`);
+    
     if (failures.length > 0) {
-      toast.warning(`Imported ${created + updated} contacts with ${failures.length} failure(s)`);
+      toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts (${failures.length} failed)`);
+    } else if (totalProcessed < toImport.length) {
+      toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts. Some may have been skipped as duplicates.`);
     } else {
-      toast.success(`Imported ${created + updated} contacts!`);
+      toast.success(`Successfully imported ${totalProcessed} contacts!`);
     }
   };
 
@@ -660,9 +684,11 @@ export function CSVImport() {
     const sourceList = listName || `CSV Import ${new Date().toLocaleDateString()}`;
     let created = 0;
     let updated = 0;
+    let skipped = 0; // True duplicates
     let companiesCreated = 0;
     let failed = 0;
     let notesCreated = 0;
+    let processed = 0;
     const failures: FailedImport[] = [];
 
     // Cache for companies by domain to avoid duplicates
@@ -670,7 +696,9 @@ export function CSVImport() {
 
     for (let i = 0; i < toImport.length; i++) {
       const row = toImport[i];
-      console.log(`[CSV Import] Processing ${i + 1}/${toImport.length}: ${row.firstName} ${row.lastName}`);
+      processed++;
+      const contactIdentifier = row.email || row.linkedinUrl || `${row.firstName} ${row.lastName}`.trim() || `Row ${i + 1}`;
+      console.log(`[CSV Import] Processing ${i + 1}/${toImport.length}: ${contactIdentifier}`);
       
       try {
         // 1. Find or create company
@@ -689,9 +717,9 @@ export function CSVImport() {
                 .select("id")
                 .eq("user_id", userId)
                 .eq("domain", domain)
-                .single();
+                .maybeSingle();
               
-              if (existingCompany) {
+              if (existingCompany?.id) {
                 companyId = existingCompany.id;
                 if (companyId && domain) companyCache.set(domain, companyId);
               }
@@ -704,9 +732,9 @@ export function CSVImport() {
                 .select("id")
                 .eq("user_id", userId)
                 .eq("name", row.company)
-                .single();
+                .maybeSingle();
               
-              if (existingByName) {
+              if (existingByName?.id) {
                 companyId = existingByName.id;
                 if (companyId && domain) companyCache.set(domain, companyId);
               }
@@ -745,9 +773,9 @@ export function CSVImport() {
             .select("id")
             .eq("user_id", userId)
             .eq("linkedin_url", row.linkedinUrl)
-            .single();
+            .maybeSingle();
           
-          if (byLinkedIn) existingContactId = byLinkedIn.id;
+          if (byLinkedIn?.id) existingContactId = byLinkedIn.id;
         }
         
         // Try email
@@ -757,9 +785,9 @@ export function CSVImport() {
             .select("id")
             .eq("user_id", userId)
             .eq("email", row.email)
-            .single();
+            .maybeSingle();
           
-          if (byEmail) existingContactId = byEmail.id;
+          if (byEmail?.id) existingContactId = byEmail.id;
         }
         
         // Try phone (direct)
@@ -769,9 +797,9 @@ export function CSVImport() {
             .select("id")
             .eq("user_id", userId)
             .eq("phone", row.direct)
-            .single();
+            .maybeSingle();
           
-          if (byPhone) existingContactId = byPhone.id;
+          if (byPhone?.id) existingContactId = byPhone.id;
         }
 
         // 3. Insert or update contact
@@ -781,6 +809,7 @@ export function CSVImport() {
         };
 
         if (existingContactId) {
+          console.log(`[CSV Import] Contact exists, updating: ${existingContactId} (${contactIdentifier})`);
           // Update existing contact
           const { error: updateError } = await insforge.database
             .from("contacts")
@@ -788,7 +817,7 @@ export function CSVImport() {
             .eq("id", existingContactId);
           
           if (updateError) {
-            console.error("Update error:", updateError);
+            console.error(`[CSV Import] Update error for ${contactIdentifier}:`, updateError);
             failures.push({
               row,
               type: "contact",
@@ -798,19 +827,20 @@ export function CSVImport() {
             failed++;
           } else {
             updated++;
+            console.log(`[CSV Import] ✓ Updated contact: ${contactIdentifier}`);
             
             // Create note if there's content
             if (row.notes?.trim()) {
               const { error: noteError } = await insforge.database
                 .from("notes")
-                .insert({
+                .insert([{
                   user_id: userId,
                   contact_id: existingContactId,
                   company_id: companyId,
                   content: row.notes.trim(),
                   is_pinned: false,
                   is_company_wide: false,
-                });
+                }]);
               
               if (!noteError) notesCreated++;
             }
@@ -853,7 +883,8 @@ export function CSVImport() {
           }
         }
       } catch (error) {
-        console.error("Import error for row:", row, error);
+        const contactIdentifier = row.email || row.linkedinUrl || `${row.firstName} ${row.lastName}`.trim() || `Row ${i + 1}`;
+        console.error(`[CSV Import] Unexpected error for ${contactIdentifier}:`, error);
         failures.push({
           row,
           type: "contact",
@@ -874,14 +905,29 @@ export function CSVImport() {
       }));
     }
 
+    // Invalidate all queries to refresh dashboard tabs
+    console.log("[CSV Import] Invalidating query cache to refresh dashboard...");
+    queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    queryClient.invalidateQueries({ queryKey: ["companies"] });
+    queryClient.invalidateQueries({ queryKey: ["activity"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    // Invalidate all queries to ensure all tabs refresh
+    queryClient.invalidateQueries();
+
     // Set final state
     setFailedImports(failures);
     setStep("done");
     
+    const totalProcessed = created + updated;
+    const summary = `Processed ${processed}/${toImport.length}: ${created} created, ${updated} updated${failed > 0 ? `, ${failed} failed` : ""}`;
+    console.log(`[CSV Import] Import complete: ${summary}`);
+    
     if (failures.length > 0) {
-      toast.warning(`Imported ${created + updated} contacts with ${failures.length} failure(s)`);
+      toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts (${failures.length} failed)`);
+    } else if (totalProcessed < toImport.length) {
+      toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts. Some may have been skipped as duplicates.`);
     } else {
-      toast.success(`Imported ${created + updated} contacts!`);
+      toast.success(`Successfully imported ${totalProcessed} contacts!`);
     }
   };
 
