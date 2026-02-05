@@ -664,7 +664,7 @@ export async function POST(request: NextRequest) {
                       confidence_score: verifiedEmail ? 85 : extractData.confidence,
                       is_decision_maker: true,
                       is_primary_contact: true,
-                    });
+                    }]);
                     
                   if (insertResult.error) {
                     console.error(`[Pipeline] Failed to save AI extracted person: ${insertResult.error.message}`);
