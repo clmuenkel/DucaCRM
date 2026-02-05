@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     // Store tokens in database
         const userId = DEFAULT_USER_ID;
 
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await insforge.database
       .from("profiles")
       .update({
         google_calendar_access_token: access_token,

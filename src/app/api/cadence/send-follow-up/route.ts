@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
 
     // Build query to find contacts due for follow-up
-    let query = supabase
+    let query = insforge.database
       .from("contacts")
       .select("*")
       .eq("user_id", userId)
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get "Follow Up" template
-    const { data: templates } = await supabase
+    const { data: templates } = await insforge.database
       .from("email_templates")
       .select("*")
       .eq("user_id", userId)
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user profile for sender info
-    const { data: profile } = await supabase
+    const { data: profile } = await insforge.database
       .from("profiles")
       .select("full_name, calendar_link")
       .eq("id", userId)
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
 
         if (sendResult.success) {
           // Update contact
-          await (supabase as any)
+          await insforge.database
             .from("contacts")
             .update({
               last_email_sent_at: new Date().toISOString(),
@@ -177,18 +177,18 @@ export async function POST(request: NextRequest) {
 
           // Log activity
           try {
-            await (supabase as any)
+            await insforge.database
               .from("activity_log")
-              .insert({
+              .insert([{
                 user_id: userId,
                 contact_id: typedContact.id,
                 activity_type: "follow_up_sent",
                 summary: `Follow-up email sent 7 days after call`,
                 metadata: {
-                template_id: template.id,
-                resend_email_id: sendResult.emailId,
-              },
-              });
+                  template_id: template.id,
+                  resend_email_id: sendResult.emailId,
+                },
+              }]);
           } catch (logError) {
             console.warn("Failed to log activity:", logError);
           }

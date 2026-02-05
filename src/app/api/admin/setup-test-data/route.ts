@@ -14,17 +14,23 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Clear email_queue
-    const { error: queueError, count: queueCount } = await (supabase as any)
+    const { error: queueError } = await insforge.database
       .from("email_queue")
-      .delete({ count: 'exact' })
+      .delete()
       .eq("user_id", userId);
 
     if (queueError) {
       console.error("Error clearing email_queue:", queueError);
     }
 
+    // Get count before resetting (for stats)
+    const { count: queueCount } = await insforge.database
+      .from("email_queue")
+      .select("*", { count: 'exact', head: true })
+      .eq("user_id", userId);
+
     // Reset all active cadences
-    const { error: cadenceError, count: cadenceCount } = await (supabase as any)
+    const { data: cadenceData, error: cadenceError } = await insforge.database
       .from("contacts")
       .update({
         cadence_status: null,
@@ -37,14 +43,16 @@ export async function POST(request: NextRequest) {
       })
       .eq("user_id", userId)
       .eq("cadence_status", "active")
-      .select("id", { count: 'exact', head: false });
+      .select("id");
+
+    const cadenceCount = cadenceData?.length || 0;
 
     if (cadenceError) {
       console.error("Error resetting cadences:", cadenceError);
     }
 
     // Check if test contact exists
-    const { data: existing } = await supabase
+    const { data: existing } = await insforge.database
       .from("contacts")
       .select("id")
       .eq("user_id", userId)
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     if (typedExisting) {
       // Update existing contact
-      const { error: updateError } = await (supabase as any)
+      const { error: updateError } = await insforge.database
         .from("contacts")
         .update({
           first_name: "Carl-Luca",
@@ -80,9 +88,9 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Create new contact
-      const { error: insertError } = await (supabase as any)
+      const { error: insertError } = await insforge.database
         .from("contacts")
-        .insert({
+        .insert([{
           user_id: userId,
           first_name: "Carl-Luca",
           last_name: "Muenkel",
@@ -90,7 +98,7 @@ export async function POST(request: NextRequest) {
           industry: "swag",
           industries: ["swag"],
           status: "active",
-        });
+        }]);
 
       if (insertError) {
         return NextResponse.json(

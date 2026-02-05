@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     let errors = 0;
 
     // 1. Find contacts with due actions
-    const { data: dueContacts, error: fetchError } = await supabase
+    const { data: dueContacts, error: fetchError } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("user_id", userId)
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
           
           if (nextStep > MAX_STEP) {
             // Cadence complete - archive
-            await (supabase as any)
+            await insforge.database
               .from("contacts")
               .update({
                 cadence_status: "completed",
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
             const nextDate = new Date(cadenceStart);
             nextDate.setDate(nextDate.getDate() + nextStepDef.day);
 
-            await (supabase as any)
+            await insforge.database
               .from("contacts")
               .update({
                 cadence_step: nextStep,
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Check for snoozed contacts that are ready to resume
-    const { data: snoozedContacts } = await supabase
+    const { data: snoozedContacts } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("user_id", userId)
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
         // Resume at current step
         const stepDef = CADENCE_STEPS.find(s => s.step === contact.cadence_step);
         
-        await (supabase as any)
+        await insforge.database
           .from("contacts")
           .update({
             cadence_outcome: "in_progress",
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
     const archiveDate = new Date();
     archiveDate.setDate(archiveDate.getDate() - ARCHIVE_DAY);
 
-    const { data: staleContacts } = await supabase
+    const { data: staleContacts } = await insforge.database
       .from("contacts")
       .select("id, cadence_day_started, cadence_step")
       .eq("user_id", userId)
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     const typedStaleContacts = (staleContacts || []) as Contact[];
     for (const contact of typedStaleContacts) {
       try {
-        await (supabase as any)
+        await insforge.database
           .from("contacts")
           .update({
             cadence_status: "completed",
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
 
-    const { data: followUpContacts } = await supabase
+    const { data: followUpContacts } = await insforge.database
       .from("contacts")
       .select("id")
       .eq("user_id", userId)

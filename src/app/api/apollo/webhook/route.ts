@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
       console.log(`[Apollo Webhook] Processing: apollo_id=${person.id}, mobile=${mobile}`);
 
       // ========== STEP 1: Verify contact exists by apollo_id ==========
-      const { data: existingByApolloId, error: lookupError } = await (supabase as any)
+      const { data: existingByApolloId, error: lookupError } = await insforge.database
         .from("contacts")
         .select("id, email, first_name, last_name, phone, mobile")
         .eq("apollo_id", person.id)
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
 
       // ========== STEP 2: Try update by apollo_id ==========
       if (existingByApolloId) {
-        const { data: updateResult, error: updateErr } = await (supabase as any)
+        const { data: updateResult, error: updateErr } = await insforge.database
           .from("contacts")
           .update({
             mobile: mobile,
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
         console.log(`[Apollo Webhook] Trying fallback: lookup email from phone_reveal_requests...`);
         
         // Get the email from our tracking table
-        const { data: trackingRecord } = await (supabase as any)
+        const { data: trackingRecord } = await insforge.database
           .from("phone_reveal_requests")
           .select("contact_id")
           .eq("apollo_id", person.id)
@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
         if (trackingRecord?.contact_id) {
           console.log(`[Apollo Webhook] Found tracking record, contact_id=${trackingRecord.contact_id}`);
           
-          const { data: updateResult, error: updateErr } = await (supabase as any)
+          const { data: updateResult, error: updateErr } = await insforge.database
             .from("contacts")
             .update({
               mobile: mobile,
@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
       if (!updateSuccess && person.email) {
         console.log(`[Apollo Webhook] Trying last resort: update by email=${person.email}`);
         
-        const { data: updateResult, error: updateErr } = await (supabase as any)
+        const { data: updateResult, error: updateErr } = await insforge.database
           .from("contacts")
           .update({
             mobile: mobile,
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
 
       // Update tracking table
       try {
-        await (supabase as any)
+        await insforge.database
           .from("phone_reveal_requests")
           .update({
             status: updateSuccess ? "completed" : "failed",

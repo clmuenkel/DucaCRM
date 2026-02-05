@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Clear all email_queue entries
-    const { error: queueError } = await (supabase as any)
+    const { error: queueError } = await insforge.database
       .from("email_queue")
       .delete()
       .eq("user_id", userId);
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Reset all active cadences
-    const { error: cadenceError } = await (supabase as any)
+    const { error: cadenceError } = await insforge.database
       .from("contacts")
       .update({
         cadence_status: null,

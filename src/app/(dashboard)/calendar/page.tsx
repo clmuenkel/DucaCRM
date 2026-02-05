@@ -689,7 +689,7 @@ function SchedulingQueue() {
     const loadSchedulingQueue = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
+        const { data, error } = await insforge.database
           .from("meeting_scheduling_queue")
           .select(`
             *,
