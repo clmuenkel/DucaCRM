@@ -433,7 +433,7 @@ export async function POST(request: NextRequest) {
                 enrichment_status: "enriched",
                 enriched_at: new Date().toISOString(),
                 cadence_status: "none",
-              })
+              }])
               .select("id, apollo_id, email"); // Select to verify what was saved
 
             if (contactError) {

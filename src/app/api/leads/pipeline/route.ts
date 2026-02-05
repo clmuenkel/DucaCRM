@@ -192,7 +192,7 @@ async function upsertContactToCRM(
       enrichment_status: "enriched",
       enriched_at: new Date().toISOString(),
       cadence_status: "none",
-    });
+    }]);
 
   if (error) throw error;
   return "inserted";

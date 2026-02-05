@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
                 contact_type: lc.contact_type,
                 confidence_score: bestPerson?.confidence_score || 20,
               },
-            });
+            }]);
         }
 
         results.push({

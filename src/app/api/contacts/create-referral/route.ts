@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         stage: "fresh",
         status: "active",
         priority_score: typedSource.priority_score || 0,
-      })
+      }])
       .select()
       .single();
 
