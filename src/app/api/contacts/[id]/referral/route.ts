@@ -22,7 +22,7 @@ export async function POST(
     }
 
     // Verify the referrer exists
-    const { data: referrer, error: referrerError } = await supabase
+    const { data: referrer, error: referrerError } = await insforge.database
       .from("contacts")
       .select("id, first_name, last_name, title")
       .eq("id", referrer_id)
@@ -36,7 +36,7 @@ export async function POST(
     }
 
     // Update the contact with the referral
-    const { data, error } = await (supabase as any)
+    const { data, error } = await insforge.database
       .from("contacts")
       .update({
         direct_referral_contact_id: referrer_id,
@@ -47,7 +47,7 @@ export async function POST(
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") {
+      if ((error as any).code === "PGRST116" || error.message?.includes("No rows")) {
         return NextResponse.json({ error: "Contact not found" }, { status: 404 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -74,7 +74,7 @@ export async function DELETE(
   try {
         const { id } = await params;
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await insforge.database
       .from("contacts")
       .update({
         direct_referral_contact_id: null,
@@ -85,7 +85,7 @@ export async function DELETE(
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") {
+      if ((error as any).code === "PGRST116" || error.message?.includes("No rows")) {
         return NextResponse.json({ error: "Contact not found" }, { status: 404 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -110,7 +110,7 @@ export async function GET(
         const { id } = await params;
 
     // Get the contact with referral info
-    const { data: contactData, error } = await supabase
+    const { data: contactData, error } = await insforge.database
       .from("contacts")
       .select(`
         id,
@@ -124,7 +124,7 @@ export async function GET(
     const contact = contactData as any;
 
     if (error) {
-      if (error.code === "PGRST116") {
+      if ((error as any).code === "PGRST116" || error.message?.includes("No rows")) {
         return NextResponse.json({ error: "Contact not found" }, { status: 404 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -132,7 +132,7 @@ export async function GET(
 
     // If there's a direct referral, get the referrer details
     if (contact?.direct_referral_contact_id) {
-      const { data: referrer } = await supabase
+      const { data: referrer } = await insforge.database
         .from("contacts")
         .select("id, first_name, last_name, title, last_contacted_at")
         .eq("id", contact.direct_referral_contact_id)
@@ -147,7 +147,7 @@ export async function GET(
 
     // Otherwise check for company-level "talked to"
     if (contact.company_id) {
-      const { data: companyContact } = await supabase
+      const { data: companyContact } = await insforge.database
         .from("contacts")
         .select("id, first_name, last_name, title, last_contacted_at")
         .eq("company_id", contact.company_id)
