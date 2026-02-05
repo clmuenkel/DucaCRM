@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { getValidAccessToken, createCalendarEvent } from "@/lib/google-calendar/client";
 
@@ -12,8 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get user profile with Google Calendar tokens
     const { data: profile } = await supabase

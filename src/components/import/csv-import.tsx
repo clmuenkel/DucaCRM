@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import {
   parseCSV,
@@ -163,7 +163,6 @@ export function CSVImport() {
   const [failedImports, setFailedImports] = useState<FailedImport[]>([]);
   const [showFailedDialog, setShowFailedDialog] = useState(false);
   
-  const supabase = createClient();
   const userId = DEFAULT_USER_ID;
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -416,7 +415,7 @@ export function CSVImport() {
           } else {
             // Check if company exists by domain
             if (domain) {
-              const { data: existingCompany } = await supabase
+              const { data: existingCompany } = await insforge.database
                 .from("companies")
                 .select("id")
                 .eq("user_id", userId)
@@ -430,7 +429,7 @@ export function CSVImport() {
                 // Update company with new data
                 const companyData = mapApolloToCompany(row, userId, domain);
                 if (companyData) {
-                  await supabase
+                  await insforge.database
                     .from("companies")
                     .update({
                       employee_count: companyData.employee_count,
@@ -447,7 +446,7 @@ export function CSVImport() {
             
             // If no company found, check by name
             if (!companyId) {
-              const { data: existingByName } = await supabase
+              const { data: existingByName } = await insforge.database
                 .from("companies")
                 .select("id")
                 .eq("user_id", userId)
@@ -461,7 +460,7 @@ export function CSVImport() {
                 // Update company with new data
                 const companyData = mapApolloToCompany(row, userId, domain);
                 if (companyData) {
-                  await supabase
+                  await insforge.database
                     .from("companies")
                     .update({
                       domain: domain || undefined,
@@ -481,9 +480,9 @@ export function CSVImport() {
             if (!companyId) {
               const companyData = mapApolloToCompany(row, userId, domain);
               if (companyData) {
-                const { data: newCompany, error: companyError } = await supabase
+                const { data: newCompany, error: companyError } = await insforge.database
                   .from("companies")
-                  .insert(companyData)
+                  .insert([companyData])
                   .select("id")
                   .single();
                 
@@ -503,7 +502,7 @@ export function CSVImport() {
         let existingContactId: string | null = null;
         
         if (row.email) {
-          const { data: byEmail } = await supabase
+          const { data: byEmail } = await insforge.database
             .from("contacts")
             .select("id")
             .eq("user_id", userId)
@@ -527,7 +526,7 @@ export function CSVImport() {
           if (!updateData.phone) delete updateData.phone;
           if (!updateData.mobile) delete updateData.mobile;
           
-          const { error: updateError } = await supabase
+          const { error: updateError } = await insforge.database
             .from("contacts")
             .update(updateData)
             .eq("id", existingContactId);
@@ -538,7 +537,7 @@ export function CSVImport() {
               row,
               type: "contact",
               error: updateError.message,
-              errorCode: updateError.code,
+              errorCode: (updateError as any).code,
             });
             failed++;
           } else {
@@ -546,7 +545,7 @@ export function CSVImport() {
             
             // Create note for extra phones if present
             if (row.extraPhonesNote) {
-              const { error: noteError } = await supabase
+              const { error: noteError } = await insforge.database
                 .from("notes")
                 .insert({
                   user_id: userId,
@@ -562,9 +561,9 @@ export function CSVImport() {
           }
         } else {
           // Insert new contact
-          const { data: newContact, error: insertError } = await supabase
+          const { data: newContact, error: insertError } = await insforge.database
             .from("contacts")
-            .insert(contactData)
+            .insert([contactData])
             .select("id")
             .single();
           
@@ -574,7 +573,7 @@ export function CSVImport() {
               row,
               type: "contact",
               error: insertError.message,
-              errorCode: insertError.code,
+              errorCode: (insertError as any).code,
             });
             failed++;
           } else {
@@ -582,7 +581,7 @@ export function CSVImport() {
             
             // Create note for extra phones if present
             if (row.extraPhonesNote && newContact) {
-              const { error: noteError } = await supabase
+              const { error: noteError } = await insforge.database
                 .from("notes")
                 .insert({
                   user_id: userId,
@@ -685,7 +684,7 @@ export function CSVImport() {
           } else {
             // Check if company exists by domain
             if (domain) {
-              const { data: existingCompany } = await supabase
+              const { data: existingCompany } = await insforge.database
                 .from("companies")
                 .select("id")
                 .eq("user_id", userId)
@@ -700,7 +699,7 @@ export function CSVImport() {
             
             // If no company found, check by name
             if (!companyId) {
-              const { data: existingByName } = await supabase
+              const { data: existingByName } = await insforge.database
                 .from("companies")
                 .select("id")
                 .eq("user_id", userId)
@@ -717,9 +716,9 @@ export function CSVImport() {
             if (!companyId) {
               const companyData = mapToCompany(row, userId, domain);
               if (companyData) {
-                const { data: newCompany, error: companyError } = await supabase
+                const { data: newCompany, error: companyError } = await insforge.database
                   .from("companies")
-                  .insert(companyData)
+                  .insert([companyData])
                   .select("id")
                   .single();
                 
@@ -741,7 +740,7 @@ export function CSVImport() {
         
         // Try LinkedIn URL first
         if (row.linkedinUrl) {
-          const { data: byLinkedIn } = await supabase
+          const { data: byLinkedIn } = await insforge.database
             .from("contacts")
             .select("id")
             .eq("user_id", userId)
@@ -753,7 +752,7 @@ export function CSVImport() {
         
         // Try email
         if (!existingContactId && row.email) {
-          const { data: byEmail } = await supabase
+          const { data: byEmail } = await insforge.database
             .from("contacts")
             .select("id")
             .eq("user_id", userId)
@@ -765,7 +764,7 @@ export function CSVImport() {
         
         // Try phone (direct)
         if (!existingContactId && row.direct) {
-          const { data: byPhone } = await supabase
+          const { data: byPhone } = await insforge.database
             .from("contacts")
             .select("id")
             .eq("user_id", userId)
@@ -783,7 +782,7 @@ export function CSVImport() {
 
         if (existingContactId) {
           // Update existing contact
-          const { error: updateError } = await supabase
+          const { error: updateError } = await insforge.database
             .from("contacts")
             .update(contactData)
             .eq("id", existingContactId);
@@ -794,7 +793,7 @@ export function CSVImport() {
               row,
               type: "contact",
               error: updateError.message,
-              errorCode: updateError.code,
+              errorCode: (updateError as any).code,
             });
             failed++;
           } else {
@@ -802,7 +801,7 @@ export function CSVImport() {
             
             // Create note if there's content
             if (row.notes?.trim()) {
-              const { error: noteError } = await supabase
+              const { error: noteError } = await insforge.database
                 .from("notes")
                 .insert({
                   user_id: userId,
@@ -818,9 +817,9 @@ export function CSVImport() {
           }
         } else {
           // Insert new contact
-          const { data: newContact, error: insertError } = await supabase
+          const { data: newContact, error: insertError } = await insforge.database
             .from("contacts")
-            .insert(contactData)
+            .insert([contactData])
             .select("id")
             .single();
           
@@ -830,7 +829,7 @@ export function CSVImport() {
               row,
               type: "contact",
               error: insertError.message,
-              errorCode: insertError.code,
+              errorCode: (insertError as any).code,
             });
             failed++;
           } else {
@@ -838,7 +837,7 @@ export function CSVImport() {
             
             // Create note if there's content
             if (row.notes?.trim() && newContact) {
-              const { error: noteError } = await supabase
+              const { error: noteError } = await insforge.database
                 .from("notes")
                 .insert({
                   user_id: userId,

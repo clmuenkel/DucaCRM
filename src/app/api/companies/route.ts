@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { getTimezoneFromLocation } from "@/lib/timezone";
 
 export const dynamic = 'force-dynamic';
@@ -7,7 +7,6 @@ export const dynamic = 'force-dynamic';
 // GET /api/companies - List all companies with stats
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
     const searchParams = request.nextUrl.searchParams;
     
     const search = searchParams.get("search");
@@ -15,7 +14,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get("limit");
 
     // Build query
-    let query = supabase
+    let query = insforge.database
       .from("companies")
       .select("*")
       .order("name", { ascending: true });
@@ -47,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Get contact counts for each company
     const companyIds = companies.map((c) => c.id);
     
-    const { data: contactStatsData } = await supabase
+    const { data: contactStatsData } = await insforge.database
       .from("contacts")
       .select("company_id, last_contacted_at")
       .in("company_id", companyIds);
@@ -95,7 +94,6 @@ export async function GET(request: NextRequest) {
 // POST /api/companies - Create a new company
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
     const body = await request.json();
 
     const {
@@ -124,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     // Check for existing company with same domain
     if (domain) {
-      const { data: existingData } = await supabase
+      const { data: existingData } = await insforge.database
         .from("companies")
         .select("id")
         .eq("user_id", user_id)
@@ -144,9 +142,9 @@ export async function POST(request: NextRequest) {
     // Derive timezone from location
     const timezone = getTimezoneFromLocation(city, state, country);
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await insforge.database
       .from("companies")
-      .insert({
+      .insert([{
         user_id,
         name,
         domain,
@@ -162,7 +160,7 @@ export async function POST(request: NextRequest) {
         annual_revenue,
         intent_score,
         intent_topics: intent_topics || [],
-      })
+      }])
       .select()
       .single();
 

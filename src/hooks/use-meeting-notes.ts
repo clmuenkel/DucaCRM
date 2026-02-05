@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { MeetingNote, InsertTables, UpdateTables } from "@/types/database";
 import { format, addDays } from "date-fns";
 
@@ -11,9 +11,7 @@ export interface MeetingNoteWithTask extends MeetingNote {
 }
 
 export function useMeetingNotes(meetingId: string) {
-  const supabase = createClient();
-
-  return useQuery<MeetingNoteWithTask[]>({
+    return useQuery<MeetingNoteWithTask[]>({
     queryKey: ["meeting-notes", meetingId],
     queryFn: async () => {
       if (!meetingId) return [];
@@ -32,14 +30,13 @@ export function useMeetingNotes(meetingId: string) {
 }
 
 export function useCreateMeetingNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (note: InsertTables<"meeting_notes">) => {
       const { data, error } = await supabase
         .from("meeting_notes")
-        .insert(note)
+        .insert([note])
         .select()
         .single();
 
@@ -53,8 +50,7 @@ export function useCreateMeetingNote() {
 }
 
 export function useUpdateMeetingNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -83,12 +79,11 @@ export function useUpdateMeetingNote() {
 }
 
 export function useDeleteMeetingNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, meetingId }: { id: string; meetingId: string }) => {
-      const { error } = await supabase.from("meeting_notes").delete().eq("id", id);
+      const { error } = await insforge.database.from("meeting_notes").delete().eq("id", id);
       if (error) throw error;
       return { meetingId };
     },
@@ -104,8 +99,7 @@ export function useDeleteMeetingNote() {
  * When unmarking, optionally deletes the linked task
  */
 export function useToggleActionItem() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -175,7 +169,7 @@ export function useToggleActionItem() {
 
         // Delete the linked task if exists
         if (currentNote?.task_id) {
-          await supabase.from("tasks").delete().eq("id", currentNote.task_id);
+          await insforge.database.from("tasks").delete().eq("id", currentNote.task_id);
         }
 
         // Update the note to remove action item status
@@ -209,9 +203,7 @@ export interface ActionItemWithTask extends MeetingNote {
  * Get action items (notes marked as action items) for a meeting
  */
 export function useMeetingActionItems(meetingId: string) {
-  const supabase = createClient();
-
-  return useQuery<ActionItemWithTask[]>({
+    return useQuery<ActionItemWithTask[]>({
     queryKey: ["meeting-action-items", meetingId],
     queryFn: async () => {
       if (!meetingId) return [];

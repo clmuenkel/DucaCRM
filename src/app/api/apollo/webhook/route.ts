@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 
 export const dynamic = 'force-dynamic';
 
@@ -114,8 +114,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, updated: 0 });
     }
 
-    const supabase = await createClient();
-    let updated = 0;
+        let updated = 0;
     let failed = 0;
     const results: Array<{ apolloId: string; mobile: string; method: string; success: boolean; error?: string }> = [];
 

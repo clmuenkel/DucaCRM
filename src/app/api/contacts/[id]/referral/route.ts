@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { id } = await params;
+        const { id } = await params;
     const body = await request.json();
 
     const { referrer_id, note } = body;
@@ -73,8 +72,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { id } = await params;
+        const { id } = await params;
 
     const { data, error } = await (supabase as any)
       .from("contacts")
@@ -109,8 +107,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const { id } = await params;
+        const { id } = await params;
 
     // Get the contact with referral info
     const { data: contactData, error } = await supabase

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { Meeting, MeetingWithContact, InsertTables, UpdateTables } from "@/types/database";
 
 export function useMeetings(filters?: {
@@ -12,9 +12,7 @@ export function useMeetings(filters?: {
   past?: boolean;
   limit?: number;
 }) {
-  const supabase = createClient();
-
-  return useQuery<MeetingWithContact[]>({
+    return useQuery<MeetingWithContact[]>({
     queryKey: ["meetings", filters],
     queryFn: async () => {
       let query = supabase
@@ -59,9 +57,7 @@ export function useMeetings(filters?: {
 }
 
 export function useAllMeetings() {
-  const supabase = createClient();
-
-  return useQuery<MeetingWithContact[]>({
+    return useQuery<MeetingWithContact[]>({
     queryKey: ["meetings", "all"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -76,9 +72,7 @@ export function useAllMeetings() {
 }
 
 export function useMeeting(id: string) {
-  const supabase = createClient();
-
-  return useQuery<MeetingWithContact | null>({
+    return useQuery<MeetingWithContact | null>({
     queryKey: ["meetings", id],
     queryFn: async () => {
       if (!id) return null;
@@ -97,9 +91,7 @@ export function useMeeting(id: string) {
 }
 
 export function useUpcomingMeetings(days: number = 7) {
-  const supabase = createClient();
-
-  return useQuery<MeetingWithContact[]>({
+    return useQuery<MeetingWithContact[]>({
     queryKey: ["meetings", "upcoming", days],
     queryFn: async () => {
       // Use start of today instead of now, so all today's meetings show
@@ -123,9 +115,7 @@ export function useUpcomingMeetings(days: number = 7) {
 }
 
 export function useTodaysMeetings() {
-  const supabase = createClient();
-
-  return useQuery<MeetingWithContact[]>({
+    return useQuery<MeetingWithContact[]>({
     queryKey: ["meetings", "today"],
     queryFn: async () => {
       const today = new Date();
@@ -148,9 +138,7 @@ export function useTodaysMeetings() {
 }
 
 export function useMeetingsBookedToday() {
-  const supabase = createClient();
-
-  return useQuery<number>({
+    return useQuery<number>({
     queryKey: ["meetings", "booked-today"],
     queryFn: async () => {
       const today = new Date();
@@ -172,14 +160,13 @@ export function useMeetingsBookedToday() {
 }
 
 export function useCreateMeeting() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (meeting: InsertTables<"meetings">) => {
       const { data, error } = await supabase
         .from("meetings")
-        .insert(meeting)
+        .insert([meeting])
         .select()
         .single();
       if (error) throw error;
@@ -193,8 +180,7 @@ export function useCreateMeeting() {
 }
 
 export function useUpdateMeeting() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -220,8 +206,7 @@ export function useUpdateMeeting() {
 }
 
 export function useCompleteMeeting() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -253,8 +238,7 @@ export function useCompleteMeeting() {
 }
 
 export function useCancelMeeting() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -274,12 +258,11 @@ export function useCancelMeeting() {
 }
 
 export function useDeleteMeeting() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("meetings").delete().eq("id", id);
+      const { error } = await insforge.database.from("meetings").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

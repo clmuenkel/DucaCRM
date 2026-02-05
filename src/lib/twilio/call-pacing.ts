@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 // In-memory cache for last call timestamps (resets on server restart)
@@ -74,8 +74,7 @@ export function recordCall(userId: string = DEFAULT_USER_ID): void {
  */
 async function getRecentCallCount(userId: string): Promise<number> {
   try {
-    const supabase = await createClient();
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
     const { count, error } = await supabase
       .from("calls")

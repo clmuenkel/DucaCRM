@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { enrichPersonById, extractPersonMobile, scoreDecisionMakerTitle } from "@/lib/apollo/client";
 
@@ -175,8 +175,7 @@ export async function POST(request: NextRequest) {
     const body: EnrichRequest = await request.json();
     const { companyIds, limit = 50, industry, retryFailed = false } = body;
 
-    const supabase = createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get Apollo API key
     const apiKey = await getApolloApiKey(supabase);
@@ -417,8 +416,7 @@ export async function POST(request: NextRequest) {
 // GET endpoint to get enrichment status/stats
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get counts by status
     const { data: statusCounts } = await (supabase as any)

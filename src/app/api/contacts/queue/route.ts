@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';
@@ -10,8 +10,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
     const { searchParams } = new URL(request.url);
 
     const industry = searchParams.get("industry");

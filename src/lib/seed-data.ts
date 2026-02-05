@@ -1,7 +1,7 @@
 // Dummy data for testing the CRM
 // This file can be imported and run to seed the database with test data
 
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { getTimezoneFromLocation } from "@/lib/timezone";
 
@@ -217,8 +217,7 @@ const DUMMY_CONTACTS_BY_COMPANY: Record<string, Array<{
 };
 
 export async function seedDummyData() {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
   
   const results = {
     companies: 0,
@@ -383,7 +382,7 @@ export async function seedDummyData() {
     ];
 
     for (const personaSet of personaSets) {
-      await supabase.from("persona_sets").insert(personaSet);
+      await insforge.database.from("persona_sets").insert([personaSet]);
     }
 
     return results;
@@ -394,16 +393,15 @@ export async function seedDummyData() {
 }
 
 export async function clearDummyData() {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
   // Delete in order to avoid FK constraints
-  await supabase.from("tasks").delete().eq("user_id", userId);
-  await supabase.from("calls").delete().eq("user_id", userId);
-  await supabase.from("notes").delete().eq("user_id", userId);
-  await supabase.from("contacts").delete().eq("user_id", userId);
-  await supabase.from("companies").delete().eq("user_id", userId);
-  await supabase.from("persona_sets").delete().eq("user_id", userId);
+  await insforge.database.from("tasks").delete().eq("user_id", userId);
+  await insforge.database.from("calls").delete().eq("user_id", userId);
+  await insforge.database.from("notes").delete().eq("user_id", userId);
+  await insforge.database.from("contacts").delete().eq("user_id", userId);
+  await insforge.database.from("companies").delete().eq("user_id", userId);
+  await insforge.database.from("persona_sets").delete().eq("user_id", userId);
 
   return { success: true };
 }

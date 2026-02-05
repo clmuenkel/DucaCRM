@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';
@@ -143,9 +143,7 @@ async function testApollo(apiKey: string): Promise<TestResult> {
  */
 async function testSupabase(): Promise<TestResult> {
   try {
-    const supabase = await createClient();
-    
-    // Try to read from profiles table
+        // Try to read from profiles table
     const { data, error } = await supabase
       .from("profiles")
       .select("id")
@@ -211,8 +209,7 @@ export async function GET(request: NextRequest) {
   let apolloKeyFromDb: string | null = null;
   if (supabaseResult.status === "pass") {
     try {
-      const supabase = await createClient();
-      const { data: settings } = await (supabase as any)
+            const { data: settings } = await (supabase as any)
         .from("user_settings")
         .select("apollo_api_key")
         .eq("user_id", DEFAULT_USER_ID)

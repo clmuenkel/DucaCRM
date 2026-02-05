@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
 import { renderTemplate } from "@/lib/email-template-renderer";
@@ -29,8 +29,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get contact
     const { data: contact, error: fetchError } = await supabase

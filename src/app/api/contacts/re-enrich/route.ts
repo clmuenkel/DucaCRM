@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { enrichPersonById, extractPersonMobile } from "@/lib/apollo/client";
 import type { Contact } from "@/types/database";
@@ -53,8 +53,7 @@ export async function POST(request: NextRequest) {
     const body: ReEnrichRequest = await request.json().catch(() => ({}));
     const { limit = 200, dryRun = false } = body;
 
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
     const apiKey = await getApolloApiKey(supabase);
 
     if (!apiKey) {

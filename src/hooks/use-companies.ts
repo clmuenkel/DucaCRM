@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { Company, Contact, Call, CallWithContact, InsertTables, UpdateTables } from "@/types/database";
 
 export interface CompanyWithStats extends Company {
@@ -27,13 +27,11 @@ export interface CompanyFilters {
  * Fetch all companies with contact counts and last contacted date
  */
 export function useCompanies(filters?: CompanyFilters) {
-  const supabase = createClient();
-
   return useQuery({
     queryKey: ["companies", filters],
     queryFn: async () => {
       // First get companies
-      let query = supabase
+      let query = insforge.database
         .from("companies")
         .select("*")
         .order("name", { ascending: true });
@@ -64,7 +62,7 @@ export function useCompanies(filters?: CompanyFilters) {
       // Get contact counts and last contacted for each company
       const companyIds = companies.map((c) => c.id);
       
-      const { data: contactStatsData } = await supabase
+      const { data: contactStatsData } = await insforge.database
         .from("contacts")
         .select("company_id, last_contacted_at")
         .in("company_id", companyIds);
@@ -113,12 +111,10 @@ export function useCompanies(filters?: CompanyFilters) {
  * Fetch a single company with all its contacts
  */
 export function useCompany(id: string) {
-  const supabase = createClient();
-
   return useQuery<CompanyWithStats>({
     queryKey: ["company", id],
     queryFn: async () => {
-      const { data: companyData, error } = await supabase
+      const { data: companyData, error } = await insforge.database
         .from("companies")
         .select("*")
         .eq("id", id)
@@ -128,7 +124,7 @@ export function useCompany(id: string) {
       const company = companyData as Company;
 
       // Get contacts for this company
-      const { data: contactsData } = await supabase
+      const { data: contactsData } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("company_id", id)
@@ -170,12 +166,10 @@ export function useCompany(id: string) {
  * Get all contacts for a company
  */
 export function useCompanyContacts(companyId: string) {
-  const supabase = createClient();
-
   return useQuery({
     queryKey: ["company-contacts", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("company_id", companyId)
@@ -192,13 +186,11 @@ export function useCompanyContacts(companyId: string) {
  * Get call history for all contacts at a company
  */
 export function useCompanyCallHistory(companyId: string) {
-  const supabase = createClient();
-
   return useQuery<CallWithContact[]>({
     queryKey: ["company-calls", companyId],
     queryFn: async () => {
       // First get all contact IDs for this company
-      const { data: contacts } = await supabase
+      const { data: contacts } = await insforge.database
         .from("contacts")
         .select("id")
         .eq("company_id", companyId);
@@ -210,7 +202,7 @@ export function useCompanyCallHistory(companyId: string) {
       const contactIds = contacts.map((c) => c.id);
 
       // Get all calls for these contacts
-      const { data: calls, error } = await supabase
+      const { data: calls, error } = await insforge.database
         .from("calls")
         .select("*, contacts(id, first_name, last_name, title)")
         .in("contact_id", contactIds)
@@ -227,14 +219,12 @@ export function useCompanyCallHistory(companyId: string) {
  * Get contacts at the same company as a given contact (for referral context)
  */
 export function useCompanyColleagues(contactId: string, companyId?: string | null) {
-  const supabase = createClient();
-
   return useQuery({
     queryKey: ["company-colleagues", contactId, companyId],
     queryFn: async () => {
       if (!companyId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .select("id, first_name, last_name, title, last_contacted_at, total_calls")
         .eq("company_id", companyId)
@@ -253,13 +243,11 @@ export function useCompanyColleagues(contactId: string, companyId?: string | nul
  * Get the "talked to" reference for a company (most recently contacted person)
  */
 export function useCompanyTalkedTo(companyId: string) {
-  const supabase = createClient();
-
   return useQuery({
     queryKey: ["company-talked-to", companyId],
     queryFn: async () => {
       // Get the most recently contacted person at this company
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .select("id, first_name, last_name, title, last_contacted_at")
         .eq("company_id", companyId)
@@ -268,7 +256,7 @@ export function useCompanyTalkedTo(companyId: string) {
         .limit(1)
         .single();
 
-      if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows
+      if (error && (error as any).code !== "PGRST116" && !error.message?.includes("No rows")) throw error;
       return data || null;
     },
     enabled: !!companyId,
@@ -279,14 +267,13 @@ export function useCompanyTalkedTo(companyId: string) {
  * Create a new company
  */
 export function useCreateCompany() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (company: InsertTables<"companies">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("companies")
-        .insert(company)
+        .insert([company])
         .select()
         .single();
       
@@ -303,7 +290,6 @@ export function useCreateCompany() {
  * Update a company
  */
 export function useUpdateCompany() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -314,7 +300,7 @@ export function useUpdateCompany() {
       id: string;
       updates: UpdateTables<"companies">;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("companies")
         .update(updates)
         .eq("id", id)
@@ -335,19 +321,18 @@ export function useUpdateCompany() {
  * Delete a company
  */
 export function useDeleteCompany() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
       // First unlink all contacts from this company
-      await supabase
+      await insforge.database
         .from("contacts")
         .update({ company_id: null })
         .eq("company_id", id);
 
       // Then delete the company
-      const { error } = await supabase
+      const { error } = await insforge.database
         .from("companies")
         .delete()
         .eq("id", id);
@@ -365,7 +350,6 @@ export function useDeleteCompany() {
  * Find or create a company by domain
  */
 export function useFindOrCreateCompany() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -379,7 +363,7 @@ export function useFindOrCreateCompany() {
       companyData: Omit<InsertTables<"companies">, "user_id">;
     }) => {
       // Try to find existing company by domain
-      const { data: existing } = await supabase
+      const { data: existing } = await insforge.database
         .from("companies")
         .select("*")
         .eq("user_id", userId)
@@ -391,13 +375,13 @@ export function useFindOrCreateCompany() {
       }
 
       // Create new company
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("companies")
-        .insert({
+        .insert([{
           ...companyData,
           user_id: userId,
           domain,
-        })
+        }])
         .select()
         .single();
 

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { getTwilioConfig } from "./client";
 
@@ -21,8 +21,7 @@ export async function initializeTwilioNumbers(): Promise<{
   updated: number;
   errors: string[];
 }> {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
   const config = getTwilioConfig();
 
   if (!config.hasPhoneNumbers) {
@@ -95,8 +94,7 @@ export async function getNextAvailableNumber(): Promise<{
   number: TwilioNumber | null;
   error?: string;
 }> {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
   try {
     // First, ensure numbers are initialized
@@ -148,8 +146,7 @@ export async function getNextAvailableNumber(): Promise<{
 export async function incrementCallCount(
   numberId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
   try {
     // Get current count
@@ -191,8 +188,7 @@ export async function incrementCallCount(
 export async function checkDailyLimits(
   numberId: string
 ): Promise<{ withinLimit: boolean; current: number; limit: number; error?: string }> {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
   try {
     const { data: number, error } = await supabase
@@ -237,8 +233,7 @@ export async function getAllTwilioNumbers(): Promise<{
   numbers: TwilioNumber[];
   error?: string;
 }> {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
   try {
     const { data: numbers, error } = await supabase
@@ -264,8 +259,7 @@ export async function updateSpamScore(
   numberId: string,
   spamScore: number | null
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
   try {
     const { error } = await (supabase as any)
@@ -293,8 +287,7 @@ export async function updateSpamScore(
 export async function deactivateNumber(
   numberId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-  const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
   try {
     const { error } = await (supabase as any)

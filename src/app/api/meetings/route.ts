@@ -1,11 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(request.url);
   
   const contactId = searchParams.get("contactId");
   const companyId = searchParams.get("companyId");
@@ -50,12 +49,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const body = await request.json();
+    const body = await request.json();
 
   const { data, error } = await supabase
     .from("meetings")
-    .insert(body)
+    .insert([body])
     .select()
     .single();
 

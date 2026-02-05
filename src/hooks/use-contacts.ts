@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { Contact, InsertTables, UpdateTables } from "@/types/database";
 
 export function useContacts(filters?: {
@@ -13,12 +13,10 @@ export function useContacts(filters?: {
   minPriority?: number;
   industry?: string;
 }) {
-  const supabase = createClient();
-
   return useQuery<Contact[]>({
     queryKey: ["contacts", filters],
     queryFn: async () => {
-      let query = supabase
+      let query = insforge.database
         .from("contacts")
         .select("*")
         .eq("status", "active");
@@ -73,12 +71,10 @@ export function useContacts(filters?: {
 }
 
 export function useContact(id: string) {
-  const supabase = createClient();
-
   return useQuery<Contact>({
     queryKey: ["contact", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("id", id)
@@ -91,14 +87,13 @@ export function useContact(id: string) {
 }
 
 export function useCreateContact() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (contact: InsertTables<"contacts">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
-        .insert(contact)
+        .insert([contact])
         .select()
         .single();
       if (error) throw error;
@@ -111,7 +106,6 @@ export function useCreateContact() {
 }
 
 export function useUpdateContact() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -122,7 +116,7 @@ export function useUpdateContact() {
       id: string;
       updates: UpdateTables<"contacts">;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .update(updates)
         .eq("id", id)
@@ -139,12 +133,11 @@ export function useUpdateContact() {
 }
 
 export function useDeleteContact() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("contacts").delete().eq("id", id);
+      const { error } = await insforge.database.from("contacts").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -154,12 +147,11 @@ export function useDeleteContact() {
 }
 
 export function useBulkCreateContacts() {
-  const supabase = createClient();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (contacts: InsertTables<"contacts">[]) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .insert(contacts)
         .select();
@@ -173,12 +165,10 @@ export function useBulkCreateContacts() {
 }
 
 export function useContactsByStage() {
-  const supabase = createClient();
-
   return useQuery<Record<string, number>>({
     queryKey: ["contacts-by-stage"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .select("stage")
         .eq("status", "active");

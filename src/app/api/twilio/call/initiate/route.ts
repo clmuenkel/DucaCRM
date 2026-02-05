@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getNextAvailableNumber, incrementCallCount } from "@/lib/twilio/number-rotation";
 import { shouldThrottle, recordCall } from "@/lib/twilio/call-pacing";
 import { getTwilioConfig } from "@/lib/twilio/client";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { normalizeToE164 } from "@/lib/utils";
 
@@ -32,9 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = DEFAULT_USER_ID;
-    const supabase = await createClient();
-
-    // Call pacing disabled - allow immediate calls when rotating numbers
+        // Call pacing disabled - allow immediate calls when rotating numbers
     // const pacingCheck = shouldThrottle(userId);
     // if (!pacingCheck.canCall) {
     //   return NextResponse.json(

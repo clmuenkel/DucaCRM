@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Header } from "@/components/layout/header";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { seedDummyData, clearDummyData } from "@/lib/seed-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,6 @@ import type { Profile } from "@/types/database";
 
 
 export default function SettingsPage() {
-  const supabase = createClient();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -53,7 +52,7 @@ export default function SettingsPage() {
     const loadSettings = async () => {
       try {
         // Load profile
-        const { data: profileData } = await supabase
+        const { data: profileData } = await insforge.database
           .from("profiles")
           .select("*")
           .eq("id", DEFAULT_USER_ID)
@@ -70,7 +69,7 @@ export default function SettingsPage() {
         }
 
         // Load settings
-        const { data: settingsData } = await supabase
+        const { data: settingsData } = await insforge.database
           .from("user_settings")
           .select("*")
           .eq("user_id", DEFAULT_USER_ID)
@@ -83,7 +82,7 @@ export default function SettingsPage() {
         }
 
         // Load cadence settings
-        const { data: cadenceData } = await (supabase as any)
+        const { data: cadenceData } = await insforge.database
           .from("cadence_settings")
           .select("*")
           .eq("user_id", DEFAULT_USER_ID)
@@ -101,15 +100,15 @@ export default function SettingsPage() {
     };
 
     loadSettings();
-  }, [supabase]);
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
       // Update profile
-      await supabase
+      await insforge.database
         .from("profiles")
-        .upsert({
+        .upsert([{
           id: DEFAULT_USER_ID,
           full_name: fullName,
           email,
@@ -117,24 +116,24 @@ export default function SettingsPage() {
           calendar_link: calendarLink,
           daily_call_goal: dailyCallGoal,
           daily_email_goal: dailyEmailGoal,
-        } as any);
+        }]);
 
       // Update settings
-      await supabase
+      await insforge.database
         .from("user_settings")
-        .upsert({
+        .upsert([{
           user_id: DEFAULT_USER_ID,
           apollo_api_key: apolloApiKey,
-        } as any);
+        }]);
 
       // Update cadence settings
-      await (supabase as any)
+      await insforge.database
         .from("cadence_settings")
-        .upsert({
+        .upsert([{
           user_id: DEFAULT_USER_ID,
           emails_per_week: emailsPerWeek,
           calls_per_week: callsPerWeek,
-        });
+        }]);
 
       toast.success("Settings saved!");
     } catch (error: any) {

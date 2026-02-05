@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { extractPersonMobile, findTopDecisionMakers, scoreDecisionMakerTitle } from "@/lib/apollo/client";
 
@@ -121,7 +121,7 @@ async function upsertCompanyToCRM(
 
   const { data: created, error } = await supabase
     .from("companies")
-    .insert(companyPayload)
+    .insert([companyPayload])
     .select("id")
     .single();
   if (error) throw error;
@@ -180,8 +180,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get API keys
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     const { data: settings } = await (supabase as any)
       .from("user_settings")

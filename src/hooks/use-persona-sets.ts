@@ -1,16 +1,14 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { PersonaSet, InsertTables, UpdateTables } from "@/types/database";
 
 /**
  * Fetch all persona sets for the user
  */
 export function usePersonaSets() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["persona-sets"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -29,9 +27,7 @@ export function usePersonaSets() {
  * Fetch a single persona set
  */
 export function usePersonaSet(id: string) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["persona-set", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -51,9 +47,7 @@ export function usePersonaSet(id: string) {
  * Get the default persona set
  */
 export function useDefaultPersonaSet() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["persona-set", "default"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -72,8 +66,7 @@ export function useDefaultPersonaSet() {
  * Create a new persona set
  */
 export function useCreatePersonaSet() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (personaSet: InsertTables<"persona_sets">) => {
@@ -87,7 +80,7 @@ export function useCreatePersonaSet() {
 
       const { data, error } = await supabase
         .from("persona_sets")
-        .insert(personaSet)
+        .insert([personaSet])
         .select()
         .single();
 
@@ -104,8 +97,7 @@ export function useCreatePersonaSet() {
  * Update a persona set
  */
 export function useUpdatePersonaSet() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -153,8 +145,7 @@ export function useUpdatePersonaSet() {
  * Delete a persona set
  */
 export function useDeletePersonaSet() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -175,8 +166,7 @@ export function useDeletePersonaSet() {
  * Duplicate a persona set
  */
 export function useDuplicatePersonaSet() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, newName }: { id: string; newName: string }) => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { getTimezoneFromLocation } from "@/lib/timezone";
 
 export const dynamic = 'force-dynamic';
@@ -10,18 +10,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
     // Get company
-    const { data: companyData, error } = await supabase
+    const { data: companyData, error } = await insforge.database
       .from("companies")
       .select("*")
       .eq("id", id)
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") {
+      if ((error as any).code === "PGRST116" || error.message?.includes("No rows")) {
         return NextResponse.json({ error: "Company not found" }, { status: 404 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -30,7 +29,7 @@ export async function GET(
     const company = companyData as any;
 
     // Get all contacts for this company
-    const { data: contactsData } = await supabase
+    const { data: contactsData } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("company_id", id)
@@ -43,7 +42,7 @@ export async function GET(
     let calls: any[] = [];
     
     if (contactIds.length > 0) {
-      const { data: callData } = await supabase
+      const { data: callData } = await insforge.database
         .from("calls")
         .select("*, contacts(id, first_name, last_name, title)")
         .in("contact_id", contactIds)
@@ -95,13 +94,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
     const body = await request.json();
 
     // If location is being updated, recalculate timezone
     if (body.city || body.state || body.country) {
-      const { data: currentCompanyData } = await supabase
+      const { data: currentCompanyData } = await insforge.database
         .from("companies")
         .select("city, state, country")
         .eq("id", id)
@@ -116,7 +114,7 @@ export async function PATCH(
       body.timezone = getTimezoneFromLocation(city, state, country);
     }
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await insforge.database
       .from("companies")
       .update(body)
       .eq("id", id)
@@ -124,7 +122,7 @@ export async function PATCH(
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") {
+      if ((error as any).code === "PGRST116" || error.message?.includes("No rows")) {
         return NextResponse.json({ error: "Company not found" }, { status: 404 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -146,17 +144,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
     const { id } = await params;
 
     // First unlink all contacts from this company
-    await (supabase as any)
+    await insforge.database
       .from("contacts")
       .update({ company_id: null })
       .eq("company_id", id);
 
     // Then delete the company
-    const { error } = await (supabase as any)
+    const { error } = await insforge.database
       .from("companies")
       .delete()
       .eq("id", id);

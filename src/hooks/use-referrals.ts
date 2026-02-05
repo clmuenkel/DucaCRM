@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { Contact } from "@/types/database";
 
 export interface ReferralContext {
@@ -28,9 +28,7 @@ export interface ReferralContext {
  * Returns direct referral if exists, otherwise company "talked to" reference
  */
 export function useContactContext(contactId: string, companyId?: string | null) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["contact-context", contactId, companyId],
     queryFn: async (): Promise<ReferralContext> => {
       // First check for direct referral
@@ -93,8 +91,7 @@ export function useContactContext(contactId: string, companyId?: string | null) 
  * Set a direct referral for a contact ("X told me to call you")
  */
 export function useSetDirectReferral() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -131,8 +128,7 @@ export function useSetDirectReferral() {
  * Remove a direct referral from a contact
  */
 export function useRemoveDirectReferral() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (contactId: string) => {
@@ -161,8 +157,7 @@ export function useRemoveDirectReferral() {
  * Update just the referral note for a contact (for editing opener text)
  */
 export function useUpdateReferralNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -196,8 +191,7 @@ export function useUpdateReferralNote() {
  * Set a custom opener note without a referrer contact (manual opener text)
  */
 export function useSetCustomOpener() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -232,8 +226,7 @@ export function useSetCustomOpener() {
  * Used when contact says "talk to X instead"
  */
 export function useSetReferralFromCall() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -273,9 +266,7 @@ export function useSetReferralFromCall() {
  * Get all contacts that were referred by a specific contact
  */
 export function useReferredContacts(referrerId: string) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["referred-contacts", referrerId],
     queryFn: async () => {
       const { data, error } = await supabase

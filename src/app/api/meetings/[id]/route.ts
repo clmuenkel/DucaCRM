@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
@@ -7,8 +7,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  const { id } = await params;
+    const { id } = await params;
 
   const { data, error } = await supabase
     .from("meetings")
@@ -27,8 +26,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  const { id } = await params;
+    const { id } = await params;
   const body = await request.json();
 
   const { data, error } = await (supabase as any)
@@ -49,10 +47,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  const { id } = await params;
+    const { id } = await params;
 
-  const { error } = await supabase.from("meetings").delete().eq("id", id);
+  const { error } = await insforge.database.from("meetings").delete().eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTwilioClient } from "@/lib/twilio/client";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Tables } from "@/types/database";
 
@@ -25,8 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "CallSid is required" }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Find existing twilio_calls record
     const { data: existingCall, error: findError } = await supabase
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new record (webhook received before initiate)
       callData.user_id = userId;
-      const { error: insertError } = await (supabase as any).from("twilio_calls").insert(callData);
+      const { error: insertError } = await (supabase as any).from("twilio_calls").insert([callData]);
 
       if (insertError) {
         console.error("Error creating twilio_calls:", insertError);

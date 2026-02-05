@@ -34,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { DaysAgoBadge } from "@/components/workqueue/days-ago-badge";
 import { WrongNumberFlag } from "@/components/workqueue/wrong-number-flag";
@@ -74,7 +74,7 @@ const INDUSTRIES = [
 
 export default function WorkQueuePage() {
   const router = useRouter();
-  const supabase = createClient();
+      // Using insforge (already imported)
   const [isLoading, setIsLoading] = useState(true);
   const [activeCadenceContacts, setActiveCadenceContacts] = useState<Contact[]>([]);
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
@@ -92,7 +92,7 @@ export default function WorkQueuePage() {
 
       // Top table: All active cadence contacts (not just to call)
       // Show ALL contacts in active cadence regardless of next_action_type
-      const { data: activeData } = await supabase
+      const { data: activeData } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
@@ -105,7 +105,7 @@ export default function WorkQueuePage() {
 
       // Bottom table: All other contacts (not in active cadence)
       // Show all active contacts that are NOT in active cadence
-      let bottomQuery = supabase
+      let bottomQuery = insforge.database
         .from("contacts")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)

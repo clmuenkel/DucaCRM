@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';
@@ -40,8 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get current industries for all contacts
     const { data: contacts, error: fetchError } = await supabase

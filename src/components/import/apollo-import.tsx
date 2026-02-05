@@ -6,7 +6,7 @@ import { usePersonaSets, useCreatePersonaSet, PERSONA_SET_TEMPLATES } from "@/ho
 import { useFindOrCreateCompany } from "@/hooks/use-companies";
 import { mapApolloToContact, mapApolloToCompany, APOLLO_INDUSTRIES } from "@/lib/apollo/client";
 import { getTimezoneFromLocation } from "@/lib/timezone";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,8 +101,7 @@ export function ApolloImport() {
     companiesCreated: 0 
   });
 
-  const supabase = createClient();
-  const bulkCreate = useBulkCreateContacts();
+    const bulkCreate = useBulkCreateContacts();
   const { data: personaSets, isLoading: loadingPersonaSets } = usePersonaSets();
   const createPersonaSet = useCreatePersonaSet();
 

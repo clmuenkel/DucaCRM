@@ -1,16 +1,14 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { Note, InsertTables, UpdateTables } from "@/types/database";
 
 export function useNotes(filters?: {
   contactId?: string;
   limit?: number;
 }) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["notes", filters],
     queryFn: async () => {
       let query = supabase
@@ -34,14 +32,13 @@ export function useNotes(filters?: {
 }
 
 export function useCreateNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (note: InsertTables<"notes">) => {
       const { data, error } = await supabase
         .from("notes")
-        .insert(note)
+        .insert([note])
         .select()
         .single();
       if (error) throw error;
@@ -55,8 +52,7 @@ export function useCreateNote() {
 }
 
 export function useUpdateNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -82,12 +78,11 @@ export function useUpdateNote() {
 }
 
 export function useDeleteNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("notes").delete().eq("id", id);
+      const { error } = await insforge.database.from("notes").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -100,9 +95,7 @@ export function useDeleteNote() {
  * Hook to fetch company-wide notes for a company
  */
 export function useCompanyNotes(companyId: string | undefined | null) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["notes", "company", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -126,8 +119,7 @@ export function useCompanyNotes(companyId: string | undefined | null) {
  * Hook to create a company-wide note
  */
 export function useCreateCompanyNote() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (note: {

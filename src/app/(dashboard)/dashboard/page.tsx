@@ -14,7 +14,7 @@ import { Zap, Download, Target, BarChart3, Users, ListTodo } from "lucide-react"
 import Link from "next/link";
 import { useDailyTargets, useUpdateTarget } from "@/hooks/use-targets";
 import { InlineEditableTarget } from "@/components/dashboard/editable-target";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -38,14 +38,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const loadLeadCounts = async () => {
-      const supabase = createClient();
-      const { count: total } = await supabase
+      const { count: total } = await insforge.database
         .from("contacts")
         .select("*", { count: "exact", head: true })
         .eq("user_id", DEFAULT_USER_ID)
         .eq("status", "active");
 
-      const { count: toBework } = await supabase
+      const { count: toBework } = await insforge.database
         .from("contacts")
         .select("*", { count: "exact", head: true })
         .eq("user_id", DEFAULT_USER_ID)

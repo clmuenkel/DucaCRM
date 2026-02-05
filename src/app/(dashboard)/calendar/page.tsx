@@ -7,7 +7,7 @@ import { MeetingDetailDialog } from "@/components/meetings/meeting-detail";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { 
   format, 
   format as formatDate,
@@ -685,9 +685,7 @@ function MeetingRowComponent({ meeting, onClick }: { meeting: MeetingWithContact
 function SchedulingQueue() {
   const [schedulingQueue, setSchedulingQueue] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
-
-  useEffect(() => {
+    useEffect(() => {
     const loadSchedulingQueue = async () => {
       setIsLoading(true);
       try {

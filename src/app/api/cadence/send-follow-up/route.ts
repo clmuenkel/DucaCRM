@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
 import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
@@ -49,8 +49,7 @@ export async function POST(request: NextRequest) {
     
     const { contactIds } = body;
 
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get Resend config
     const resendApiKey = process.env.RESEND_API_KEY;

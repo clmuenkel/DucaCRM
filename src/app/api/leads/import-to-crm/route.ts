@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';
@@ -30,8 +30,7 @@ export async function POST(request: NextRequest) {
     const body: ImportRequest = await request.json();
     const { companyIds, personIds, importAll = false, onlyDM = false } = body;
 
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Build query for lead companies to import
     let query = (supabase as any)
@@ -174,7 +173,7 @@ export async function POST(request: NextRequest) {
           // Create new company
           const { data: newCompany, error: companyError } = await (supabase as any)
             .from("companies")
-            .insert(companyData)
+            .insert([companyData])
             .select("id")
             .single();
           
@@ -235,7 +234,7 @@ export async function POST(request: NextRequest) {
           // Create new contact
           const { data: newContact, error: contactError } = await (supabase as any)
             .from("contacts")
-            .insert(contactData)
+            .insert([contactData])
             .select("id")
             .single();
           
@@ -314,8 +313,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Count enriched companies by contact type
     const { data: companies } = await (supabase as any)

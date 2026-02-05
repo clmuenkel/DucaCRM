@@ -1,13 +1,11 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { EmailTemplate, InsertTables, UpdateTables } from "@/types/database";
 
 export function useEmailTemplates() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["email-templates"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -22,9 +20,7 @@ export function useEmailTemplates() {
 }
 
 export function useEmailTemplate(id: string) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["email-template", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -40,14 +36,13 @@ export function useEmailTemplate(id: string) {
 }
 
 export function useCreateEmailTemplate() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (template: InsertTables<"email_templates">) => {
       const { data, error } = await supabase
         .from("email_templates")
-        .insert(template)
+        .insert([template])
         .select()
         .single();
       if (error) throw error;
@@ -60,8 +55,7 @@ export function useCreateEmailTemplate() {
 }
 
 export function useUpdateEmailTemplate() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -88,12 +82,11 @@ export function useUpdateEmailTemplate() {
 }
 
 export function useDeleteEmailTemplate() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("email_templates").delete().eq("id", id);
+      const { error } = await insforge.database.from("email_templates").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { UserTarget, UserTargetUpdate } from "@/types/analytics";
 
@@ -22,9 +22,7 @@ const DEFAULT_WEEKLY_TARGETS = {
 
 // Fetch user targets (daily and weekly)
 export function useTargets() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["user-targets", DEFAULT_USER_ID],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -56,9 +54,7 @@ export function useTargets() {
 
 // Fetch just daily targets
 export function useDailyTargets() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["user-targets", DEFAULT_USER_ID, "daily"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -83,9 +79,7 @@ export function useDailyTargets() {
 
 // Fetch just weekly targets
 export function useWeeklyTargets() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["user-targets", DEFAULT_USER_ID, "weekly"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -109,8 +103,7 @@ export function useWeeklyTargets() {
 
 // Update targets (upsert)
 export function useUpdateTarget() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({

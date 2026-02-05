@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Phone, Zap, Users, Save, CalendarClock, Flame, ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { Contact } from "@/types/database";
 
 type DialerMode = "cadence" | "all" | "hot";
@@ -31,7 +31,6 @@ export function PowerDialer() {
   const [cadenceContacts, setCadenceContacts] = useState<Contact[]>([]);
   const [hotContacts, setHotContacts] = useState<Contact[]>([]);
   const [isLoadingCadence, setIsLoadingCadence] = useState(true);
-  const supabase = createClient();
 
   const {
     isActive,
@@ -54,7 +53,7 @@ export function PowerDialer() {
       setIsLoadingCadence(true);
 
       // Get ALL active cadence contacts (regardless of next_action_type)
-      const { data: cadenceData } = await supabase
+      const { data: cadenceData } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("user_id", userId)
@@ -66,7 +65,7 @@ export function PowerDialer() {
       setCadenceContacts((cadenceData as Contact[]) || []);
 
       // Get hot leads (opened email)
-      const { data: hotData } = await supabase
+      const { data: hotData } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("user_id", userId)

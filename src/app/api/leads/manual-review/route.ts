@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';
@@ -27,8 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Check if company exists
     const { data: company, error: companyError } = await (supabase as any)
@@ -94,7 +93,7 @@ export async function POST(request: NextRequest) {
       // Insert new person
       const { error: insertError } = await (supabase as any)
         .from("lead_people")
-        .insert(personData);
+        .insert([personData]);
 
       if (insertError) {
         console.error("Error inserting lead person:", insertError);

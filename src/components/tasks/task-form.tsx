@@ -25,8 +25,7 @@ import {
 import { TASK_TYPES, TASK_PRIORITIES } from "@/lib/constants";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -46,18 +45,9 @@ interface TaskFormProps {
 }
 
 export function TaskForm({ open, onOpenChange, defaultContactId }: TaskFormProps) {
-  const [userId, setUserId] = useState<string | null>(null);
-  const supabase = createClient();
+  const userId = DEFAULT_USER_ID;
   const createTask = useCreateTask();
   const { data: contacts } = useContacts();
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-    };
-    getUser();
-  }, [supabase]);
 
   const {
     register,

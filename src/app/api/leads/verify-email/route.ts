@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { verifyEmail, verifyEmailsBatch, generateEmailPatterns, findValidEmail } from "@/lib/email-verifier";
 
@@ -54,8 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mode 3: Batch verify lead_people with guessed emails
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     let query = (supabase as any)
       .from("lead_people")

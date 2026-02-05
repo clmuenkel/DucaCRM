@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact } from "@/types/database";
 
@@ -61,8 +61,7 @@ function calculatePriorityScore(contact: {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get all contacts that need priority calculation
     const { data: contacts, error: fetchError } = await supabase

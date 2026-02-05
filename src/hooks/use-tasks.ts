@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { Task, TaskWithContact, InsertTables, UpdateTables } from "@/types/database";
 
 export function useTasks(filters?: {
@@ -10,9 +10,7 @@ export function useTasks(filters?: {
   dueToday?: boolean;
   limit?: number;
 }) {
-  const supabase = createClient();
-
-  return useQuery<TaskWithContact[]>({
+    return useQuery<TaskWithContact[]>({
     queryKey: ["tasks", filters],
     queryFn: async () => {
       let query = supabase
@@ -51,9 +49,7 @@ export function useTasks(filters?: {
 }
 
 export function useTodayTasks() {
-  const supabase = createClient();
-
-  return useQuery<TaskWithContact[]>({
+    return useQuery<TaskWithContact[]>({
     queryKey: ["tasks", "today"],
     queryFn: async () => {
       const today = new Date();
@@ -74,14 +70,13 @@ export function useTodayTasks() {
 }
 
 export function useCreateTask() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (task: InsertTables<"tasks">) => {
       const { data, error } = await supabase
         .from("tasks")
-        .insert(task)
+        .insert([task])
         .select()
         .single();
       if (error) throw error;
@@ -94,8 +89,7 @@ export function useCreateTask() {
 }
 
 export function useUpdateTask() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -121,8 +115,7 @@ export function useUpdateTask() {
 }
 
 export function useCompleteTask() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -145,12 +138,11 @@ export function useCompleteTask() {
 }
 
 export function useDeleteTask() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      const { error } = await insforge.database.from("tasks").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

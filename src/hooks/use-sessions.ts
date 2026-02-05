@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { 
   DialerSession, 
@@ -18,9 +18,7 @@ export function useSessions(options?: {
   endDate?: string;
   limit?: number;
 }) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["dialer-sessions", DEFAULT_USER_ID, options],
     queryFn: async () => {
       let query = (supabase as any)
@@ -74,9 +72,7 @@ export function useTodaySessions() {
 
 // Get the current active session (or most recent)
 export function useCurrentSession() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["current-session", DEFAULT_USER_ID],
     queryFn: async () => {
       // Get the most recent session that hasn't ended (or ended recently)
@@ -100,8 +96,7 @@ export function useCurrentSession() {
 
 // Create a new session
 export function useCreateSession() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (session: Omit<DialerSessionInsert, "user_id">) => {
@@ -126,8 +121,7 @@ export function useCreateSession() {
 
 // Update a session
 export function useUpdateSession() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -170,8 +164,7 @@ export function useEndSession() {
 
 // Auto-detect or create session when logging a call
 export function useSessionTracker() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
   const createSession = useCreateSession();
   const updateSession = useUpdateSession();
 
@@ -263,8 +256,7 @@ export function useSessionTracker() {
 
 // Increment meetings booked for current session
 export function useIncrementSessionMeetings() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {

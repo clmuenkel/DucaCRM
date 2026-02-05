@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { 
   startOfDay, 
@@ -64,8 +64,7 @@ export function useAnalyticsSummary(
   customStart?: string,
   customEnd?: string
 ) {
-  const supabase = createClient();
-  const { start, end } = getDateBounds(range, customStart, customEnd);
+    const { start, end } = getDateBounds(range, customStart, customEnd);
 
   return useQuery({
     queryKey: ["analytics-summary", DEFAULT_USER_ID, range, customStart, customEnd],
@@ -122,8 +121,7 @@ export function useAnalyticsSummary(
 
 // Daily stats for trend charts
 export function useDailyStats(days: number = 14) {
-  const supabase = createClient();
-  const end = new Date();
+    const end = new Date();
   const start = subDays(end, days);
 
   return useQuery({
@@ -187,8 +185,7 @@ export function useDailyStats(days: number = 14) {
 
 // Outcome breakdown for pie chart
 export function useOutcomeBreakdown(range: DateRange = "this_week") {
-  const supabase = createClient();
-  const { start, end } = getDateBounds(range);
+    const { start, end } = getDateBounds(range);
 
   return useQuery({
     queryKey: ["outcome-breakdown", DEFAULT_USER_ID, range],
@@ -230,9 +227,7 @@ export function useOutcomeBreakdown(range: DateRange = "this_week") {
 
 // Hourly performance for heatmap
 export function useHourlyPerformance() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["hourly-performance", DEFAULT_USER_ID],
     queryFn: async (): Promise<HourlyPerformance[]> => {
       // Query calls from the last 30 days
@@ -287,9 +282,7 @@ export function useHourlyPerformance() {
 
 // Timezone performance
 export function useTimezonePerformance() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["timezone-performance", DEFAULT_USER_ID],
     queryFn: async (): Promise<TimezonePerformance[]> => {
       const thirtyDaysAgo = subDays(new Date(), 30);
@@ -333,8 +326,7 @@ export function useTimezonePerformance() {
 
 // Disposition breakdown for connected calls
 export function useDispositionBreakdown(range: DateRange = "this_week") {
-  const supabase = createClient();
-  const { start, end } = getDateBounds(range);
+    const { start, end } = getDateBounds(range);
 
   return useQuery({
     queryKey: ["disposition-breakdown", DEFAULT_USER_ID, range],
@@ -370,9 +362,7 @@ export function useDispositionBreakdown(range: DateRange = "this_week") {
 
 // Calling streak
 export function useCallingStreak() {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["calling-streak", DEFAULT_USER_ID],
     queryFn: async (): Promise<CallingStreak> => {
       // Get all unique calling dates in the last 90 days

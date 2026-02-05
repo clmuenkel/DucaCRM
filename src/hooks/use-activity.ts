@@ -1,16 +1,14 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import type { ActivityLog, ActivityLogWithContact, InsertTables } from "@/types/database";
 
 export function useActivity(filters?: {
   contactId?: string;
   limit?: number;
 }) {
-  const supabase = createClient();
-
-  return useQuery<ActivityLogWithContact[]>({
+    return useQuery<ActivityLogWithContact[]>({
     queryKey: ["activity", filters],
     queryFn: async () => {
       let query = supabase
@@ -34,9 +32,7 @@ export function useActivity(filters?: {
 }
 
 export function useRecentActivity() {
-  const supabase = createClient();
-
-  return useQuery<ActivityLogWithContact[]>({
+    return useQuery<ActivityLogWithContact[]>({
     queryKey: ["activity", "recent"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -52,8 +48,7 @@ export function useRecentActivity() {
 }
 
 export function useLogActivity() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (activity: InsertTables<"activity_log">) => {

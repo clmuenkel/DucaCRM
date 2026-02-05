@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { getTimezoneFromLocation } from "@/lib/timezone";
 import type { Contact, InsertTables } from "@/types/database";
 
@@ -23,8 +23,7 @@ interface MigrationProgress {
  * This is a one-time migration to group contacts by company
  */
 export function useMigrateCompanies() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
   const [progress, setProgress] = useState<MigrationProgress | null>(null);
 
   const mutation = useMutation({
@@ -126,7 +125,7 @@ export function useMigrateCompanies() {
 
             const { data: newCompany, error: createError } = await supabase
               .from("companies")
-              .insert(companyData)
+              .insert([companyData])
               .select("id")
               .single();
 
@@ -192,9 +191,7 @@ export function useMigrateCompanies() {
  * Hook to check migration status
  */
 export function useMigrationStatus() {
-  const supabase = createClient();
-
-  const checkStatus = async (userId: string) => {
+    const checkStatus = async (userId: string) => {
     // Count contacts without company_id
     const { count: unlinkedCount, error: countError } = await supabase
       .from("contacts")

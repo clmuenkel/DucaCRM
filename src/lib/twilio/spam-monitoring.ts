@@ -1,6 +1,6 @@
 import { getTwilioClient } from "./client";
 import { updateSpamScore, deactivateNumber, getAllTwilioNumbers } from "./number-rotation";
-import { createClient } from "@/lib/supabase/server";
+import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Tables } from "@/types/database";
 
@@ -121,8 +121,7 @@ export async function calculateSpamScoreFromOutcomes(
   numberId: string
 ): Promise<{ spamScore: number | null; error?: string }> {
   try {
-    const supabase = await createClient();
-    const userId = DEFAULT_USER_ID;
+        const userId = DEFAULT_USER_ID;
 
     // Get recent calls for this number (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();

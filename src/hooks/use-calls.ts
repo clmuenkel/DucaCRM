@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Call, CallWithContact, InsertTables } from "@/types/database";
 
@@ -13,9 +13,7 @@ export function useCalls(filters?: {
   limit?: number;
   today?: boolean;
 }) {
-  const supabase = createClient();
-
-  return useQuery<CallWithContact[]>({
+    return useQuery<CallWithContact[]>({
     queryKey: ["calls", filters],
     queryFn: async () => {
       let query = supabase
@@ -53,9 +51,7 @@ interface CallStats {
 }
 
 export function useTodayCallStats() {
-  const supabase = createClient();
-
-  return useQuery<CallStats>({
+    return useQuery<CallStats>({
     queryKey: ["calls", "today-stats"],
     queryFn: async () => {
       const today = new Date();
@@ -83,8 +79,7 @@ export function useTodayCallStats() {
 }
 
 export function useCreateCall() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (call: InsertTables<"calls">) => {
@@ -114,8 +109,7 @@ export function useCreateCall() {
 }
 
 export function useLogCall() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -182,7 +176,7 @@ export function useLogCall() {
       if (contactError) throw contactError;
 
       // Log activity
-      await supabase.from("activity_log").insert({
+      await insforge.database.from("activity_log").insert({
         user_id: call.user_id,
         contact_id: call.contact_id,
         activity_type: "call",

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
+import { insforge } from "@/lib/insforge/client";
 import { useDialerStore } from "@/stores/dialer-store";
 import type { TimestampedNote, Json } from "@/types/database";
 
@@ -28,9 +28,7 @@ interface DialerDraftPayload {
  * Hook to fetch existing draft for a contact
  */
 export function useDialerDraft(userId: string, contactId: string | undefined) {
-  const supabase = createClient();
-
-  return useQuery({
+    return useQuery({
     queryKey: ["dialer-draft", userId, contactId],
     queryFn: async () => {
       if (!contactId) return null;
@@ -58,8 +56,7 @@ export function useDialerDraft(userId: string, contactId: string | undefined) {
  * Hook to save/update draft
  */
 export function useSaveDialerDraft() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -104,8 +101,7 @@ export function useSaveDialerDraft() {
  * Hook to delete draft (after call is finalized)
  */
 export function useDeleteDialerDraft() {
-  const supabase = createClient();
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
