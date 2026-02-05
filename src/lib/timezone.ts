@@ -303,3 +303,109 @@ export function getUSTimezones(): Array<{ value: string; label: string }> {
     { value: "America/Honolulu", label: "Hawaii Time (HST)" },
   ];
 }
+
+/**
+ * Get the timezone offset in minutes for a given timezone at a specific date
+ * Returns the offset from UTC (positive = ahead of UTC, negative = behind UTC)
+ */
+export function getTimezoneOffset(timezone: string, date: Date = new Date()): number {
+  try {
+    // Create a formatter for the target timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'longOffset',
+    });
+    
+    // Get the offset string (e.g., "GMT-5" or "GMT+8")
+    const parts = formatter.formatToParts(date);
+    const offsetPart = parts.find(p => p.type === 'timeZoneName');
+    
+    if (offsetPart) {
+      // Parse offset string like "GMT-05:00" or "GMT+08:00"
+      const offsetStr = offsetPart.value.replace('GMT', '').trim();
+      const sign = offsetStr.startsWith('-') ? -1 : 1;
+      const [hours, minutes = 0] = offsetStr.replace(/[+-]/, '').split(':').map(Number);
+      return sign * (hours * 60 + minutes);
+    }
+    
+    // Fallback: calculate offset by comparing UTC time with timezone time
+    const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
+    return (tzDate.getTime() - utcDate.getTime()) / (1000 * 60);
+  } catch (error) {
+    console.warn(`Failed to get timezone offset for ${timezone}:`, error);
+    return 0; // Default to UTC
+  }
+}
+
+/**
+ * Create a Date object representing a specific date/time in a given timezone
+ * This properly handles timezone conversion so the Date object represents the correct UTC time
+ * 
+ * @param year - Year (e.g., 2024)
+ * @param month - Month (1-12, not 0-indexed)
+ * @param day - Day of month (1-31)
+ * @param hours - Hours (0-23)
+ * @param minutes - Minutes (0-59)
+ * @param timezone - IANA timezone identifier (e.g., "America/New_York")
+ * @returns Date object representing the UTC time that corresponds to the local time in the timezone
+ */
+export function createDateInTimezone(
+  year: number,
+  month: number,
+  day: number,
+  hours: number,
+  minutes: number,
+  timezone: string
+): Date {
+  try {
+    // Create a date string representing the desired local time in the timezone
+    // Format: YYYY-MM-DDTHH:mm:ss
+    const dateString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+    
+    // We need to find the UTC time that, when displayed in the target timezone, equals our desired time
+    // Strategy: Start with a guess (treating the time as UTC), then adjust based on the timezone offset
+    
+    // First, create a date as if it were UTC
+    let candidateDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+    
+    // Get what this UTC time looks like in the target timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    
+    // Iteratively adjust until we get the correct time in the target timezone
+    // This handles DST and timezone offsets correctly
+    for (let attempts = 0; attempts < 10; attempts++) {
+      const parts = formatter.formatToParts(candidateDate);
+      const tzHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+      const tzMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+      
+      // Check if we have the correct time
+      if (tzHour === hours && tzMinute === minutes) {
+        return candidateDate;
+      }
+      
+      // Calculate the difference in minutes
+      const diffMinutes = (hours * 60 + minutes) - (tzHour * 60 + tzMinute);
+      
+      // Adjust the candidate date
+      candidateDate = new Date(candidateDate.getTime() + diffMinutes * 60 * 1000);
+    }
+    
+    // If iteration didn't converge, use the last candidate
+    console.warn(`createDateInTimezone: Could not perfectly match time for ${timezone}, using approximation`);
+    return candidateDate;
+  } catch (error) {
+    console.error(`Error creating date in timezone ${timezone}:`, error);
+    // Fallback: return date as if it were UTC (not ideal but better than crashing)
+    return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+  }
+}

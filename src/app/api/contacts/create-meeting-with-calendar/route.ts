@@ -12,7 +12,7 @@ import { createCalendarEvent, getValidAccessToken } from "@/lib/google-calendar/
 import { generateICSFile } from "@/lib/email/ics-generator";
 import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
-import { getTimezoneFromLocation } from "@/lib/timezone";
+import { getTimezoneFromLocation, createDateInTimezone } from "@/lib/timezone";
 
 export const dynamic = 'force-dynamic';
 
@@ -117,19 +117,31 @@ export async function POST(request: NextRequest) {
     const [year, month, day] = date.split("-").map(Number);
     const [hours, minutes] = time.split(":").map(Number);
     
-    // Create Date objects representing the local time in the target timezone
-    // The Google Calendar API will handle timezone conversion when we pass the timezone parameter
-    // For the Date objects, we create them as if they're in UTC, but the calendar API
-    // will interpret them according to the timezone parameter we provide
+    console.log(`[Timezone] Creating date: ${date} ${time} in timezone: ${contactTimezone}`);
     
-    // Create a date string and parse it (JavaScript will interpret as local server time)
-    // But we'll pass the timezone to Google Calendar API which will handle conversion
-    const dateTimeString = `${date}T${time}:00`;
-    const startTime = new Date(dateTimeString);
+    // Create Date objects properly representing the time in the target timezone
+    // This function creates a Date object (which is always in UTC internally) that,
+    // when displayed in the target timezone, shows the correct local time
+    const startTime = createDateInTimezone(year, month, day, hours, minutes, contactTimezone);
     const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
     
-    // Note: The Google Calendar API's createCalendarEvent function will properly convert
-    // these Date objects to the specified timezone using the timezone parameter
+    // Verify the time was created correctly
+    const verifyFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: contactTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const verifyParts = verifyFormatter.formatToParts(startTime);
+    const verifyHour = parseInt(verifyParts.find(p => p.type === 'hour')?.value || '0');
+    const verifyMinute = parseInt(verifyParts.find(p => p.type === 'minute')?.value || '0');
+    console.log(`[Timezone] Verified: Created date shows ${verifyHour}:${String(verifyMinute).padStart(2, '0')} in ${contactTimezone} (desired: ${hours}:${String(minutes).padStart(2, '0')})`);
+    
+    // Note: The Google Calendar API's createCalendarEvent function will use the timezone parameter
+    // to properly interpret these Date objects
 
     // Get user profile
     const { data: profile } = await supabase

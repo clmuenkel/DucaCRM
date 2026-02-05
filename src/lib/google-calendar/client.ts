@@ -111,6 +111,9 @@ export async function createCalendarEvent(
     // If timezone is provided, format the date as if it's in that timezone
     // We need to convert the Date to the specified timezone's local time
     if (tz) {
+      console.log(`[Calendar API] Formatting date for timezone: ${tz}`);
+      console.log(`[Calendar API] Input Date (UTC): ${date.toISOString()}`);
+      
       // Use Intl.DateTimeFormat to get the date components in the specified timezone
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: tz,
@@ -134,24 +137,36 @@ export async function createCalendarEvent(
       // Format as RFC3339 without timezone (Google Calendar will use timeZone field)
       // Ensure all parts are defined
       if (!year || !month || !day || !hour || !minute) {
+        console.warn(`[Calendar API] Failed to format date parts, using ISO fallback`);
         // Fallback to ISO string if formatting fails
         return date.toISOString();
       }
-      return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+      
+      const formatted = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+      console.log(`[Calendar API] Formatted date string: ${formatted} (timezone: ${tz})`);
+      return formatted;
     }
+    console.log(`[Calendar API] No timezone provided, using ISO: ${date.toISOString()}`);
     return date.toISOString();
   };
 
+  const eventTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const startDateTime = formatDate(startTime, timezone);
+  const endDateTime = formatDate(endTime, timezone);
+  
+  console.log(`[Calendar API] Creating event with timezone: ${eventTimezone}`);
+  console.log(`[Calendar API] Start: ${startDateTime}, End: ${endDateTime}`);
+  
   const event = {
     summary,
     description: description || "",
     start: {
-      dateTime: formatDate(startTime, timezone),
-      timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      dateTime: startDateTime,
+      timeZone: eventTimezone,
     },
     end: {
-      dateTime: formatDate(endTime, timezone),
-      timeZone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      dateTime: endDateTime,
+      timeZone: eventTimezone,
     },
     attendees: [
       {
