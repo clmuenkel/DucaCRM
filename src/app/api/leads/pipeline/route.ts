@@ -773,7 +773,7 @@ export async function POST(request: NextRequest) {
                       confidence_score: 70,
                       is_decision_maker: !!fbData.ownerName,
                       is_primary_contact: true,
-                    });
+                    }]);
                 }
                 
                 finalStats.facebookMatches++;
@@ -860,7 +860,7 @@ export async function POST(request: NextRequest) {
                     confidence_score: 75,
                     is_decision_maker: true,
                     is_primary_contact: true,
-                  });
+                  }]);
               }
               
               finalStats.bbbMatches++;
