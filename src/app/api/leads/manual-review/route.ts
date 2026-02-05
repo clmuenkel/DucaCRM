@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Check if company exists
-    const { data: company, error: companyError } = await (supabase as any)
+    const { data: company, error: companyError } = await insforge.database
       .from("lead_companies")
       .select("id, name, domain")
       .eq("id", companyId)
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const lastName = nameParts.slice(1).join(" ") || null;
 
     // Check if there's an existing lead person for this company
-    const { data: existingPerson } = await (supabase as any)
+    const { data: existingPerson } = await insforge.database
       .from("lead_people")
       .select("id")
       .eq("lead_company_id", companyId)
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     if (existingPerson) {
       // Update existing person
-      const { error: updateError } = await (supabase as any)
+      const { error: updateError } = await insforge.database
         .from("lead_people")
         .update(personData)
         .eq("id", existingPerson.id);
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Insert new person
-      const { error: insertError } = await (supabase as any)
+      const { error: insertError } = await insforge.database
         .from("lead_people")
         .insert([personData]);
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update company status
-    await (supabase as any)
+    await insforge.database
       .from("lead_companies")
       .update({
         enrichment_status: "manual",

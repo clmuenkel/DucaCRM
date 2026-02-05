@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get contact
-    const { data: contact, error: fetchError } = await supabase
+    const { data: contact, error: fetchError } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("id", contactId)
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       contactTimezone = providedTimezone;
       console.log('Using provided timezone:', contactTimezone);
     } else if (typedContact.company_id) {
-      const { data: company } = await supabase
+      const { data: company } = await insforge.database
         .from("companies")
         .select("timezone")
         .eq("id", typedContact.company_id)
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     // to properly interpret these Date objects
 
     // Get user profile
-    const { data: profile } = await supabase
+    const { data: profile } = await insforge.database
       .from("profiles")
       .select("full_name, calendar_link, email, google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at")
       .eq("id", userId)
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
         // Update tokens if refreshed
         if (accessToken !== typedProfile.google_calendar_access_token) {
           const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour
-          await (supabase as any)
+          await insforge.database
             .from("profiles")
             .update({
               google_calendar_access_token: accessToken,
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
     // Get or find scheduling email template
     let template: EmailTemplate | null = null;
     if (templateId) {
-      const { data: templateData } = await supabase
+      const { data: templateData } = await insforge.database
         .from("email_templates")
         .select("*")
         .eq("id", templateId)
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
         .single();
       template = templateData as EmailTemplate | null;
     } else {
-      const { data: templates } = await supabase
+      const { data: templates } = await insforge.database
         .from("email_templates")
         .select("*")
         .eq("user_id", userId)
@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
         if (sendResult.success) {
           emailSent = true;
           // Update contact with resend email ID
-          await (supabase as any)
+          await insforge.database
             .from("contacts")
             .update({ resend_email_id: sendResult.emailId })
             .eq("id", contactId);
@@ -314,16 +314,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Cancel queued emails
-    await (supabase as any)
+    await insforge.database
       .from("email_queue")
       .update({ status: "failed", error_message: "Cancelled - meeting scheduled" })
       .eq("contact_id", contactId)
       .eq("status", "pending");
 
     // Create meeting record in database
-    const { data: meeting, error: meetingError } = await (supabase as any)
+    const { data: meeting, error: meetingError } = await insforge.database
       .from("meetings")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId,
         title,
@@ -345,7 +345,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update contact - stop cadence
-    await (supabase as any)
+    await insforge.database
       .from("contacts")
       .update({
         cadence_status: "completed",
@@ -358,9 +358,9 @@ export async function POST(request: NextRequest) {
 
     // Log activity
     try {
-      await (supabase as any)
+      await insforge.database
         .from("activity_log")
-        .insert({
+        .insert([{
           user_id: userId,
           contact_id: contactId,
           activity_type: "meeting_scheduled",

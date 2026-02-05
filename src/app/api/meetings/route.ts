@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const upcoming = searchParams.get("upcoming");
   const limit = searchParams.get("limit");
 
-  let query = supabase
+  let query = insforge.database
     .from("meetings")
     .select("*, contacts(id, first_name, last_name, company_name, title)")
     .order("scheduled_at", { ascending: true });
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const body = await request.json();
 
-  const { data, error } = await supabase
+  const { data, error } = await insforge.database
     .from("meetings")
     .insert([body])
     .select()

@@ -9,7 +9,7 @@ export async function GET(
 ) {
     const { id } = await params;
 
-  const { data, error } = await supabase
+  const { data, error } = await insforge.database
     .from("meetings")
     .select("*, contacts(id, first_name, last_name, company_name, title, email, phone)")
     .eq("id", id)
@@ -29,7 +29,7 @@ export async function PATCH(
     const { id } = await params;
   const body = await request.json();
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await insforge.database
     .from("meetings")
     .update(body)
     .eq("id", id)

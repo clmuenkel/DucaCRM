@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
 
     // Record call in database (before actually making it)
     // This helps track usage even if call fails to connect
-    const { data: twilioCall, error: callError } = await (supabase as any)
+    const { data: twilioCall, error: callError } = await insforge.database
       .from("twilio_calls")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId || null,
         twilio_number_id: number.id,

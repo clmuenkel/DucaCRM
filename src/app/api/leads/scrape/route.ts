@@ -407,7 +407,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get companies that need scraping
-    let query = (supabase as any)
+    let query = insforge.database
       .from("lead_companies")
       .select("id, name, domain, website, phone, city, state, fallback_email, fallback_phone")
       .eq("user_id", userId)
@@ -572,7 +572,7 @@ export async function POST(request: NextRequest) {
               },
             };
 
-            const { error: insertError } = await (supabase as any)
+            const { error: insertError } = await insforge.database
               .from("lead_people")
               .upsert(personData, {
                 onConflict: "lead_company_id,email",
@@ -614,7 +614,7 @@ export async function POST(request: NextRequest) {
                   is_primary_contact: companyPeopleFound === 0,
                 };
 
-                const { error: insertError } = await (supabase as any)
+                const { error: insertError } = await insforge.database
                   .from("lead_people")
                   .upsert(personData, {
                     onConflict: "lead_company_id,email",
@@ -635,7 +635,7 @@ export async function POST(request: NextRequest) {
         const fallbackEmail = bestEmail || (c.domain ? `info@${c.domain}` : c.fallback_email);
         const fallbackPhone = bestPhone || c.phone || c.fallback_phone;
         
-        await (supabase as any)
+        await insforge.database
           .from("lead_companies")
           .update({ 
             enrichment_status: companyPeopleFound > 0 ? "scraped" : "no_match",
@@ -661,7 +661,7 @@ export async function POST(request: NextRequest) {
       } catch (error: any) {
         console.error(`Error scraping ${c.name}:`, error);
         
-        await (supabase as any)
+        await insforge.database
           .from("lead_companies")
           .update({ 
             enrichment_status: "failed",

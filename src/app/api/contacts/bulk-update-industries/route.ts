@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get current industries for all contacts
-    const { data: contacts, error: fetchError } = await supabase
+    const { data: contacts, error: fetchError } = await insforge.database
       .from("contacts")
       .select("id, industries")
       .eq("user_id", userId)
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
             break;
         }
 
-        const { error: updateError } = await (supabase as any)
+        const { error: updateError } = await insforge.database
           .from("contacts")
           .update({ industries: newIndustries })
           .eq("id", typedContact.id)

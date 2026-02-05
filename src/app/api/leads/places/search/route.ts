@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
         fallback_phone: place.nationalPhoneNumber || null,
       };
 
-      const { error } = await (supabase as any)
+      const { error } = await insforge.database
         .from("lead_companies")
         .upsert(companyData, {
           onConflict: "user_id,place_id",
@@ -318,7 +318,7 @@ export async function GET(request: NextRequest) {
 
         const userId = DEFAULT_USER_ID;
 
-    let query = (supabase as any)
+    let query = insforge.database
       .from("lead_companies")
       .select("*, lead_people(*)")
       .eq("user_id", userId)

@@ -75,7 +75,7 @@ function extractAddressComponents(components: PlaceResult["addressComponents"]) 
 }
 
 async function upsertCompanyToCRM(
-  supabase: any,
+  insforgeClient: any,
   userId: string,
   company: {
     name: string;
@@ -99,7 +99,7 @@ async function upsertCompanyToCRM(
   };
 
   if (company.domain) {
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
       .from("companies")
       .upsert(companyPayload, { onConflict: "user_id,domain" })
       .select("id")
@@ -108,7 +108,7 @@ async function upsertCompanyToCRM(
     return data.id;
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await insforge.database
     .from("companies")
     .select("id")
     .eq("user_id", userId)
@@ -119,7 +119,7 @@ async function upsertCompanyToCRM(
 
   if (existing?.id) return existing.id;
 
-  const { data: created, error } = await supabase
+  const { data: created, error } = await insforge.database
     .from("companies")
     .insert([companyPayload])
     .select("id")
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
     // Get API keys
         const userId = DEFAULT_USER_ID;
 
-    const { data: settings } = await (supabase as any)
+    const { data: settings } = await insforge.database
       .from("user_settings")
       .select("apollo_api_key")
       .eq("user_id", userId)
@@ -363,7 +363,7 @@ export async function POST(request: NextRequest) {
         // Save company directly to CRM
         let companyId: string;
         try {
-          companyId = await upsertCompanyToCRM(supabase, userId, {
+          companyId = await upsertCompanyToCRM(insforge, userId, {
             name: company.name,
             domain: company.domain,
             website: company.website,
@@ -386,7 +386,7 @@ export async function POST(request: NextRequest) {
           if (!person.email) continue;
 
           // Check if contact already exists by email
-          const { data: existingContact } = await (supabase as any)
+          const { data: existingContact } = await insforge.database
             .from("contacts")
             .select("id")
             .eq("user_id", userId)
@@ -405,9 +405,9 @@ export async function POST(request: NextRequest) {
             // Log the apollo_id we're saving - this is critical for webhook matching
             console.log(`[Bulk] Inserting contact: email=${person.email}, apollo_id=${person.id}, title=${person.title}, score=${titleScore}`);
 
-            const { data: insertedContact, error: contactError } = await (supabase as any)
+            const { data: insertedContact, error: contactError } = await insforge.database
               .from("contacts")
-              .insert({
+              .insert([{
                 user_id: userId,
                 company_id: companyId,
                 apollo_id: person.id, // CRITICAL: This must match what Apollo sends in webhook

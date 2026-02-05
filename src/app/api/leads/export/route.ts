@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get companies with their contacts and fallback data
-    let query = (supabase as any)
+    let query = insforge.database
       .from("lead_companies")
       .select(`
         id,

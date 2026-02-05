@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Mode 3: Batch verify lead_people with guessed emails
         const userId = DEFAULT_USER_ID;
 
-    let query = (supabase as any)
+    let query = insforge.database
       .from("lead_people")
       .select("id, email, email_status, full_name, first_name, last_name, lead_company_id")
       .eq("user_id", userId)
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
           invalid++;
         }
 
-        await (supabase as any)
+        await insforge.database
           .from("lead_people")
           .update(updateData)
           .eq("id", person.id);

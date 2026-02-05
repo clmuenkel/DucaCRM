@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Build query for lead companies to import
-    let query = (supabase as any)
+    let query = insforge.database
       .from("lead_companies")
       .select(`
         id,
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
         let crmCompanyId: string | null = null;
         
         if (lc.domain) {
-          const { data: existingCompany } = await (supabase as any)
+          const { data: existingCompany } = await insforge.database
             .from("companies")
             .select("id")
             .eq("user_id", userId)
@@ -165,13 +165,13 @@ export async function POST(request: NextRequest) {
 
         if (crmCompanyId) {
           // Update existing company
-          await (supabase as any)
+          await insforge.database
             .from("companies")
             .update(companyData)
             .eq("id", crmCompanyId);
         } else {
           // Create new company
-          const { data: newCompany, error: companyError } = await (supabase as any)
+          const { data: newCompany, error: companyError } = await insforge.database
             .from("companies")
             .insert([companyData])
             .select("id")
@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
         let isUpdate = false;
         
         if (contactEmail) {
-          const { data: existingContact } = await (supabase as any)
+          const { data: existingContact } = await insforge.database
             .from("contacts")
             .select("id")
             .eq("user_id", userId)
@@ -225,14 +225,14 @@ export async function POST(request: NextRequest) {
 
         if (crmContactId) {
           // Update existing contact
-          await (supabase as any)
+          await insforge.database
             .from("contacts")
             .update(contactData)
             .eq("id", crmContactId);
           updated++;
         } else {
           // Create new contact
-          const { data: newContact, error: contactError } = await (supabase as any)
+          const { data: newContact, error: contactError } = await insforge.database
             .from("contacts")
             .insert([contactData])
             .select("id")
@@ -247,9 +247,9 @@ export async function POST(request: NextRequest) {
 
         // Step 3: Log activity
         if (crmContactId) {
-          await (supabase as any)
+          await insforge.database
             .from("activity_log")
-            .insert({
+            .insert([{
               user_id: userId,
               contact_id: crmContactId,
               activity_type: isUpdate ? "contact_updated" : "contact_created",
@@ -316,7 +316,7 @@ export async function GET(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Count enriched companies by contact type
-    const { data: companies } = await (supabase as any)
+    const { data: companies } = await insforge.database
       .from("lead_companies")
       .select("id, contact_type")
       .eq("user_id", userId)
@@ -336,7 +336,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check how many are already in CRM (by domain)
-    const { data: existingCompanies } = await (supabase as any)
+    const { data: existingCompanies } = await insforge.database
       .from("lead_companies")
       .select("domain")
       .eq("user_id", userId)
@@ -346,7 +346,7 @@ export async function GET(request: NextRequest) {
     
     let alreadyInCRM = 0;
     if (domains.length > 0) {
-      const { count } = await (supabase as any)
+      const { count } = await insforge.database
         .from("companies")
         .select("*", { count: "exact", head: true })
         .eq("user_id", userId)

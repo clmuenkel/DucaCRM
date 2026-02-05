@@ -139,12 +139,12 @@ async function testApollo(apiKey: string): Promise<TestResult> {
 }
 
 /**
- * Test Supabase connection
+ * Test InsForge Database connection
  */
-async function testSupabase(): Promise<TestResult> {
+async function testDatabase(): Promise<TestResult> {
   try {
         // Try to read from profiles table
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
       .from("profiles")
       .select("id")
       .eq("id", DEFAULT_USER_ID)
@@ -152,28 +152,28 @@ async function testSupabase(): Promise<TestResult> {
 
     if (error) {
       return {
-        service: "Supabase Database",
+        service: "InsForge Database",
         status: "fail",
         message: `Database error: ${error.message}`,
       };
     }
 
     // Test lead_companies table exists
-    const { error: leadError } = await (supabase as any)
+    const { error: leadError } = await insforge.database
       .from("lead_companies")
       .select("id")
       .limit(1);
 
     if (leadError) {
       return {
-        service: "Supabase Database",
+        service: "InsForge Database",
         status: "fail",
         message: `lead_companies table error: ${leadError.message}. Did you run the migrations?`,
       };
     }
 
     return {
-      service: "Supabase Database",
+      service: "InsForge Database",
       status: "pass",
       message: "Connected successfully. All required tables exist.",
       details: {
@@ -183,7 +183,7 @@ async function testSupabase(): Promise<TestResult> {
     };
   } catch (error: any) {
     return {
-      service: "Supabase Database",
+      service: "InsForge Database",
       status: "fail",
       message: `Connection error: ${error.message}`,
     };
@@ -197,9 +197,9 @@ async function testSupabase(): Promise<TestResult> {
 export async function GET(request: NextRequest) {
   const results: TestResult[] = [];
 
-  // Test Supabase first
-  const supabaseResult = await testSupabase();
-  results.push(supabaseResult);
+  // Test InsForge Database first
+  const dbResult = await testDatabase();
+  results.push(dbResult);
 
   // Get API keys
   const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -207,9 +207,9 @@ export async function GET(request: NextRequest) {
 
   // Also check user_settings for Apollo key
   let apolloKeyFromDb: string | null = null;
-  if (supabaseResult.status === "pass") {
+  if (dbResult.status === "pass") {
     try {
-            const { data: settings } = await (supabase as any)
+            const { data: settings } = await insforge.database
         .from("user_settings")
         .select("apollo_api_key")
         .eq("user_id", DEFAULT_USER_ID)

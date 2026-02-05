@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     // Find emails that are due to be sent
-    const { data: queuedEmails, error: fetchError } = await (supabase as any)
+    const { data: queuedEmails, error: fetchError } = await insforge.database
       .from("email_queue")
       .select(`
         *,
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     let failed = 0;
 
     // Get user profile for sender info
-    const { data: profile } = await supabase
+    const { data: profile } = await insforge.database
       .from("profiles")
       .select("full_name, calendar_link")
       .eq("id", userId)
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
         if (!contact || !template || !contact.email) {
           // Mark as failed
-          await (supabase as any)
+          await insforge.database
             .from("email_queue")
             .update({
               status: "failed",
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Update status to "sending"
-        await (supabase as any)
+        await insforge.database
           .from("email_queue")
           .update({ status: "sending" })
           .eq("id", queuedEmail.id);
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
         if (sendResult.success) {
           // Update queue entry
-          await (supabase as any)
+          await insforge.database
             .from("email_queue")
             .update({
               status: "sent",
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
             .eq("id", queuedEmail.id);
 
           // Update contact
-          await (supabase as any)
+          await insforge.database
             .from("contacts")
             .update({
               resend_email_id: sendResult.emailId,
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
           sent++;
         } else {
           // Mark as failed
-          await (supabase as any)
+          await insforge.database
             .from("email_queue")
             .update({
               status: "failed",
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
         console.error(`Error processing queued email ${queuedEmail.id}:`, error);
         
         // Mark as failed
-        await (supabase as any)
+        await insforge.database
           .from("email_queue")
           .update({
             status: "failed",

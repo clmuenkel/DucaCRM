@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get current contact state
-    const { data: contact, error: fetchError } = await supabase
+    const { data: contact, error: fetchError } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("id", contactId)
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update contact
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await insforge.database
       .from("contacts")
       .update(updateData)
       .eq("id", contactId);
@@ -165,9 +165,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Log call activity
-    await (supabase as any)
+    await insforge.database
       .from("calls")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId,
         outcome: outcome === "won" ? "connected" : outcome === "lost" ? "not_interested" : outcome,
@@ -177,9 +177,9 @@ export async function POST(request: NextRequest) {
       });
 
     // Log activity
-    await (supabase as any)
+    await insforge.database
       .from("activity_log")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId,
         activity_type: `cadence_${outcome}`,

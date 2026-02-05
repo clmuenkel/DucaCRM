@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Find contact by email
-    const { data: contact } = await supabase
+    const { data: contact } = await insforge.database
       .from("contacts")
       .select("id, email_open_count")
       .eq("user_id", userId)
@@ -114,16 +114,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (Object.keys(updates).length > 0) {
-      await (supabase as any)
+      await insforge.database
         .from("contacts")
         .update(updates)
         .eq("id", typedContact.id);
 
       // Log activity
       try {
-        await (supabase as any)
+        await insforge.database
           .from("activity_log")
-          .insert({
+          .insert([{
             user_id: userId,
             contact_id: typedContact.id,
             activity_type: `resend_${type.replace('.', '_')}`,

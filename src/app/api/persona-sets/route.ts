@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // GET /api/persona-sets - List all persona sets
 export async function GET(request: NextRequest) {
   try {
-        const { data, error } = await supabase
+        const { data, error } = await insforge.database
       .from("persona_sets")
       .select("*")
       .order("is_default", { ascending: false })
@@ -50,15 +50,15 @@ export async function POST(request: NextRequest) {
 
     // If setting as default, unset other defaults first
     if (is_default) {
-      await (supabase as any)
+      await insforge.database
         .from("persona_sets")
         .update({ is_default: false })
         .eq("user_id", user_id);
     }
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await insforge.database
       .from("persona_sets")
-      .insert({
+      .insert([{
         user_id,
         name,
         titles: titles || [],
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         employee_ranges: employee_ranges || [],
         include_intent_data: include_intent_data || false,
         is_default: is_default || false,
-      })
+      }])
       .select()
       .single();
 

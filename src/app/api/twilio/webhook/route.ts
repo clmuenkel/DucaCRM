@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Find existing twilio_calls record
-    const { data: existingCall, error: findError } = await supabase
+    const { data: existingCall, error: findError } = await insforge.database
       .from("twilio_calls")
       .select("*")
       .eq("call_sid", callSid)
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     if (typedExistingCall) {
       // Update existing record
-      const { error: updateError } = await (supabase as any)
+      const { error: updateError } = await insforge.database
         .from("twilio_calls")
         .update(callData)
         .eq("call_sid", callSid);
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new record (webhook received before initiate)
       callData.user_id = userId;
-      const { error: insertError } = await (supabase as any).from("twilio_calls").insert([callData]);
+      const { error: insertError } = await insforge.database.from("twilio_calls").insert([callData]);
 
       if (insertError) {
         console.error("Error creating twilio_calls:", insertError);
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     // If call completed, update the main calls table if linked
     if (callStatus === "completed" && typedExistingCall?.contact_id) {
-      const { data: updatedCall } = await supabase
+      const { data: updatedCall } = await insforge.database
         .from("twilio_calls")
         .select("*")
         .eq("call_sid", callSid)
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
       if (typedUpdatedCall) {
         // Find the corresponding call in calls table
-        const { data: calls } = await supabase
+        const { data: calls } = await insforge.database
           .from("calls")
           .select("id")
           .eq("twilio_call_sid", callSid)
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
         const typedCalls = (calls || []) as Array<{ id: string }>;
         if (typedCalls.length > 0) {
           // Update the call record
-          await (supabase as any)
+          await insforge.database
             .from("calls")
             .update({
               ended_at: typedUpdatedCall.ended_at,

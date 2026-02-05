@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get source contact to copy company data
-    const { data: sourceContact, error: fetchError } = await supabase
+    const { data: sourceContact, error: fetchError } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("id", sourceContactId)
@@ -61,9 +61,9 @@ export async function POST(request: NextRequest) {
     const typedSource = sourceContact as Contact;
 
     // Create new contact with same company data
-    const { data: newContact, error: insertError } = await (supabase as any)
+    const { data: newContact, error: insertError } = await insforge.database
       .from("contacts")
-      .insert({
+      .insert([{
         user_id: userId,
         company_id: typedSource.company_id,
         first_name: firstName,
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Log activity for both contacts
-    await (supabase as any)
+    await insforge.database
       .from("activity_log")
       .insert([
         {

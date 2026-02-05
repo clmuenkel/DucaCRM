@@ -81,14 +81,14 @@ interface EnrichResult {
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000; // Base delay, will be exponentially increased
 
-async function getApolloApiKey(supabase: any): Promise<string | null> {
+async function getApolloApiKey(): Promise<string | null> {
   // First try environment variable
   if (process.env.APOLLO_API_KEY) {
     return process.env.APOLLO_API_KEY;
   }
   
   // Fallback to user settings
-  const { data: settings } = await supabase
+  const { data: settings } = await insforge.database
     .from("user_settings")
     .select("apollo_api_key")
     .eq("user_id", DEFAULT_USER_ID)
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get Apollo API key
-    const apiKey = await getApolloApiKey(supabase);
+    const apiKey = await getApolloApiKey();
     if (!apiKey) {
       return NextResponse.json(
         { error: "Apollo API key not configured. Add it in Settings or set APOLLO_API_KEY env var." },
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
       ? ["pending", "failed", "no_match"] 
       : ["pending"];
 
-    let query = (supabase as any)
+    let query = insforge.database
       .from("lead_companies")
       .select("id, name, domain, website, phone")
       .eq("user_id", userId)
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
       
       if (!c.domain) {
         // Mark as skipped if no domain
-        await (supabase as any)
+        await insforge.database
           .from("lead_companies")
           .update({ 
             enrichment_status: "skipped",
@@ -261,7 +261,7 @@ export async function POST(request: NextRequest) {
       if (error) {
         console.error(`Apollo error for ${c.name} (${c.domain}):`, error);
         
-        await (supabase as any)
+        await insforge.database
           .from("lead_companies")
           .update({ 
             enrichment_status: "failed",
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
       
       if (people.length === 0) {
         // No people found - set fallback contact info
-        await (supabase as any)
+        await insforge.database
           .from("lead_companies")
           .update({ 
             enrichment_status: "no_match",
@@ -352,7 +352,7 @@ export async function POST(request: NextRequest) {
           raw_payload: personWithPhones,
         };
 
-        const { error: insertError } = await (supabase as any)
+        const { error: insertError } = await insforge.database
           .from("lead_people")
           .upsert(personData, {
             onConflict: "lead_company_id,email",
@@ -366,7 +366,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Mark company as enriched with DM contact type
-      await (supabase as any)
+      await insforge.database
         .from("lead_companies")
         .update({ 
           enrichment_status: "enriched",
@@ -419,7 +419,7 @@ export async function GET(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get counts by status
-    const { data: statusCounts } = await (supabase as any)
+    const { data: statusCounts } = await insforge.database
       .from("lead_companies")
       .select("enrichment_status, contact_type")
       .eq("user_id", userId);
@@ -452,13 +452,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total people count
-    const { count: peopleCount } = await (supabase as any)
+    const { count: peopleCount } = await insforge.database
       .from("lead_people")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId);
 
     // Get DM vs fallback breakdown
-    const { count: dmCount } = await (supabase as any)
+    const { count: dmCount } = await insforge.database
       .from("lead_people")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)

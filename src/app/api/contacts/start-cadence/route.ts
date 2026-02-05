@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Get "Cold Email" template from CRM (or use provided templateId)
     let template: EmailTemplate | null = null;
     if (templateId) {
-      const { data: templateData } = await supabase
+      const { data: templateData } = await insforge.database
         .from("email_templates")
         .select("*")
         .eq("id", templateId)
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       template = templateData as EmailTemplate | null;
     } else {
       // Find "Cold Email" template by category or name
-      const { data: templateData } = await supabase
+      const { data: templateData } = await insforge.database
         .from("email_templates")
         .select("*")
         .eq("user_id", userId)
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user profile for sender info
-    const { data: profile } = await supabase
+    const { data: profile } = await insforge.database
       .from("profiles")
       .select("full_name, calendar_link")
       .eq("id", userId)
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       }
       try {
         // Get contact details
-        const { data: contact, error: fetchError } = await supabase
+        const { data: contact, error: fetchError } = await insforge.database
           .from("contacts")
           .select("*")
           .eq("id", contactId)
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
             if (sendResult.success) {
               // Update contact with email sent info
-              await (supabase as any)
+              await insforge.database
                 .from("contacts")
                 .update({ 
                   resend_email_id: sendResult.emailId,
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Update cadence status (even if email failed)
-        const { error: updateError } = await (supabase as any)
+        const { error: updateError } = await insforge.database
           .from("contacts")
           .update({
             cadence_status: "active",
@@ -197,9 +197,9 @@ export async function POST(request: NextRequest) {
 
         // Log activity
         try {
-          await (supabase as any)
+          await insforge.database
             .from("activity_log")
-            .insert({
+            .insert([{
               user_id: userId,
               contact_id: contactId,
               activity_type: "cadence_started",

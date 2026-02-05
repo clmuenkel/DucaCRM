@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Update cadence status to paused
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await insforge.database
       .from("contacts")
       .update({ cadence_status: "paused" })
       .eq("id", contactId)
@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Log activity
-    await (supabase as any)
+    await insforge.database
       .from("activity_log")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId,
         activity_type: "cadence_paused",

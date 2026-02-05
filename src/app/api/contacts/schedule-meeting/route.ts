@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get contact
-    const { data: contact, error: fetchError } = await supabase
+    const { data: contact, error: fetchError } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("id", contactId)
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     // Find email template (prefer schedule meeting template)
     let template: EmailTemplate | null = null;
     if (templateId) {
-      const { data: templateData } = await supabase
+      const { data: templateData } = await insforge.database
         .from("email_templates")
         .select("*")
         .eq("id", templateId)
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       template = templateData as EmailTemplate | null;
     } else {
       // Find template with "schedule" in name or category "meeting"
-      const { data: templates } = await supabase
+      const { data: templates } = await insforge.database
         .from("email_templates")
         .select("*")
         .eq("user_id", userId)
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user profile for calendar link
-    const { data: profile } = await supabase
+    const { data: profile } = await insforge.database
       .from("profiles")
       .select("calendar_link, full_name")
       .eq("id", userId)
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update contact
-    await (supabase as any)
+    await insforge.database
       .from("contacts")
       .update({
         meeting_scheduling_status: "link_sent",
@@ -148,9 +148,9 @@ export async function POST(request: NextRequest) {
       .eq("id", contactId);
 
     // Add to scheduling queue
-    await (supabase as any)
+    await insforge.database
       .from("meeting_scheduling_queue")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId,
         scheduling_link_sent_at: new Date().toISOString(),
@@ -158,9 +158,9 @@ export async function POST(request: NextRequest) {
       });
 
     // Log activity
-    await (supabase as any)
+    await insforge.database
       .from("activity_log")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId,
         activity_type: "meeting_scheduling_sent",

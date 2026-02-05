@@ -11,7 +11,7 @@ export async function GET(
   try {
         const { id } = await params;
 
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
       .from("persona_sets")
       .select("*")
       .eq("id", id)
@@ -45,7 +45,7 @@ export async function PATCH(
 
     // If setting as default, unset other defaults first
     if (body.is_default) {
-      const { data: currentData } = await supabase
+      const { data: currentData } = await insforge.database
         .from("persona_sets")
         .select("user_id")
         .eq("id", id)
@@ -54,7 +54,7 @@ export async function PATCH(
       const current = currentData as any;
 
       if (current) {
-        await (supabase as any)
+        await insforge.database
           .from("persona_sets")
           .update({ is_default: false })
           .eq("user_id", current.user_id)
@@ -62,7 +62,7 @@ export async function PATCH(
       }
     }
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await insforge.database
       .from("persona_sets")
       .update(body)
       .eq("id", id)
@@ -94,7 +94,7 @@ export async function DELETE(
   try {
         const { id } = await params;
 
-    const { error } = await supabase
+    const { error } = await insforge.database
       .from("persona_sets")
       .delete()
       .eq("id", id);

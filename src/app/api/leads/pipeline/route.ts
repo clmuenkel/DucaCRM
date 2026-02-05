@@ -80,7 +80,7 @@ function extractAddressComponents(components: PlaceResult["addressComponents"]) 
 }
 
 async function upsertCompanyToCRM(
-  supabase: any,
+  insforgeClient: any,
   userId: string,
   company: {
     name: string;
@@ -104,7 +104,7 @@ async function upsertCompanyToCRM(
   };
 
   if (company.domain) {
-    const { data, error } = await supabase
+    const { data, error } = await insforge.database
       .from("companies")
       .upsert(payload, { onConflict: "user_id,domain" })
       .select("id")
@@ -113,7 +113,7 @@ async function upsertCompanyToCRM(
     return data.id;
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await insforge.database
     .from("companies")
     .select("id")
     .eq("user_id", userId)
@@ -124,7 +124,7 @@ async function upsertCompanyToCRM(
 
   if (existing?.id) return existing.id;
 
-  const { data: created, error } = await supabase
+  const { data: created, error } = await insforge.database
     .from("companies")
     .insert([payload])
     .select("id")
@@ -134,7 +134,7 @@ async function upsertCompanyToCRM(
 }
 
 async function upsertContactToCRM(
-  supabase: any,
+  insforgeClient: any,
   userId: string,
   contact: {
     first_name: string | null;
@@ -154,7 +154,7 @@ async function upsertContactToCRM(
     lead_score: number;
   }
 ): Promise<"inserted" | "exists"> {
-  const { data: existing } = await supabase
+  const { data: existing } = await insforge.database
     .from("contacts")
     .select("id")
     .eq("user_id", userId)
@@ -166,9 +166,9 @@ async function upsertContactToCRM(
   const primaryPhone = contact.phone_type === "mobile" ? null : contact.phone;
   const mobilePhone = contact.phone_type === "mobile" ? contact.phone : null;
 
-  const { error } = await supabase
+  const { error } = await insforge.database
     .from("contacts")
-    .insert({
+    .insert([{
       user_id: userId,
       company_id: contact.company_id,
       first_name: contact.first_name || "Owner",
@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
     // Also check user_settings for Apollo key
     let effectiveApolloKey = apolloApiKey;
     if (!effectiveApolloKey) {
-      const { data: settings } = await (supabase as any)
+      const { data: settings } = await insforge.database
         .from("user_settings")
         .select("apollo_api_key")
         .eq("user_id", userId)
@@ -388,7 +388,7 @@ export async function POST(request: NextRequest) {
         fallback_phone: place.nationalPhoneNumber || null,
       };
 
-      const { data: inserted, error } = await (supabase as any)
+      const { data: inserted, error } = await insforge.database
         .from("lead_companies")
         .upsert(companyData, {
           onConflict: "user_id,place_id",
@@ -420,7 +420,7 @@ export async function POST(request: NextRequest) {
         message: `Enriching with Apollo (domain + org name search)...`,
       });
 
-      const { data: companies } = await (supabase as any)
+      const { data: companies } = await insforge.database
         .from("lead_companies")
         .select("id, name, domain, phone, city, state")
         .in("id", insertedCompanyIds);
@@ -447,7 +447,7 @@ export async function POST(request: NextRequest) {
             console.log(`[Pipeline] Saving contact: ${personName} (${person.email}) for ${c.name}`);
             
             // Check if this person already exists for this company
-            const { data: existingPerson } = await (supabase as any)
+            const { data: existingPerson } = await insforge.database
               .from("lead_people")
               .select("id")
               .eq("lead_company_id", c.id)
@@ -457,9 +457,9 @@ export async function POST(request: NextRequest) {
             
             if (!existingPerson) {
               const phones = extractPersonMobile(person.phone_numbers);
-              const { error: insertError } = await (supabase as any)
+              const { error: insertError } = await insforge.database
                 .from("lead_people")
-                .insert({
+                .insert([{
                   user_id: userId,
                   lead_company_id: c.id,
                   full_name: personName,
@@ -489,7 +489,7 @@ export async function POST(request: NextRequest) {
 
             // Direct injection into CRM contacts
             try {
-              const companyId = await upsertCompanyToCRM(supabase, userId, {
+              const companyId = await upsertCompanyToCRM(insforge, userId, {
                 name: c.name,
                 domain: c.domain,
                 website: null,
@@ -500,7 +500,7 @@ export async function POST(request: NextRequest) {
               });
 
               const contactPhones = extractPersonMobile(person.phone_numbers);
-              const result = await upsertContactToCRM(supabase, userId, {
+              const result = await upsertContactToCRM(insforge, userId, {
                 first_name: person.first_name || personName.split(" ")[0] || null,
                 last_name: person.last_name || personName.split(" ").slice(1).join(" ") || null,
                 email: person.email,
@@ -525,7 +525,7 @@ export async function POST(request: NextRequest) {
               console.error(`[Pipeline] CRM insert error for ${person.email}: ${crmError.message}`);
             }
             
-            await (supabase as any)
+            await insforge.database
               .from("lead_companies")
               .update({
                 enrichment_status: "enriched",
@@ -543,7 +543,7 @@ export async function POST(request: NextRequest) {
               finalStats.apolloOrgNameMatches++;
             }
           } else {
-            await (supabase as any)
+            await insforge.database
               .from("lead_companies")
               .update({
                 enrichment_status: "no_match",
@@ -580,7 +580,7 @@ export async function POST(request: NextRequest) {
         message: "Extracting owner names from Google reviews...",
       });
 
-      const { data: noMatchCompanies } = await (supabase as any)
+      const { data: noMatchCompanies } = await insforge.database
         .from("lead_companies")
         .select("id, name, domain")
         .in("id", insertedCompanyIds)
@@ -639,7 +639,7 @@ export async function POST(request: NextRequest) {
                 }
                 
                 // Check if this company already has a lead_person
-                const { data: existingPeople } = await (supabase as any)
+                const { data: existingPeople } = await insforge.database
                   .from("lead_people")
                   .select("id")
                   .eq("lead_company_id", c.id)
@@ -647,9 +647,9 @@ export async function POST(request: NextRequest) {
                 
                 if (!existingPeople || existingPeople.length === 0) {
                   // No existing person, insert new one
-                  const insertResult = await (supabase as any)
+                  const insertResult = await insforge.database
                     .from("lead_people")
-                    .insert({
+                    .insert([{
                       user_id: userId,
                       lead_company_id: c.id,
                       full_name: extractData.ownerName,
@@ -675,7 +675,7 @@ export async function POST(request: NextRequest) {
                   console.log(`[Pipeline] Company ${c.name} already has a contact, skipping AI extraction save`);
                 }
                 
-                await (supabase as any)
+                await insforge.database
                   .from("lead_companies")
                   .update({
                     enrichment_status: verifiedEmail ? "enriched" : "scraped",
@@ -711,7 +711,7 @@ export async function POST(request: NextRequest) {
         message: "Searching Facebook for mobile numbers...",
       });
 
-      const { data: pendingCompanies } = await (supabase as any)
+      const { data: pendingCompanies } = await insforge.database
         .from("lead_companies")
         .select("id, name, website")
         .in("id", insertedCompanyIds)
@@ -750,7 +750,7 @@ export async function POST(request: NextRequest) {
               
               if (Object.keys(updates).length > 0) {
                 // Check if we have an existing person for this company
-                const { data: existingPerson } = await (supabase as any)
+                const { data: existingPerson } = await insforge.database
                   .from("lead_people")
                   .select("id")
                   .eq("lead_company_id", c.id)
@@ -758,14 +758,14 @@ export async function POST(request: NextRequest) {
                   .single();
                 
                 if (existingPerson) {
-                  await (supabase as any)
+                  await insforge.database
                     .from("lead_people")
                     .update(updates)
                     .eq("id", existingPerson.id);
                 } else {
-                  await (supabase as any)
+                  await insforge.database
                     .from("lead_people")
-                    .insert({
+                    .insert([{
                       user_id: userId,
                       lead_company_id: c.id,
                       ...updates,
@@ -802,7 +802,7 @@ export async function POST(request: NextRequest) {
         message: "Looking up owners on BBB...",
       });
 
-      const { data: stillPending } = await (supabase as any)
+      const { data: stillPending } = await insforge.database
         .from("lead_companies")
         .select("id, name, city, state")
         .in("id", insertedCompanyIds)
@@ -827,7 +827,7 @@ export async function POST(request: NextRequest) {
               const nameParts = bbbData.ownerName.split(" ");
               
               // Check if we have an existing person
-              const { data: existingPerson } = await (supabase as any)
+              const { data: existingPerson } = await insforge.database
                 .from("lead_people")
                 .select("id")
                 .eq("lead_company_id", c.id)
@@ -835,7 +835,7 @@ export async function POST(request: NextRequest) {
                 .single();
               
               if (existingPerson) {
-                await (supabase as any)
+                await insforge.database
                   .from("lead_people")
                   .update({
                     full_name: bbbData.ownerName,
@@ -846,9 +846,9 @@ export async function POST(request: NextRequest) {
                   })
                   .eq("id", existingPerson.id);
               } else {
-                await (supabase as any)
+                await insforge.database
                   .from("lead_people")
-                  .insert({
+                  .insert([{
                     user_id: userId,
                     lead_company_id: c.id,
                     full_name: bbbData.ownerName,
@@ -888,7 +888,7 @@ export async function POST(request: NextRequest) {
         message: "Scraping websites for owner info...",
       });
 
-      const { data: toScrape } = await (supabase as any)
+      const { data: toScrape } = await insforge.database
         .from("lead_companies")
         .select("id")
         .in("id", insertedCompanyIds)
@@ -930,7 +930,7 @@ export async function POST(request: NextRequest) {
       message: "Assigning fallback contacts...",
     });
 
-    const { data: pendingCompanies } = await (supabase as any)
+    const { data: pendingCompanies } = await insforge.database
       .from("lead_companies")
       .select("id, name, domain, phone")
       .in("id", insertedCompanyIds)
@@ -939,7 +939,7 @@ export async function POST(request: NextRequest) {
     for (const company of pendingCompanies || []) {
       const c = company as any;
       
-      await (supabase as any)
+      await insforge.database
         .from("lead_companies")
         .update({
           enrichment_status: "no_dm",
@@ -989,7 +989,7 @@ export async function GET(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get company counts by status
-    const { data: companies } = await (supabase as any)
+    const { data: companies } = await insforge.database
       .from("lead_companies")
       .select("enrichment_status, contact_type, industry_tag")
       .eq("user_id", userId);
@@ -1032,7 +1032,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get people count by source
-    const { data: people } = await (supabase as any)
+    const { data: people } = await insforge.database
       .from("lead_people")
       .select("source, email_status, email_verified")
       .eq("user_id", userId);

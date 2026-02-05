@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const orderBy = searchParams.get("order_by") || "priority_score";
     const limit = parseInt(searchParams.get("limit") || "200");
 
-    let query = supabase
+    let query = insforge.database
       .from("contacts")
       .select("*")
       .eq("user_id", userId)
@@ -59,13 +59,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const { count: totalLeads } = await supabase
+    const { count: totalLeads } = await insforge.database
       .from("contacts")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("status", "active");
 
-    const { count: toBework } = await supabase
+    const { count: toBework } = await insforge.database
       .from("contacts")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)

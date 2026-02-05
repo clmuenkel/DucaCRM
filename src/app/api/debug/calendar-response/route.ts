@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get user profile with Google Calendar tokens
-    const { data: profile } = await supabase
+    const { data: profile } = await insforge.database
       .from("profiles")
       .select("full_name, email, google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at")
       .eq("id", userId)

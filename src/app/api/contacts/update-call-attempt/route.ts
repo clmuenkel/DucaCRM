@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get contact
-    const { data: contact, error: fetchError } = await supabase
+    const { data: contact, error: fetchError } = await insforge.database
       .from("contacts")
       .select("*")
       .eq("id", contactId)
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const today = new Date().toISOString().split("T")[0];
 
     // Update contact
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await insforge.database
       .from("contacts")
       .update({
         last_call_attempt_date: today,
@@ -64,9 +64,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Log activity
-    await (supabase as any)
+    await insforge.database
       .from("activity_log")
-      .insert({
+      .insert([{
         user_id: userId,
         contact_id: contactId,
         activity_type: "call_attempt",

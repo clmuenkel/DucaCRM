@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get template
-    const { data: template, error: templateError } = await supabase
+    const { data: template, error: templateError } = await insforge.database
       .from("email_templates")
       .select("*")
       .eq("id", templateId)
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     };
 
     if (contactId) {
-      const { data: contact } = await supabase
+      const { data: contact } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("id", contactId)
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user profile for sender info
-    const { data: profile } = await supabase
+    const { data: profile } = await insforge.database
       .from("profiles")
       .select("full_name, calendar_link")
       .eq("id", userId)
