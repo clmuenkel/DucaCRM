@@ -476,7 +476,7 @@ export async function POST(request: NextRequest) {
                   confidence_score: confidence,
                   is_decision_maker: confidence >= 70,
                   is_primary_contact: true,
-                });
+                }]);
               
               if (insertError) {
                 console.error(`[Pipeline] Failed to save contact: ${insertError.message}`);
