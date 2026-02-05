@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Check if test contact already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await insforge.database
       .from("contacts")
       .select("id")
       .eq("user_id", userId)
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     if (existing) {
       const typedExisting = existing as { id: string };
       // Update existing contact with phone number
-      const { error: updateError } = await (supabase as any)
+      const { error: updateError } = await insforge.database
         .from("contacts")
         .update({
           phone: "+18322941575",
@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create test contact
-    const { data: contact, error } = await (supabase as any)
+    const { data: contact, error } = await insforge.database
       .from("contacts")
-      .insert({
+      .insert([{
         user_id: userId,
         first_name: "Carl-Luca",
         last_name: "Muenkel",
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         stage: "fresh",
         cadence_status: "none",
         priority_score: 75,
-      })
+      }])
       .select()
       .single();
 

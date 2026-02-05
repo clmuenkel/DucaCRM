@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         const userId = DEFAULT_USER_ID;
 
     // Get all contacts that need priority calculation
-    const { data: contacts, error: fetchError } = await supabase
+    const { data: contacts, error: fetchError } = await insforge.database
       .from("contacts")
       .select("id, source, email, phone, mobile, industry, priority_score")
       .eq("user_id", userId)
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       
       // Only update if score changed
       if (newScore !== (contact.priority_score ?? 0)) {
-        const { error: updateError } = await (supabase as any)
+        const { error: updateError } = await insforge.database
           .from("contacts")
           .update({ priority_score: newScore })
           .eq("id", contact.id);

@@ -26,7 +26,7 @@ export async function POST(
         const userId = DEFAULT_USER_ID;
 
     // Get contact
-    const { data: contact, error: fetchError } = await supabase
+    const { data: contact, error: fetchError } = await insforge.database
       .from("contacts")
       .select("company_name, industries")
       .eq("id", contactId)

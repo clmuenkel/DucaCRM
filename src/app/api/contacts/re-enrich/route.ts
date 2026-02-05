@@ -13,9 +13,9 @@ interface ReEnrichRequest {
   dryRun?: boolean;
 }
 
-async function getApolloApiKey(supabase: any): Promise<string | null> {
+async function getApolloApiKey(): Promise<string | null> {
   if (process.env.APOLLO_API_KEY) return process.env.APOLLO_API_KEY;
-  const { data: settings } = await supabase
+  const { data: settings } = await insforge.database
     .from("user_settings")
     .select("apollo_api_key")
     .eq("user_id", DEFAULT_USER_ID)
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const { limit = 200, dryRun = false } = body;
 
         const userId = DEFAULT_USER_ID;
-    const apiKey = await getApolloApiKey(supabase);
+    const apiKey = await getApolloApiKey();
 
     if (!apiKey) {
       return NextResponse.json(
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Get ALL contacts that need phone data (with or without apollo_id)
     // Prioritize those missing mobile numbers
-    const { data: contacts, error } = await supabase
+    const { data: contacts, error } = await insforge.database
       .from("contacts")
       .select("id, apollo_id, email, first_name, last_name, company_name, phone, mobile")
       .eq("user_id", userId)
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
             updateData.apollo_id = person.id;
           }
 
-          const { error: updateError } = await (supabase as any)
+          const { error: updateError } = await insforge.database
             .from("contacts")
             .update(updateData)
             .eq("id", contact.id)
