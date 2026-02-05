@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
         duration_seconds: 0, // Will be updated if tracked
         notes: notes || activitySummary,
         called_at: new Date().toISOString(),
-      });
+      }]);
 
     // Log activity
     await insforge.database
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
           step: currentStep,
           callbackDate: callbackDate || null,
         },
-      });
+      }]);
 
     return NextResponse.json({
       success: true,

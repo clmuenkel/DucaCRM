@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
               event_type: type,
               event_data: data,
             },
-          });
+          }]);
       } catch (logError) {
         console.warn("Failed to log activity:", logError);
       }

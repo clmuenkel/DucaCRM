@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
         contact_id: contactId,
         scheduling_link_sent_at: new Date().toISOString(),
         status: "pending",
-      });
+      }]);
 
     // Log activity
     await insforge.database
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
           template_id: template.id,
           subject,
         },
-      });
+      }]);
 
     return NextResponse.json({
       success: true,

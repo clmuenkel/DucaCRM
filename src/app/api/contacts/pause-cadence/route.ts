@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         contact_id: contactId,
         activity_type: "cadence_paused",
         summary: "Sales cadence paused",
-      });
+      }]);
 
     return NextResponse.json({
       success: true,

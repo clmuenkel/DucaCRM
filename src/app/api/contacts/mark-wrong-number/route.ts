@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
           phone_type: phoneType,
           wrong_number: wrongNumber,
         },
-      });
+      }]);
 
     return NextResponse.json({
       success: true,

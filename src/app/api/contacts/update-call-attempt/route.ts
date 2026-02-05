@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           attempt_number: (typedContact.call_attempts || 0) + 1,
         },
-      });
+      }]);
 
     return NextResponse.json({
       success: true,

@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         to_number: normalizedNumber, // Store normalized number
         status: "queued",
         direction: "outbound-api",
-      })
+      }])
       .select()
       .single();
 

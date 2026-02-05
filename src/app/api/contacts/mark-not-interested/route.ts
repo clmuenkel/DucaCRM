@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           notes: notes || null,
         },
-      });
+      }]);
 
     // Add note if provided
     if (notes) {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
           user_id: userId,
           contact_id: contactId,
           content: notes,
-        });
+        }]);
     }
 
     return NextResponse.json({

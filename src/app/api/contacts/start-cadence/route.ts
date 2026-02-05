@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
                 email_sent: emailSent,
                 sent_via_resend: resendApiKey && resendFromEmail && typedContact.email,
               },
-            });
+            }]);
         } catch (logError) {
           console.warn("Failed to log activity:", logError);
         }

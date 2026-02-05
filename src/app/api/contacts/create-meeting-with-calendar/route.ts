@@ -336,7 +336,7 @@ export async function POST(request: NextRequest) {
         status: "scheduled",
         google_calendar_event_id: calendarEventId,
         google_calendar_link: calendarHtmlLink,
-      })
+      }])
       .select()
       .single();
 
@@ -370,7 +370,7 @@ export async function POST(request: NextRequest) {
             calendar_event_id: calendarEventId,
             calendar_link: calendarHtmlLink,
           },
-        });
+        }]);
     } catch (logError) {
       console.warn("Failed to log activity:", logError);
     }
