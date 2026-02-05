@@ -757,7 +757,7 @@ export async function POST(request: NextRequest) {
                   .eq("is_primary_contact", true)
                   .single();
                 
-                if (existingPerson) {
+                if (existingPerson && existingPerson.id) {
                   await insforge.database
                     .from("lead_people")
                     .update(updates)
