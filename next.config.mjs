@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@supabase/ssr', 'twilio'],
+  serverExternalPackages: ['twilio'],
 };
 
 export default nextConfig;
