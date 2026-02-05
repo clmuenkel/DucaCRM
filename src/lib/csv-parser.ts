@@ -788,6 +788,22 @@ export function mapToCompany(
 /**
  * Map Apollo CSV row to contact insert data
  */
+/**
+ * Clean phone number by removing quotes, plus signs, and extra whitespace
+ */
+function cleanPhoneNumber(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  
+  // Remove quotes, plus signs, and clean whitespace
+  let cleaned = phone
+    .replace(/^['"]+|['"]+$/g, "") // Remove leading/trailing quotes
+    .replace(/^\+/g, "") // Remove leading plus
+    .trim();
+  
+  // Return null if empty after cleaning
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 export function mapApolloToContact(
   row: ApolloCSVRow,
   userId: string,
@@ -798,14 +814,23 @@ export function mapApolloToContact(
   // Calculate priority score based on title
   const priorityScore = scoreDecisionMakerTitle(row.title);
   
-  // Simple direct mapping (no fallbacks)
-  const mobile = row.mobilePhone || null;
-  const phone = row.otherPhone || null;
+  // Clean phone numbers
+  const mobile = cleanPhoneNumber(row.mobilePhone);
+  const phone = cleanPhoneNumber(row.otherPhone);
+  
+  // Ensure first_name is never empty (required field)
+  // Fallback order: firstName -> lastName -> email prefix -> "Unknown"
+  let firstName = row.firstName?.trim() || "";
+  if (!firstName) {
+    firstName = row.lastName?.trim() || 
+                (row.email ? row.email.split("@")[0] : null) ||
+                "Unknown";
+  }
   
   return {
     user_id: userId,
     company_id: companyId || null,
-    first_name: row.firstName,
+    first_name: firstName,
     last_name: row.lastName || null,
     email: row.email || null,
     phone: phone, // Other Phone → contacts.phone

@@ -524,6 +524,31 @@ export function CSVImport() {
           source_list: sourceList,
         };
 
+        // Validate required fields before insert/update
+        if (!contactData.first_name || contactData.first_name.trim() === "") {
+          console.error(`[Apollo Import] Skipping contact with empty first_name: ${contactIdentifier}`);
+          failures.push({
+            row,
+            type: "contact",
+            error: "first_name is required but was empty after fallback",
+            errorCode: "VALIDATION_ERROR",
+          });
+          failed++;
+          continue;
+        }
+
+        if (!contactData.user_id) {
+          console.error(`[Apollo Import] Skipping contact with empty user_id: ${contactIdentifier}`);
+          failures.push({
+            row,
+            type: "contact",
+            error: "user_id is required but was empty",
+            errorCode: "VALIDATION_ERROR",
+          });
+          failed++;
+          continue;
+        }
+
         if (existingContactId) {
           console.log(`[Apollo Import] Contact exists (email: ${row.email}), updating: ${existingContactId}`);
           // Update existing contact - but don't overwrite phone/mobile with empty values
