@@ -757,11 +757,12 @@ export async function POST(request: NextRequest) {
                   .eq("is_primary_contact", true)
                   .single();
                 
-                if (existingPerson && existingPerson.id) {
+                const personId = existingPerson?.id;
+                if (personId) {
                   await insforge.database
                     .from("lead_people")
                     .update(updates)
-                    .eq("id", existingPerson.id);
+                    .eq("id", personId);
                 } else {
                   await insforge.database
                     .from("lead_people")
@@ -834,7 +835,7 @@ export async function POST(request: NextRequest) {
                 .eq("is_primary_contact", true)
                 .single();
               
-              if (existingPerson) {
+              if (existingPerson?.id) {
                 await insforge.database
                   .from("lead_people")
                   .update({

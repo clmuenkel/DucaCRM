@@ -15,7 +15,7 @@ export function useMeetings(filters?: {
     return useQuery<MeetingWithContact[]>({
     queryKey: ["meetings", filters],
     queryFn: async () => {
-      let query = supabase
+      let query = insforge.database
         .from("meetings")
         .select("*, contacts(id, first_name, last_name, company_name, title)");
 
@@ -60,7 +60,7 @@ export function useAllMeetings() {
     return useQuery<MeetingWithContact[]>({
     queryKey: ["meetings", "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .select("*, contacts(id, first_name, last_name, company_name, title)")
         .order("scheduled_at", { ascending: false });
@@ -77,7 +77,7 @@ export function useMeeting(id: string) {
     queryFn: async () => {
       if (!id) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .select("*, contacts(id, first_name, last_name, company_name, title, email, phone)")
         .eq("id", id)
@@ -100,7 +100,7 @@ export function useUpcomingMeetings(days: number = 7) {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + days);
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .select("*, contacts(id, first_name, last_name, company_name, title)")
         .eq("status", "scheduled")
@@ -123,7 +123,7 @@ export function useTodaysMeetings() {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .select("*, contacts(id, first_name, last_name, company_name, title)")
         .eq("status", "scheduled")
@@ -147,7 +147,7 @@ export function useMeetingsBookedToday() {
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       // Query meetings CREATED today (booked today), not scheduled today
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .select("id")
         .gte("created_at", today.toISOString())
@@ -164,7 +164,7 @@ export function useCreateMeeting() {
 
   return useMutation({
     mutationFn: async (meeting: InsertTables<"meetings">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .insert([meeting])
         .select()
@@ -190,7 +190,7 @@ export function useUpdateMeeting() {
       id: string;
       updates: UpdateTables<"meetings">;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .update(updates)
         .eq("id", id)
@@ -218,7 +218,7 @@ export function useCompleteMeeting() {
       outcome: string;
       notes?: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .update({
           status: "completed",
@@ -242,7 +242,7 @@ export function useCancelMeeting() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meetings")
         .update({ status: "cancelled" })
         .eq("id", id)

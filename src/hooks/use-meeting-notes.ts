@@ -16,7 +16,7 @@ export function useMeetingNotes(meetingId: string) {
     queryFn: async () => {
       if (!meetingId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meeting_notes")
         .select("*, tasks(id, title, status)")
         .eq("meeting_id", meetingId)
@@ -34,7 +34,7 @@ export function useCreateMeetingNote() {
 
   return useMutation({
     mutationFn: async (note: InsertTables<"meeting_notes">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meeting_notes")
         .insert([note])
         .select()
@@ -62,7 +62,7 @@ export function useUpdateMeetingNote() {
       meetingId: string;
       updates: UpdateTables<"meeting_notes">;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meeting_notes")
         .update(updates)
         .eq("id", id)
@@ -128,7 +128,7 @@ export function useToggleActionItem() {
         // Due date is day after the meeting
         const dueDate = format(addDays(new Date(meetingDate), 1), "yyyy-MM-dd");
 
-        const { data: taskData, error: taskError } = await supabase
+        const { data: taskData, error: taskError } = await insforge.database
           .from("tasks")
           .insert({
             user_id: userId,
@@ -147,7 +147,7 @@ export function useToggleActionItem() {
         if (taskError) throw taskError;
 
         // Update the note with task reference
-        const { data, error } = await supabase
+        const { data, error } = await insforge.database
           .from("meeting_notes")
           .update({
             is_action_item: true,
@@ -161,7 +161,7 @@ export function useToggleActionItem() {
         return { note: data, meetingId };
       } else {
         // Get the current note to find linked task
-        const { data: currentNote } = await supabase
+        const { data: currentNote } = await insforge.database
           .from("meeting_notes")
           .select("task_id")
           .eq("id", noteId)
@@ -173,7 +173,7 @@ export function useToggleActionItem() {
         }
 
         // Update the note to remove action item status
-        const { data, error } = await supabase
+        const { data, error } = await insforge.database
           .from("meeting_notes")
           .update({
             is_action_item: false,
@@ -208,7 +208,7 @@ export function useMeetingActionItems(meetingId: string) {
     queryFn: async () => {
       if (!meetingId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("meeting_notes")
         .select("*, tasks(id, title, status, due_date)")
         .eq("meeting_id", meetingId)

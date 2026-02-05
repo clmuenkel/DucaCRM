@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       needs_manual_review: false, // Mark as reviewed
     };
 
-    if (existingPerson) {
+    if (existingPerson?.id) {
       // Update existing person
       const { error: updateError } = await insforge.database
         .from("lead_people")

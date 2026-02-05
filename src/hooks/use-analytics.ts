@@ -70,7 +70,7 @@ export function useAnalyticsSummary(
     queryKey: ["analytics-summary", DEFAULT_USER_ID, range, customStart, customEnd],
     queryFn: async (): Promise<AnalyticsSummary> => {
       // Get call stats
-      const { data: calls, error: callsError } = await supabase
+      const { data: calls, error: callsError } = await insforge.database
         .from("calls")
         .select("outcome, duration_seconds, disposition")
         .eq("user_id", DEFAULT_USER_ID)
@@ -80,7 +80,7 @@ export function useAnalyticsSummary(
       if (callsError && callsError.code !== "42P01") throw callsError;
 
       // Get meetings booked in this period
-      const { data: meetings, error: meetingsError } = await supabase
+      const { data: meetings, error: meetingsError } = await insforge.database
         .from("meetings")
         .select("id")
         .eq("user_id", DEFAULT_USER_ID)
@@ -127,7 +127,7 @@ export function useDailyStats(days: number = 14) {
   return useQuery({
     queryKey: ["daily-stats", DEFAULT_USER_ID, days],
     queryFn: async (): Promise<TrendDataPoint[]> => {
-      const { data: calls, error } = await supabase
+      const { data: calls, error } = await insforge.database
         .from("calls")
         .select("started_at, outcome")
         .eq("user_id", DEFAULT_USER_ID)
@@ -137,7 +137,7 @@ export function useDailyStats(days: number = 14) {
 
       if (error && error.code !== "42P01") throw error;
 
-      const { data: meetings } = await supabase
+      const { data: meetings } = await insforge.database
         .from("meetings")
         .select("created_at")
         .eq("user_id", DEFAULT_USER_ID)
@@ -190,7 +190,7 @@ export function useOutcomeBreakdown(range: DateRange = "this_week") {
   return useQuery({
     queryKey: ["outcome-breakdown", DEFAULT_USER_ID, range],
     queryFn: async (): Promise<OutcomeBreakdown[]> => {
-      const { data: calls, error } = await supabase
+      const { data: calls, error } = await insforge.database
         .from("calls")
         .select("outcome")
         .eq("user_id", DEFAULT_USER_ID)
@@ -233,7 +233,7 @@ export function useHourlyPerformance() {
       // Query calls from the last 30 days
       const thirtyDaysAgo = subDays(new Date(), 30);
       
-      const { data: calls, error } = await supabase
+      const { data: calls, error } = await insforge.database
         .from("calls")
         .select("started_at, outcome")
         .eq("user_id", DEFAULT_USER_ID)
@@ -287,7 +287,7 @@ export function useTimezonePerformance() {
     queryFn: async (): Promise<TimezonePerformance[]> => {
       const thirtyDaysAgo = subDays(new Date(), 30);
 
-      const { data: calls, error } = await supabase
+      const { data: calls, error } = await insforge.database
         .from("calls")
         .select(`
           outcome,
@@ -331,7 +331,7 @@ export function useDispositionBreakdown(range: DateRange = "this_week") {
   return useQuery({
     queryKey: ["disposition-breakdown", DEFAULT_USER_ID, range],
     queryFn: async (): Promise<DispositionBreakdown[]> => {
-      const { data: calls, error } = await supabase
+      const { data: calls, error } = await insforge.database
         .from("calls")
         .select("disposition")
         .eq("user_id", DEFAULT_USER_ID)
@@ -368,7 +368,7 @@ export function useCallingStreak() {
       // Get all unique calling dates in the last 90 days
       const ninetyDaysAgo = subDays(new Date(), 90);
       
-      const { data: calls, error } = await supabase
+      const { data: calls, error } = await insforge.database
         .from("calls")
         .select("started_at")
         .eq("user_id", DEFAULT_USER_ID)

@@ -33,7 +33,7 @@ export function useDialerDraft(userId: string, contactId: string | undefined) {
     queryFn: async () => {
       if (!contactId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("dialer_drafts")
         .select("*")
         .eq("user_id", userId)
@@ -70,7 +70,7 @@ export function useSaveDialerDraft() {
       companyId?: string | null;
       payload: DialerDraftPayload;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("dialer_drafts")
         .upsert(
           {
@@ -111,7 +111,7 @@ export function useDeleteDialerDraft() {
       userId: string;
       contactId: string;
     }) => {
-      const { error } = await supabase
+      const { error } = await insforge.database
         .from("dialer_drafts")
         .delete()
         .eq("user_id", userId)

@@ -76,7 +76,7 @@ async function getRecentCallCount(userId: string): Promise<number> {
   try {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-    const { count, error } = await supabase
+    const { count, error } = await insforge.database
       .from("calls")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)

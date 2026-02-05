@@ -13,7 +13,7 @@ export function useTasks(filters?: {
     return useQuery<TaskWithContact[]>({
     queryKey: ["tasks", filters],
     queryFn: async () => {
-      let query = supabase
+      let query = insforge.database
         .from("tasks")
         .select("*, contacts(id, first_name, last_name, company_name)")
         .order("due_date", { ascending: true, nullsFirst: false });
@@ -55,7 +55,7 @@ export function useTodayTasks() {
       const today = new Date();
       today.setHours(23, 59, 59, 999);
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("tasks")
         .select("*, contacts(id, first_name, last_name, company_name)")
         .eq("status", "todo")
@@ -74,7 +74,7 @@ export function useCreateTask() {
 
   return useMutation({
     mutationFn: async (task: InsertTables<"tasks">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("tasks")
         .insert([task])
         .select()
@@ -99,7 +99,7 @@ export function useUpdateTask() {
       id: string;
       updates: UpdateTables<"tasks">;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("tasks")
         .update(updates)
         .eq("id", id)
@@ -119,7 +119,7 @@ export function useCompleteTask() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("tasks")
         .update({
           status: "done",

@@ -108,7 +108,7 @@ export function ApolloImport() {
   // Load saved API key from settings
   useEffect(() => {
     const loadApiKey = async () => {
-      const { data: settings } = await supabase
+      const { data: settings } = await insforge.database
         .from("user_settings")
         .select("apollo_api_key")
         .eq("user_id", userId)
@@ -120,7 +120,7 @@ export function ApolloImport() {
       }
     };
     loadApiKey();
-  }, [supabase, userId]);
+  }, [userId]);
 
   // When persona set is selected, populate fields
   useEffect(() => {
@@ -269,7 +269,7 @@ export function ApolloImport() {
       const apolloIds = toImport.map(p => p.id).filter(Boolean);
       const emails = toImport.map(p => p.email).filter(Boolean);
 
-      const { data: existingContactsData } = await supabase
+      const { data: existingContactsData } = await insforge.database
         .from("contacts")
         .select("apollo_id, email")
         .or(`apollo_id.in.(${apolloIds.join(",")}),email.in.(${emails.join(",")})`);
@@ -294,7 +294,7 @@ export function ApolloImport() {
           const normalizedDomain = domain !== "unknown" ? domain : null;
           
           if (normalizedDomain) {
-            const { data: existingCompanyData } = await supabase
+            const { data: existingCompanyData } = await insforge.database
               .from("companies")
               .select("id")
               .eq("user_id", userId)
@@ -312,9 +312,9 @@ export function ApolloImport() {
             const companyData = mapApolloToCompany(samplePerson, userId);
             
             if (companyData) {
-              const { data: newCompanyData, error: companyError } = await supabase
+              const { data: newCompanyData, error: companyError } = await insforge.database
                 .from("companies")
-                .insert(companyData as any)
+                .insert([companyData as any])
                 .select("id")
                 .single();
 
@@ -337,9 +337,9 @@ export function ApolloImport() {
 
           const contactData = mapApolloToContact(person, userId, sourceList, companyId || undefined);
 
-          const { error } = await supabase
+          const { error } = await insforge.database
             .from("contacts")
-            .insert(contactData as any);
+            .insert([contactData as any]);
 
           if (!error) {
             imported++;
@@ -365,9 +365,9 @@ export function ApolloImport() {
       });
 
       // Save API key to settings if not already saved
-      await supabase
+      await insforge.database
         .from("user_settings")
-        .upsert({ user_id: userId, apollo_api_key: apiKey } as any);
+        .upsert([{ user_id: userId, apollo_api_key: apiKey } as any], { onConflict: "user_id" });
 
       setStep("done");
       toast.success(`Successfully imported ${imported} contacts!`);

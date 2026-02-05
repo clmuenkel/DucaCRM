@@ -21,7 +21,7 @@ export function useSessions(options?: {
     return useQuery({
     queryKey: ["dialer-sessions", DEFAULT_USER_ID, options],
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = (insforge.database as any)
         .from("dialer_sessions")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
@@ -76,7 +76,7 @@ export function useCurrentSession() {
     queryKey: ["current-session", DEFAULT_USER_ID],
     queryFn: async () => {
       // Get the most recent session that hasn't ended (or ended recently)
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("dialer_sessions")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
@@ -100,7 +100,7 @@ export function useCreateSession() {
 
   return useMutation({
     mutationFn: async (session: Omit<DialerSessionInsert, "user_id">) => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("dialer_sessions")
         .insert({
           ...session,
@@ -131,7 +131,7 @@ export function useUpdateSession() {
       id: string;
       updates: DialerSessionUpdate;
     }) => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("dialer_sessions")
         .update(updates)
         .eq("id", id)
@@ -177,7 +177,7 @@ export function useSessionTracker() {
       const gapThreshold = new Date(now.getTime() - SESSION_GAP_MINUTES * 60 * 1000);
 
       // Find the most recent session
-      const { data: recentSession } = await (supabase as any)
+      const { data: recentSession } = await (insforge.database as any)
         .from("dialer_sessions")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
@@ -264,7 +264,7 @@ export function useIncrementSessionMeetings() {
       const gapThreshold = new Date(now.getTime() - SESSION_GAP_MINUTES * 60 * 1000);
 
       // Find the current session
-      const { data: currentSession } = await (supabase as any)
+      const { data: currentSession } = await (insforge.database as any)
         .from("dialer_sessions")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
@@ -275,7 +275,7 @@ export function useIncrementSessionMeetings() {
 
       if (!currentSession) return null;
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("dialer_sessions")
         .update({
           meetings_booked: (currentSession.meetings_booked || 0) + 1,

@@ -236,7 +236,7 @@ export async function seedDummyData() {
         companyData.country
       );
 
-      const { data: company, error: companyError } = await supabase
+      const { data: company, error: companyError } = await insforge.database
         .from("companies")
         .insert({
           user_id: userId,
@@ -257,7 +257,7 @@ export async function seedDummyData() {
       const contactsData = DUMMY_CONTACTS_BY_COMPANY[companyData.domain] || [];
       
       for (const contactData of contactsData) {
-        const { data: contact, error: contactError } = await supabase
+        const { data: contact, error: contactError } = await insforge.database
           .from("contacts")
           .insert({
             user_id: userId,
@@ -299,7 +299,7 @@ export async function seedDummyData() {
 
           const endedAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
-          const { error: callError } = await supabase
+          const { error: callError } = await insforge.database
             .from("calls")
             .insert({
               user_id: userId,
@@ -324,7 +324,7 @@ export async function seedDummyData() {
             results.calls++;
             
             // Update contact's last_contacted_at
-            await supabase
+            await insforge.database
               .from("contacts")
               .update({ 
                 last_contacted_at: startedAt.toISOString(),
@@ -340,7 +340,7 @@ export async function seedDummyData() {
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + Math.floor(Math.random() * 7) + 1);
 
-          const { error: taskError } = await supabase
+          const { error: taskError } = await insforge.database
             .from("tasks")
             .insert({
               user_id: userId,

@@ -35,7 +35,7 @@ export async function initializeTwilioNumbers(): Promise<{
   for (const phoneNumber of config.phoneNumbers) {
     try {
       // Check if number already exists
-      const { data: existing } = await supabase
+      const { data: existing } = await insforge.database
         .from("twilio_numbers")
         .select("id")
         .eq("user_id", userId)
@@ -45,7 +45,7 @@ export async function initializeTwilioNumbers(): Promise<{
       const typedExisting = existing as { id: string } | null;
       if (typedExisting) {
         // Update existing number (ensure it's active)
-        const { error } = await (supabase as any)
+        const { error } = await (insforge.database as any)
           .from("twilio_numbers")
           .update({
             is_active: true,
@@ -60,7 +60,7 @@ export async function initializeTwilioNumbers(): Promise<{
         }
       } else {
         // Create new number record
-        const { error } = await (supabase as any).from("twilio_numbers").insert({
+        const { error } = await (insforge.database as any).from("twilio_numbers").insert({
           user_id: userId,
           phone_number: phoneNumber,
           daily_call_count: 0,
@@ -102,7 +102,7 @@ export async function getNextAvailableNumber(): Promise<{
 
     // Get all active numbers, ordered by daily_call_count ascending
     // Prefer numbers that haven't hit their daily limit
-    const { data: numbers, error } = await supabase
+    const { data: numbers, error } = await insforge.database
       .from("twilio_numbers")
       .select("*")
       .eq("user_id", userId)
@@ -150,7 +150,7 @@ export async function incrementCallCount(
 
   try {
     // Get current count
-    const { data: number, error: fetchError } = await supabase
+    const { data: number, error: fetchError } = await insforge.database
       .from("twilio_numbers")
       .select("daily_call_count")
       .eq("id", numberId)
@@ -163,7 +163,7 @@ export async function incrementCallCount(
 
     const typedNumber = number as { daily_call_count: number | null };
     // Increment count and update last_used_at
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await (insforge.database as any)
       .from("twilio_numbers")
       .update({
         daily_call_count: (typedNumber.daily_call_count || 0) + 1,
@@ -191,7 +191,7 @@ export async function checkDailyLimits(
     const userId = DEFAULT_USER_ID;
 
   try {
-    const { data: number, error } = await supabase
+    const { data: number, error } = await insforge.database
       .from("twilio_numbers")
       .select("daily_call_count, daily_call_limit")
       .eq("id", numberId)
@@ -236,7 +236,7 @@ export async function getAllTwilioNumbers(): Promise<{
     const userId = DEFAULT_USER_ID;
 
   try {
-    const { data: numbers, error } = await supabase
+    const { data: numbers, error } = await insforge.database
       .from("twilio_numbers")
       .select("*")
       .eq("user_id", userId)
@@ -262,7 +262,7 @@ export async function updateSpamScore(
     const userId = DEFAULT_USER_ID;
 
   try {
-    const { error } = await (supabase as any)
+    const { error } = await (insforge.database as any)
       .from("twilio_numbers")
       .update({
         spam_score: spamScore,
@@ -290,7 +290,7 @@ export async function deactivateNumber(
     const userId = DEFAULT_USER_ID;
 
   try {
-    const { error } = await (supabase as any)
+    const { error } = await (insforge.database as any)
       .from("twilio_numbers")
       .update({
         is_active: false,

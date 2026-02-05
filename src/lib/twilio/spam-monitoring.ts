@@ -126,7 +126,7 @@ export async function calculateSpamScoreFromOutcomes(
     // Get recent calls for this number (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: calls, error } = await supabase
+    const { data: calls, error } = await insforge.database
       .from("twilio_calls")
       .select("status")
       .eq("user_id", userId)

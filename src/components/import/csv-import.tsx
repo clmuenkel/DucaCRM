@@ -424,7 +424,7 @@ export function CSVImport() {
               
               if (existingCompany) {
                 companyId = existingCompany.id;
-                companyCache.set(cacheKey, companyId);
+                if (companyId) companyCache.set(cacheKey, companyId);
                 
                 // Update company with new data
                 const companyData = mapApolloToCompany(row, userId, domain);
@@ -455,7 +455,7 @@ export function CSVImport() {
               
               if (existingByName) {
                 companyId = existingByName.id;
-                companyCache.set(cacheKey, companyId);
+                if (companyId) companyCache.set(cacheKey, companyId);
                 
                 // Update company with new data
                 const companyData = mapApolloToCompany(row, userId, domain);
@@ -489,7 +489,7 @@ export function CSVImport() {
                 if (!companyError && newCompany) {
                   companyId = newCompany.id;
                   companiesCreated++;
-                  companyCache.set(cacheKey, companyId);
+                  if (companyId) companyCache.set(cacheKey, companyId);
                 } else if (companyError) {
                   console.error("Company insert error:", companyError);
                 }
@@ -693,7 +693,7 @@ export function CSVImport() {
               
               if (existingCompany) {
                 companyId = existingCompany.id;
-                companyCache.set(domain, companyId);
+                if (companyId && domain) companyCache.set(domain, companyId);
               }
             }
             
@@ -708,7 +708,7 @@ export function CSVImport() {
               
               if (existingByName) {
                 companyId = existingByName.id;
-                if (domain) companyCache.set(domain, companyId);
+                if (companyId && domain) companyCache.set(domain, companyId);
               }
             }
             
@@ -725,7 +725,7 @@ export function CSVImport() {
                 if (!companyError && newCompany) {
                   companyId = newCompany.id;
                   companiesCreated++;
-                  if (domain) companyCache.set(domain, companyId);
+                  if (companyId && domain) companyCache.set(domain, companyId);
                 } else if (companyError) {
                   // Track company creation failure (but don't count as failed import - contact may still succeed)
                   console.error("Company insert error:", companyError);

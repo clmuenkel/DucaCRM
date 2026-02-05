@@ -25,7 +25,7 @@ export function useTargets() {
     return useQuery({
     queryKey: ["user-targets", DEFAULT_USER_ID],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("user_targets")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID);
@@ -57,7 +57,7 @@ export function useDailyTargets() {
     return useQuery({
     queryKey: ["user-targets", DEFAULT_USER_ID, "daily"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("user_targets")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
@@ -82,7 +82,7 @@ export function useWeeklyTargets() {
     return useQuery({
     queryKey: ["user-targets", DEFAULT_USER_ID, "weekly"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("user_targets")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
@@ -113,7 +113,7 @@ export function useUpdateTarget() {
       targetType: "daily" | "weekly";
       updates: UserTargetUpdate;
     }) => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (insforge.database as any)
         .from("user_targets")
         .upsert(
           {

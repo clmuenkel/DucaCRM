@@ -32,7 +32,7 @@ export function useContactContext(contactId: string, companyId?: string | null) 
     queryKey: ["contact-context", contactId, companyId],
     queryFn: async (): Promise<ReferralContext> => {
       // First check for direct referral
-      const { data: contact } = await supabase
+      const { data: contact } = await insforge.database
         .from("contacts")
         .select(`
           direct_referral_contact_id,
@@ -63,7 +63,7 @@ export function useContactContext(contactId: string, companyId?: string | null) 
 
       // Otherwise, check for company-level "talked to" (most recently contacted at company)
       if (companyId) {
-        const { data: companyContact } = await supabase
+        const { data: companyContact } = await insforge.database
           .from("contacts")
           .select("id, first_name, last_name, title, last_contacted_at")
           .eq("company_id", companyId)
@@ -103,7 +103,7 @@ export function useSetDirectReferral() {
       referrerId: string;
       note?: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .update({
           direct_referral_contact_id: referrerId,
@@ -132,7 +132,7 @@ export function useRemoveDirectReferral() {
 
   return useMutation({
     mutationFn: async (contactId: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .update({
           direct_referral_contact_id: null,
@@ -167,7 +167,7 @@ export function useUpdateReferralNote() {
       contactId: string;
       note: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .update({
           direct_referral_note: note || null,
@@ -201,7 +201,7 @@ export function useSetCustomOpener() {
       contactId: string;
       openerText: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .update({
           direct_referral_note: openerText || null,
@@ -241,7 +241,7 @@ export function useSetReferralFromCall() {
       note?: string;
     }) => {
       // Set direct referral on target contact
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .update({
           direct_referral_contact_id: calledContactId,
@@ -269,7 +269,7 @@ export function useReferredContacts(referrerId: string) {
     return useQuery({
     queryKey: ["referred-contacts", referrerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("direct_referral_contact_id", referrerId)

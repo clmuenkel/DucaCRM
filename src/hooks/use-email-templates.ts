@@ -8,7 +8,7 @@ export function useEmailTemplates() {
     return useQuery({
     queryKey: ["email-templates"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("email_templates")
         .select("*")
         .order("category", { ascending: true })
@@ -23,7 +23,7 @@ export function useEmailTemplate(id: string) {
     return useQuery({
     queryKey: ["email-template", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("email_templates")
         .select("*")
         .eq("id", id)
@@ -40,7 +40,7 @@ export function useCreateEmailTemplate() {
 
   return useMutation({
     mutationFn: async (template: InsertTables<"email_templates">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("email_templates")
         .insert([template])
         .select()
@@ -65,7 +65,7 @@ export function useUpdateEmailTemplate() {
       id: string;
       updates: UpdateTables<"email_templates">;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("email_templates")
         .update(updates)
         .eq("id", id)

@@ -37,7 +37,7 @@ export function useMigrateCompanies() {
       // 1. Fetch all contacts for the user that don't have a company_id yet
       setProgress({ current: 0, total: 0, status: "Fetching contacts..." });
       
-      const { data: contacts, error: fetchError } = await supabase
+      const { data: contacts, error: fetchError } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("user_id", userId)
@@ -88,7 +88,7 @@ export function useMigrateCompanies() {
           let companyId: string | null = null;
           
           if (sampleContact.company_domain) {
-            const { data: existingCompany } = await supabase
+            const { data: existingCompany } = await insforge.database
               .from("companies")
               .select("id")
               .eq("user_id", userId)
@@ -123,7 +123,7 @@ export function useMigrateCompanies() {
               annual_revenue: sampleContact.annual_revenue || null,
             };
 
-            const { data: newCompany, error: createError } = await supabase
+            const { data: newCompany, error: createError } = await insforge.database
               .from("companies")
               .insert([companyData])
               .select("id")
@@ -141,7 +141,7 @@ export function useMigrateCompanies() {
           // Link all contacts in this group to the company
           const contactIds = groupContacts.map((c) => c.id);
           
-          const { error: updateError } = await supabase
+          const { error: updateError } = await insforge.database
             .from("contacts")
             .update({ company_id: companyId })
             .in("id", contactIds);
@@ -193,7 +193,7 @@ export function useMigrateCompanies() {
 export function useMigrationStatus() {
     const checkStatus = async (userId: string) => {
     // Count contacts without company_id
-    const { count: unlinkedCount, error: countError } = await supabase
+    const { count: unlinkedCount, error: countError } = await insforge.database
       .from("contacts")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
@@ -204,13 +204,13 @@ export function useMigrationStatus() {
     }
 
     // Count total contacts
-    const { count: totalCount } = await supabase
+    const { count: totalCount } = await insforge.database
       .from("contacts")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId);
 
     // Count companies
-    const { count: companyCount } = await supabase
+    const { count: companyCount } = await insforge.database
       .from("companies")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId);

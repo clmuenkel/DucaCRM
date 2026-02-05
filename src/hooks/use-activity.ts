@@ -11,7 +11,7 @@ export function useActivity(filters?: {
     return useQuery<ActivityLogWithContact[]>({
     queryKey: ["activity", filters],
     queryFn: async () => {
-      let query = supabase
+      let query = insforge.database
         .from("activity_log")
         .select("*, contacts(id, first_name, last_name)")
         .order("created_at", { ascending: false });
@@ -35,7 +35,7 @@ export function useRecentActivity() {
     return useQuery<ActivityLogWithContact[]>({
     queryKey: ["activity", "recent"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("activity_log")
         .select("*, contacts(id, first_name, last_name, company_name)")
         .order("created_at", { ascending: false })
@@ -52,9 +52,9 @@ export function useLogActivity() {
 
   return useMutation({
     mutationFn: async (activity: InsertTables<"activity_log">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("activity_log")
-        .insert(activity as any)
+        .insert([activity as any])
         .select()
         .single();
       if (error) throw error;

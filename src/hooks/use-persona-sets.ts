@@ -11,7 +11,7 @@ export function usePersonaSets() {
     return useQuery({
     queryKey: ["persona-sets"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("persona_sets")
         .select("*")
         .order("is_default", { ascending: false })
@@ -30,7 +30,7 @@ export function usePersonaSet(id: string) {
     return useQuery({
     queryKey: ["persona-set", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("persona_sets")
         .select("*")
         .eq("id", id)
@@ -50,7 +50,7 @@ export function useDefaultPersonaSet() {
     return useQuery({
     queryKey: ["persona-set", "default"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("persona_sets")
         .select("*")
         .eq("is_default", true)
@@ -72,13 +72,13 @@ export function useCreatePersonaSet() {
     mutationFn: async (personaSet: InsertTables<"persona_sets">) => {
       // If this is set as default, unset other defaults first
       if (personaSet.is_default) {
-        await supabase
+        await insforge.database
           .from("persona_sets")
           .update({ is_default: false })
           .eq("user_id", personaSet.user_id);
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("persona_sets")
         .insert([personaSet])
         .select()
@@ -109,14 +109,14 @@ export function useUpdatePersonaSet() {
     }) => {
       // If setting as default, unset other defaults first
       if (updates.is_default) {
-        const { data: current } = await supabase
+        const { data: current } = await insforge.database
           .from("persona_sets")
           .select("user_id")
           .eq("id", id)
           .single();
 
         if (current) {
-          await supabase
+          await insforge.database
             .from("persona_sets")
             .update({ is_default: false })
             .eq("user_id", current.user_id)
@@ -124,7 +124,7 @@ export function useUpdatePersonaSet() {
         }
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("persona_sets")
         .update(updates)
         .eq("id", id)
@@ -149,7 +149,7 @@ export function useDeletePersonaSet() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await insforge.database
         .from("persona_sets")
         .delete()
         .eq("id", id);
@@ -171,7 +171,7 @@ export function useDuplicatePersonaSet() {
   return useMutation({
     mutationFn: async ({ id, newName }: { id: string; newName: string }) => {
       // Get the original
-      const { data: original, error: fetchError } = await supabase
+      const { data: original, error: fetchError } = await insforge.database
         .from("persona_sets")
         .select("*")
         .eq("id", id)
@@ -180,7 +180,7 @@ export function useDuplicatePersonaSet() {
       if (fetchError) throw fetchError;
 
       // Create duplicate
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("persona_sets")
         .insert({
           user_id: original.user_id,

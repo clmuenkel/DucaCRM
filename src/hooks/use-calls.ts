@@ -16,7 +16,7 @@ export function useCalls(filters?: {
     return useQuery<CallWithContact[]>({
     queryKey: ["calls", filters],
     queryFn: async () => {
-      let query = supabase
+      let query = insforge.database
         .from("calls")
         .select("*, contacts(id, first_name, last_name, company_name)")
         .order("started_at", { ascending: false });
@@ -57,7 +57,7 @@ export function useTodayCallStats() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const { data: callData, error } = await supabase
+      const { data: callData, error } = await insforge.database
         .from("calls")
         .select("outcome, disposition")
         .gte("started_at", today.toISOString());
@@ -83,15 +83,15 @@ export function useCreateCall() {
 
   return useMutation({
     mutationFn: async (call: InsertTables<"calls">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("calls")
-        .insert(call as any)
+        .insert([call as any])
         .select()
         .single();
       if (error) throw error;
 
       // Update contact's last_contacted_at 
-      await (supabase as any)
+      await (insforge.database as any)
         .from("contacts")
         .update({
           last_contacted_at: new Date().toISOString(),
@@ -125,7 +125,7 @@ export function useLogCall() {
       };
     }) => {
       // Insert the call
-      const { data: callData, error: callError } = await supabase
+      const { data: callData, error: callError } = await insforge.database
         .from("calls")
         .insert(call as any)
         .select()
@@ -136,7 +136,7 @@ export function useLogCall() {
       // Create follow-up task if specified
       let taskId: string | undefined;
       if (createTask) {
-        const { data: taskData, error: taskError } = await supabase
+        const { data: taskData, error: taskError } = await insforge.database
           .from("tasks")
           .insert({
             ...createTask,
@@ -149,14 +149,14 @@ export function useLogCall() {
         taskId = (taskData as { id: string }).id;
 
         // Update call with task reference
-        await (supabase as any)
+        await (insforge.database as any)
           .from("calls")
           .update({ follow_up_task_id: taskId })
           .eq("id", (callData as { id: string }).id);
       }
 
       // Update contact - fetch current total_calls first, then increment
-      const { data: currentContactData } = await supabase
+      const { data: currentContactData } = await insforge.database
         .from("contacts")
         .select("total_calls")
         .eq("id", call.contact_id)
@@ -165,7 +165,7 @@ export function useLogCall() {
       const currentContact = currentContactData as { total_calls: number | null } | null;
       const newTotalCalls = (currentContact?.total_calls || 0) + 1;
       
-      const { error: contactError } = await (supabase as any)
+      const { error: contactError } = await (insforge.database as any)
         .from("contacts")
         .update({
           last_contacted_at: new Date().toISOString(),
@@ -196,7 +196,7 @@ export function useLogCall() {
         const gapThreshold = new Date(now.getTime() - SESSION_GAP_MINUTES * 60 * 1000);
 
         // Find the most recent session
-        const { data: recentSession } = await (supabase as any)
+        const { data: recentSession } = await (insforge.database as any)
           .from("dialer_sessions")
           .select("*")
           .eq("user_id", call.user_id)
@@ -238,13 +238,13 @@ export function useLogCall() {
               break;
           }
 
-          await (supabase as any)
+          await (insforge.database as any)
             .from("dialer_sessions")
             .update(updates)
             .eq("id", recentSession.id);
         } else {
           // Create new session
-          await (supabase as any).from("dialer_sessions").insert({
+          await (insforge.database as any).from("dialer_sessions").insert({
             user_id: call.user_id,
             started_at: now.toISOString(),
             total_calls: 1,

@@ -11,7 +11,7 @@ export function useNotes(filters?: {
     return useQuery({
     queryKey: ["notes", filters],
     queryFn: async () => {
-      let query = supabase
+      let query = insforge.database
         .from("notes")
         .select("*")
         .order("created_at", { ascending: false });
@@ -36,7 +36,7 @@ export function useCreateNote() {
 
   return useMutation({
     mutationFn: async (note: InsertTables<"notes">) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("notes")
         .insert([note])
         .select()
@@ -62,7 +62,7 @@ export function useUpdateNote() {
       id: string;
       updates: UpdateTables<"notes">;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("notes")
         .update(updates)
         .eq("id", id)
@@ -100,7 +100,7 @@ export function useCompanyNotes(companyId: string | undefined | null) {
     queryFn: async () => {
       if (!companyId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("notes")
         .select("*")
         .eq("company_id", companyId)
@@ -128,7 +128,7 @@ export function useCreateCompanyNote() {
       company_id: string;
       content: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await insforge.database
         .from("notes")
         .insert({
           user_id: note.user_id,
