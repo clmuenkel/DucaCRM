@@ -208,12 +208,21 @@ export async function POST(request: NextRequest) {
     };
 
     // Render template for calendar description (if template exists)
-    let calendarDescription = description || `Meeting with ${typedContact.first_name} ${typedContact.last_name || ""}`.trim();
+    let calendarDescription = description || "";
     if (template) {
       const renderedTemplate = renderTemplate(template.body_template, variables);
       // Convert HTML to plain text for calendar description
       calendarDescription = htmlToPlainText(renderedTemplate);
     }
+    
+    // Always append Evios branding to description
+    const brandingBlock = [
+      "",
+      "---",
+      "www.evioshq.com",
+    ].join("\n");
+    
+    calendarDescription = (calendarDescription ? calendarDescription + "\n" + brandingBlock : brandingBlock).trim();
 
     // Get valid access token (refresh if needed)
     const validAccessToken = await getValidAccessToken(

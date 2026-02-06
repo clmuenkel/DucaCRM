@@ -226,11 +226,6 @@ export function CallControlsHeader() {
       return;
     }
 
-    if (!outcome) {
-      toast.error("Please select a call outcome");
-      return;
-    }
-
     try {
       await logCall.mutateAsync({
         call: {
@@ -239,28 +234,13 @@ export function CallControlsHeader() {
           started_at: new Date(Date.now() - callDuration * 1000).toISOString(),
           ended_at: new Date().toISOString(),
           duration_seconds: callDuration,
-          outcome,
+          outcome: outcome || "no_answer",
           disposition: disposition || undefined,
           phone_used: selectedPhoneType,
           telnyx_call_id: telnyxCallId || undefined,
           telnyx_number_used: telnyxNumberUsed || undefined,
           notes: notes || undefined,
-          confirmed_budget: confirmedBudget,
-          confirmed_authority: confirmedAuthority,
-          confirmed_need: confirmedNeed,
-          confirmed_timeline: confirmedTimeline,
           timestamped_notes: timestampedNotes.length > 0 ? timestampedNotes : undefined,
-        },
-      });
-
-      await updateContact.mutateAsync({
-        id: currentContact.id,
-        updates: {
-          has_budget: confirmedBudget,
-          is_authority: confirmedAuthority,
-          has_need: confirmedNeed,
-          has_timeline: confirmedTimeline,
-          stage: outcome === "connected" && disposition?.includes("interested") ? "qualified" : currentContact.stage,
         },
       });
 
@@ -616,7 +596,7 @@ export function CallControlsHeader() {
           <Button
             size="default"
             onClick={handleSaveAndNext}
-            disabled={!outcome || logCall.isPending}
+            disabled={logCall.isPending}
             className="h-10 gap-2 font-semibold"
           >
             <Save className="h-4 w-4" />
@@ -634,8 +614,8 @@ export function CallControlsHeader() {
         </div>
       </div>
 
-      {/* Quick Actions - Replace old outcome buttons */}
-      {currentContact && !isCallActive && (
+      {/* Quick Actions */}
+      {currentContact && (
         <QuickActions
           contact={currentContact}
           onActionComplete={async () => {

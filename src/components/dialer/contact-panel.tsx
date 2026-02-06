@@ -2,18 +2,12 @@
 
 import { useDialerStore } from "@/stores/dialer-store";
 import { useCompany } from "@/hooks/use-companies";
-import { useContactContext, formatOpenerSuggestion, useUpdateReferralNote, useSetCustomOpener, useRemoveDirectReferral } from "@/hooks/use-referrals";
 import { useCompanyNotes } from "@/hooks/use-notes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { STAGES, CALL_OUTCOMES_UI, CALL_DISPOSITIONS } from "@/lib/constants";
+import { STAGES } from "@/lib/constants";
 import { formatPhone, copyToClipboard, getInitials } from "@/lib/utils";
 import { getTimezoneFromLocation, getLocalTime, getTimezoneAbbreviation, isBusinessHours } from "@/lib/timezone";
 import {
@@ -26,43 +20,19 @@ import {
   Linkedin,
   Users,
   Clock,
-  MessageSquare,
   Check,
-  Edit2,
-  Target,
   StickyNote,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 
 export function ContactPanelCompact() {
-  const {
-    currentContact,
-    outcome,
-    disposition,
-    confirmedBudget,
-    confirmedAuthority,
-    confirmedNeed,
-    confirmedTimeline,
-    setOutcome,
-    setDisposition,
-    setQualification,
-  } = useDialerStore();
+  const { currentContact } = useDialerStore();
 
   const { data: company } = useCompany(currentContact?.company_id || "");
-  const { data: context } = useContactContext(
-    currentContact?.id || "",
-    currentContact?.company_id
-  );
   const { data: companyNotes } = useCompanyNotes(currentContact?.company_id);
 
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [isEditingOpener, setIsEditingOpener] = useState(false);
-  const [openerText, setOpenerText] = useState("");
-
-  const updateReferralNote = useUpdateReferralNote();
-  const setCustomOpener = useSetCustomOpener();
-  const removeReferral = useRemoveDirectReferral();
 
   if (!currentContact) return null;
 
@@ -77,9 +47,6 @@ export function ContactPanelCompact() {
   const localTime = getLocalTime(timezone);
   const tzAbbr = getTimezoneAbbreviation(timezone);
   const isBusiness = isBusinessHours(timezone);
-
-  // BANT score
-  const bantScore = [confirmedBudget, confirmedAuthority, confirmedNeed, confirmedTimeline].filter(Boolean).length;
 
   const handleCopy = async (text: string, field: string) => {
     await copyToClipboard(text);
@@ -102,19 +69,6 @@ export function ContactPanelCompact() {
       )}
     </Button>
   );
-
-  // Get full name with title for opener context
-  const getOpenerName = () => {
-    if (context?.type === "direct" && context.referrer) {
-      const name = `${context.referrer.first_name} ${context.referrer.last_name || ""}`.trim();
-      return context.referrer.title ? `${name} (${context.referrer.title})` : name;
-    }
-    if (context?.type === "company" && context.companyTalkedTo) {
-      const name = `${context.companyTalkedTo.first_name} ${context.companyTalkedTo.last_name || ""}`.trim();
-      return context.companyTalkedTo.title ? `${name} (${context.companyTalkedTo.title})` : name;
-    }
-    return null;
-  };
 
   return (
     <div className="space-y-5">
@@ -145,12 +99,6 @@ export function ContactPanelCompact() {
             <Badge variant={currentContact.stage as any}>
               {stage?.label || currentContact.stage}
             </Badge>
-            {bantScore > 0 && (
-              <Badge variant="outline" className="gap-1">
-                <Target className="h-3 w-3" />
-                {bantScore}/4 BANT
-              </Badge>
-            )}
           </div>
         </div>
       </div>
@@ -282,245 +230,6 @@ export function ContactPanelCompact() {
         </Card>
       )}
 
-      {/* Opener Context */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <MessageSquare className="h-4 w-4" />
-            Opener Context
-          </div>
-          {(context?.type === "direct" || context?.type === "company" || currentContact.direct_referral_note) && !isEditingOpener && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs"
-              onClick={() => {
-                setOpenerText(context?.note || currentContact.direct_referral_note || "");
-                setIsEditingOpener(true);
-              }}
-            >
-              <Edit2 className="h-3 w-3 mr-1" />
-              Edit
-            </Button>
-          )}
-        </div>
-        
-        {isEditingOpener ? (
-          <Card>
-            <CardContent className="p-3 space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Opener text (what you'll say)</Label>
-                <Textarea
-                  value={openerText}
-                  onChange={(e) => setOpenerText(e.target.value)}
-                  placeholder="e.g., John Smith (VP of Sales) told me to reach out..."
-                  className="mt-1.5"
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => setIsEditingOpener(false)}
-                >
-                  Cancel
-                </Button>
-                {(context?.type === "direct" || currentContact.direct_referral_note) && (
-                  <Button 
-                    size="sm" 
-                    variant="destructive"
-                    onClick={async () => {
-                      try {
-                        await removeReferral.mutateAsync(currentContact.id);
-                        toast.success("Opener cleared");
-                        setIsEditingOpener(false);
-                        setOpenerText("");
-                      } catch (error: any) {
-                        toast.error(error.message || "Failed to clear opener");
-                      }
-                    }}
-                    disabled={removeReferral.isPending}
-                  >
-                    Clear
-                  </Button>
-                )}
-                <Button 
-                  size="sm" 
-                  onClick={async () => {
-                    try {
-                      if (context?.type === "direct") {
-                        await updateReferralNote.mutateAsync({
-                          contactId: currentContact.id,
-                          note: openerText,
-                        });
-                      } else {
-                        await setCustomOpener.mutateAsync({
-                          contactId: currentContact.id,
-                          openerText: openerText,
-                        });
-                      }
-                      toast.success("Opener saved");
-                      setIsEditingOpener(false);
-                    } catch (error: any) {
-                      toast.error(error.message || "Failed to save opener");
-                    }
-                  }}
-                  disabled={updateReferralNote.isPending || setCustomOpener.isPending}
-                >
-                  Save
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {context?.type === "direct" && context.referrer && (
-              <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-                <CardContent className="p-3">
-                  <p className="font-medium text-green-800 dark:text-green-300">
-                    {getOpenerName()} told them to expect your call
-                  </p>
-                  {context.note && (
-                    <p className="text-sm text-green-700 dark:text-green-400 mt-2 italic">
-                      "{context.note}"
-                    </p>
-                  )}
-                  {!context.note && (
-                    <p className="text-sm text-green-700 dark:text-green-300 mt-2 italic">
-                      "{formatOpenerSuggestion(context)}"
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {context?.type === "company" && context.companyTalkedTo && (
-              <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                <CardContent className="p-3">
-                  <p className="font-medium text-blue-800 dark:text-blue-300">
-                    You spoke with {getOpenerName()}
-                  </p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300 mt-2 italic">
-                    "{formatOpenerSuggestion(context)}"
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {context?.type === "none" && !currentContact.direct_referral_note && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setOpenerText("");
-                  setIsEditingOpener(true);
-                }}
-              >
-                <Edit2 className="h-4 w-4 mr-2" />
-                Add opener (first & last name of reference)
-              </Button>
-            )}
-
-            {context?.type === "none" && currentContact.direct_referral_note && (
-              <Card className="bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800">
-                <CardContent className="p-3">
-                  <p className="font-medium text-purple-800 dark:text-purple-300">
-                    Custom Opener
-                  </p>
-                  <p className="text-sm text-purple-700 dark:text-purple-300 mt-2 italic">
-                    "{currentContact.direct_referral_note}"
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        )}
-      </div>
-
-      <Separator />
-
-      {/* BANT Qualification */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Target className="h-4 w-4 text-muted-foreground" />
-            Qualification (BANT)
-          </div>
-          <span className="text-sm text-muted-foreground">{bantScore * 25}%</span>
-        </div>
-        <div className="grid grid-cols-4 gap-3">
-          <label className="flex flex-col items-center gap-1.5 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
-            <Checkbox
-              checked={confirmedBudget}
-              onCheckedChange={(checked) => setQualification("budget", !!checked)}
-            />
-            <span className="text-xs font-medium">Budget</span>
-          </label>
-          <label className="flex flex-col items-center gap-1.5 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
-            <Checkbox
-              checked={confirmedAuthority}
-              onCheckedChange={(checked) => setQualification("authority", !!checked)}
-            />
-            <span className="text-xs font-medium">Authority</span>
-          </label>
-          <label className="flex flex-col items-center gap-1.5 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
-            <Checkbox
-              checked={confirmedNeed}
-              onCheckedChange={(checked) => setQualification("need", !!checked)}
-            />
-            <span className="text-xs font-medium">Need</span>
-          </label>
-          <label className="flex flex-col items-center gap-1.5 p-2 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
-            <Checkbox
-              checked={confirmedTimeline}
-              onCheckedChange={(checked) => setQualification("timeline", !!checked)}
-            />
-            <span className="text-xs font-medium">Timeline</span>
-          </label>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Call Outcome */}
-      <div>
-        <div className="text-sm font-medium mb-3">Call Outcome</div>
-        <div className="grid grid-cols-3 gap-2">
-          {CALL_OUTCOMES_UI.map((o) => (
-            <Button
-              key={o.value}
-              variant={outcome === o.value ? "default" : "outline"}
-              size="sm"
-              onClick={() => setOutcome(o.value as any)}
-              className="h-9"
-            >
-              <span className="mr-1.5">{o.icon}</span>
-              {o.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Disposition (shown if connected) */}
-      {outcome === "connected" && (
-        <div>
-          <div className="text-sm font-medium mb-3">Result</div>
-          <div className="grid grid-cols-2 gap-2">
-            {CALL_DISPOSITIONS.slice(0, 4).map((d) => (
-              <Button
-                key={d.value}
-                variant={disposition === d.value ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDisposition(d.value as any)}
-                className="h-9 justify-start"
-              >
-                {d.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

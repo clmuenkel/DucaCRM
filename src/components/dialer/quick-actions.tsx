@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Calendar,
   PhoneOff,
@@ -72,6 +73,7 @@ const TIME_SLOTS = generateTimeSlots();
 const US_TIMEZONES = getUSTimezones();
 
 export function QuickActions({ contact, onActionComplete, onNextContact }: QuickActionsProps) {
+  const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [showWrongNumberDialog, setShowWrongNumberDialog] = useState(false);
@@ -90,7 +92,7 @@ export function QuickActions({ contact, onActionComplete, onNextContact }: Quick
   // Meeting scheduling state
   const tomorrow = addDays(new Date(), 1);
   const defaultDate = format(tomorrow, "yyyy-MM-dd");
-  const [meetingTitle, setMeetingTitle] = useState(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
+  const [meetingTitle, setMeetingTitle] = useState("Intro Meeting with Evios");
   const [meetingDate, setMeetingDate] = useState(defaultDate);
   const [meetingTime, setMeetingTime] = useState("10:00");
   const [meetingTimezone, setMeetingTimezone] = useState("America/New_York");
@@ -131,13 +133,16 @@ export function QuickActions({ contact, onActionComplete, onNextContact }: Quick
       }
 
       // Reset form
-      setMeetingTitle(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
+      setMeetingTitle("Intro Meeting with Evios");
       setMeetingDate(defaultDate);
       setMeetingTime("10:00");
       setMeetingTimezone("America/New_York");
       setMeetingDuration("30");
       setMeetingLocation("");
       setMeetingDescription("");
+      
+      // Refresh meetings cache so calendar page updates immediately
+      queryClient.invalidateQueries({ queryKey: ["meetings"] });
       
       setShowScheduleDialog(false);
       onActionComplete();

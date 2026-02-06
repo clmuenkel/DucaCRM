@@ -347,6 +347,17 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       // Connect the client
       await client.connect();
 
+      // Attach remote audio element so we can hear the other party
+      // Telnyx WebRTC requires an <audio> element for playback
+      let audioEl = document.getElementById("telnyx-remote-audio") as HTMLAudioElement | null;
+      if (!audioEl) {
+        audioEl = document.createElement("audio");
+        audioEl.id = "telnyx-remote-audio";
+        audioEl.autoplay = true;
+        document.body.appendChild(audioEl);
+      }
+      client.remoteElement = audioEl;
+
       set({ telnyxClient: client, telnyxError: null });
     } catch (error: any) {
       console.error("Error initializing Telnyx client:", error);

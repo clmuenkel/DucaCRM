@@ -75,7 +75,7 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
   const tomorrow = addDays(new Date(), 1);
   const defaultDate = format(tomorrow, "yyyy-MM-dd");
   
-  const [title, setTitle] = useState(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
+  const [title, setTitle] = useState("Intro Meeting with Evios");
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState("10:00");
   const [timezone, setTimezone] = useState("America/New_York");
@@ -126,7 +126,7 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
       onOpenChange(false);
       
       // Reset form
-      setTitle(`Meeting with ${contact.first_name} ${contact.last_name || ""}`);
+      setTitle("Intro Meeting with Evios");
       setDate(defaultDate);
       setTime("10:00");
       setTimezone("America/New_York");
