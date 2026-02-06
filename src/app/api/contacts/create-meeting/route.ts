@@ -112,40 +112,48 @@ export async function POST(request: NextRequest) {
     const startTime = createDateInTimezone(year, month, day, hours, minutes, contactTimezone);
     const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
 
-    // Get Google Calendar tokens from profile (REQUIRED - fail if missing)
+    // Get Google Calendar tokens from profile (use maybeSingle to avoid errors if not found)
     const { data: profileData, error: profileError } = await insforge.database
       .from("profiles")
-      .select("full_name, email, google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at")
+      .select("google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profileData) {
+    if (profileError) {
+      console.error("Profile query error:", profileError);
       return NextResponse.json(
         { 
-          error: "User profile not found. Please ensure your profile is set up.",
+          error: `Failed to fetch Google Calendar tokens: ${profileError.message}`,
           success: false 
         },
-        { status: 404 }
+        { status: 500 }
       );
     }
 
-    const profile = profileData as {
-      full_name: string | null;
-      email: string;
-      google_calendar_access_token: string | null;
-      google_calendar_refresh_token: string | null;
-      google_calendar_token_expires_at: string | null;
-    };
+    // Check if Google Calendar tokens exist
+    const accessToken = profileData?.google_calendar_access_token;
+    const refreshToken = profileData?.google_calendar_refresh_token;
+    const expiresAt = profileData?.google_calendar_token_expires_at;
 
-    if (!profile.google_calendar_access_token || !profile.google_calendar_refresh_token) {
+    if (!accessToken || !refreshToken) {
       return NextResponse.json(
         { 
-          error: "Google Calendar not connected. Please connect Google Calendar in Settings first.",
+          error: "Google Calendar not connected. Please connect Google Calendar via /api/auth/google first.",
           success: false 
         },
         { status: 400 }
       );
     }
+
+    // Use hardcoded user info (no settings needed)
+    const { USER_INFO } = await import("@/lib/default-user");
+    const profile = {
+      full_name: USER_INFO.full_name,
+      email: USER_INFO.email,
+      google_calendar_access_token: accessToken,
+      google_calendar_refresh_token: refreshToken,
+      google_calendar_token_expires_at: expiresAt,
+    };
 
     // Get template if provided
     let template: EmailTemplate | null = null;
@@ -174,9 +182,9 @@ export async function POST(request: NextRequest) {
       timeZoneName: "short",
     });
 
-    // Build template variables
+    // Build template variables (use hardcoded user info)
     const variables: Record<string, string> = {
-      sender_name: profile.full_name || "Your Name",
+      sender_name: USER_INFO.full_name,
       meeting_date: meetingDate,
       meeting_time: meetingTime,
       meeting_link: "", // Will be empty in description (Google Calendar handles the link)
@@ -199,15 +207,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Get valid access token (refresh if needed)
-    const accessToken = await getValidAccessToken(
-      profile.google_calendar_access_token,
-      profile.google_calendar_refresh_token,
-      profile.google_calendar_token_expires_at
+    const validAccessToken = await getValidAccessToken(
+      accessToken,
+      refreshToken,
+      expiresAt
     );
 
     // Create Google Calendar event (sendUpdates=all automatically sends invite)
     const calendarResult = await createCalendarEvent({
-      accessToken,
+      accessToken: validAccessToken,
       summary: title,
       description: calendarDescription,
       startTime,
