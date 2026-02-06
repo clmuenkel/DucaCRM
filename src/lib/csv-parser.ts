@@ -5,6 +5,7 @@
  */
 
 import type { InsertTables } from "@/types/database";
+import { normalizeToE164 } from "@/lib/utils";
 
 // ============================================================================
 // SHARED TYPES
@@ -794,14 +795,19 @@ export function mapToCompany(
 function cleanPhoneNumber(phone: string | null | undefined): string | null {
   if (!phone) return null;
   
-  // Remove quotes, plus signs, and clean whitespace
+  // Remove quotes and clean whitespace
   let cleaned = phone
     .replace(/^['"]+|['"]+$/g, "") // Remove leading/trailing quotes
-    .replace(/^\+/g, "") // Remove leading plus
     .trim();
   
   // Return null if empty after cleaning
-  return cleaned.length > 0 ? cleaned : null;
+  if (cleaned.length === 0) return null;
+  
+  // Normalize to E.164 format for Twilio compatibility
+  const normalized = normalizeToE164(cleaned);
+  
+  // Return normalized version, or cleaned version if normalization fails
+  return normalized || cleaned;
 }
 
 export function mapApolloToContact(

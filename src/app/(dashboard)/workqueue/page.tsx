@@ -105,27 +105,66 @@ export default function WorkQueuePage() {
 
       // Bottom table: All other contacts (not in active cadence)
       // Show all active contacts that are NOT in active cadence
-      let bottomQuery = insforge.database
+      // Split into two queries to avoid .or() chaining issues
+      
+      // Query 1: Contacts with NULL cadence_status
+      const { data: nullCadenceData, error: nullError } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("user_id", DEFAULT_USER_ID)
-        .eq("status", "active") // Only show active contacts
-        .or("cadence_status.is.null,cadence_status.neq.active"); // Include NULL or non-active
+        .eq("status", "active")
+        .is("cadence_status", null);
 
+      if (nullError) {
+        console.error("Error loading NULL cadence contacts:", nullError);
+      }
+
+      // Query 2: Contacts with cadence_status not equal to "active"
+      const { data: notActiveData, error: notActiveError } = await insforge.database
+        .from("contacts")
+        .select("*")
+        .eq("user_id", DEFAULT_USER_ID)
+        .eq("status", "active")
+        .neq("cadence_status", "active");
+
+      if (notActiveError) {
+        console.error("Error loading non-active cadence contacts:", notActiveError);
+      }
+
+      // Combine results
+      let combinedData = [
+        ...(nullCadenceData || []),
+        ...(notActiveData || []),
+      ];
+
+      // Remove duplicates (in case a contact appears in both - shouldn't happen but be safe)
+      const uniqueContacts = Array.from(
+        new Map(combinedData.map(c => [c.id, c])).values()
+      );
+
+      // Filter out lost contacts if showLostFilter is false
+      let filteredData = uniqueContacts;
       if (!showLostFilter) {
-        bottomQuery = bottomQuery.or("cadence_outcome.is.null,cadence_outcome.neq.lost");
+        filteredData = uniqueContacts.filter(
+          c => !c.cadence_outcome || c.cadence_outcome !== "lost"
+        );
       }
 
-      const { data: bottomData, error: bottomError } = await bottomQuery
-        .order("industry", { ascending: true, nullsFirst: true })
-        .order("employee_count", { ascending: false, nullsFirst: true });
+      // Sort by industry and employee_count
+      filteredData.sort((a, b) => {
+        // First sort by industry
+        const industryA = a.industry || "";
+        const industryB = b.industry || "";
+        if (industryA !== industryB) {
+          return industryA.localeCompare(industryB);
+        }
+        // Then by employee_count (descending)
+        const countA = a.employee_count || 0;
+        const countB = b.employee_count || 0;
+        return countB - countA;
+      });
 
-      if (bottomError) {
-        console.error("Error loading all contacts:", bottomError);
-        toast.error(`Failed to load contacts: ${bottomError.message}`);
-      }
-
-      setAllContacts((bottomData as Contact[]) || []);
+      setAllContacts(filteredData as Contact[]);
     } catch (error) {
       console.error("Error loading contacts:", error);
       toast.error("Failed to load contacts");

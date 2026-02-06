@@ -147,6 +147,13 @@ export async function sendEmailWithTemplate(
         }
       }
       
+      // Vercel Blob URLs are trusted - use directly without conversion
+      if (url.includes('blob.vercel-storage.com')) {
+        conversionStats.skipped++;
+        console.log(`[Image Conversion] Using Vercel Blob URL directly: ${url.substring(0, 50)}...`);
+        return match; // Use the URL directly - it's trusted
+      }
+      
       // Process external URLs (Imgur or other image hosts)
       if (url.startsWith('http://') || url.startsWith('https://')) {
         // Only process Imgur URLs or other external image URLs

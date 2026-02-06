@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { insforge } from "@/lib/insforge/server";
 import { extractDomain, mapApolloToContact, mapApolloToCompany } from "@/lib/csv-parser";
 import type { ApolloCSVRow } from "@/lib/csv-parser";
+import { normalizeToE164 } from "@/lib/utils";
 
 const BATCH_SIZE = 50; // Insert 50 contacts at a time
 const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
@@ -188,6 +189,16 @@ export async function POST(request: NextRequest) {
         ...mapApolloToContact(row, userId, companyId || undefined),
         source_list: sourceList,
       };
+
+      // Normalize phone numbers to E.164 format
+      if (contactData.phone) {
+        const normalized = normalizeToE164(contactData.phone);
+        contactData.phone = normalized || contactData.phone;
+      }
+      if (contactData.mobile) {
+        const normalized = normalizeToE164(contactData.mobile);
+        contactData.mobile = normalized || contactData.mobile;
+      }
 
       // Validate required fields
       if (!contactData.first_name || contactData.first_name.trim() === "") {
