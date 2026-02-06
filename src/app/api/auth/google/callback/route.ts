@@ -77,25 +77,51 @@ export async function GET(request: NextRequest) {
     const userId = DEFAULT_USER_ID;
     const { USER_INFO } = await import("@/lib/default-user");
 
-    // Use upsert to create profile if it doesn't exist, or update if it does
-    const { error: updateError } = await insforge.database
+    // Check if profile exists
+    const { data: existingProfile } = await insforge.database
       .from("profiles")
-      .upsert([{
-        id: userId,
-        full_name: USER_INFO.full_name, // Required field
-        email: USER_INFO.email, // Required field
-        google_calendar_access_token: access_token,
-        google_calendar_refresh_token: refresh_token || null,
-        google_calendar_token_expires_at: expiresAt,
-        daily_call_goal: 50, // Default values
-        daily_email_goal: 20,
-      }], { onConflict: "id" });
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
 
-    if (updateError) {
-      console.error("Error storing tokens:", updateError);
-      return NextResponse.redirect(
-        `${request.nextUrl.origin}/?error=token_storage_failed&message=${encodeURIComponent(updateError.message)}`
-      );
+    if (existingProfile) {
+      // Profile exists - update with tokens
+      const { error: updateError } = await insforge.database
+        .from("profiles")
+        .update({
+          google_calendar_access_token: access_token,
+          google_calendar_refresh_token: refresh_token || null,
+          google_calendar_token_expires_at: expiresAt,
+        })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.error("Error updating tokens:", updateError);
+        return NextResponse.redirect(
+          `${request.nextUrl.origin}/?error=token_storage_failed&message=${encodeURIComponent(updateError.message)}`
+        );
+      }
+    } else {
+      // Profile doesn't exist - create it with tokens
+      const { error: createError } = await insforge.database
+        .from("profiles")
+        .insert([{
+          id: userId,
+          full_name: USER_INFO.full_name,
+          email: USER_INFO.email,
+          google_calendar_access_token: access_token,
+          google_calendar_refresh_token: refresh_token || null,
+          google_calendar_token_expires_at: expiresAt,
+          daily_call_goal: 50,
+          daily_email_goal: 20,
+        }]);
+
+      if (createError) {
+        console.error("Error creating profile with tokens:", createError);
+        return NextResponse.redirect(
+          `${request.nextUrl.origin}/?error=token_storage_failed&message=${encodeURIComponent(createError.message)}`
+        );
+      }
     }
 
     return NextResponse.redirect(
