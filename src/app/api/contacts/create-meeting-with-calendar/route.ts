@@ -7,10 +7,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Contact, EmailTemplate } from "@/types/database";
-import { renderTemplate } from "@/lib/email-template-renderer";
+import { renderTemplate, htmlToPlainText } from "@/lib/email-template-renderer";
 import { createCalendarEvent, getValidAccessToken } from "@/lib/google-calendar/client";
-import { generateICSFile } from "@/lib/email/ics-generator";
-import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import { getIndustryForTemplate } from "@/lib/utils";
 import { getTimezoneFromLocation, createDateInTimezone } from "@/lib/timezone";
 
@@ -173,78 +171,7 @@ export async function POST(request: NextRequest) {
       google_calendar_token_expires_at: profile?.google_calendar_token_expires_at || null,
     };
 
-    let calendarEventId: string | null = null;
-    let calendarHtmlLink: string | null = null;
-    let icsContent: string | null = null;
-    let generatedMeetLink: string | null = null;
-
-    // Create Google Calendar event if requested and tokens are available
-    // Note: Google Calendar tokens are not currently stored in profiles table
-    // Calendar functionality will be skipped if tokens are not available
-    if (createCalendarInvite && typedProfile.google_calendar_access_token) {
-      try {
-        const accessToken = await getValidAccessToken(
-          typedProfile.google_calendar_access_token,
-          typedProfile.google_calendar_refresh_token || null,
-          typedProfile.google_calendar_token_expires_at || null
-        );
-
-        // Update tokens if refreshed
-        // Note: Google Calendar token fields are not currently in profiles table
-        // Token refresh is handled in memory for this session only
-        // TODO: Add google_calendar_* fields to profiles table if calendar integration is needed
-        // if (accessToken !== typedProfile.google_calendar_access_token) {
-        //   const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour
-        //   await insforge.database
-        //     .from("profiles")
-        //     .update({
-        //       google_calendar_access_token: accessToken,
-        //       google_calendar_token_expires_at: expiresAt,
-        //     })
-        //     .eq("id", userId);
-        // }
-
-        const calendarResult = await createCalendarEvent({
-          accessToken,
-          summary: title,
-          description: description || `Meeting with ${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
-          startTime,
-          endTime,
-          attendeeEmail: typedContact.email,
-          attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
-          location,
-          meetingLink: meetingLink || undefined, // Only pass if user provided custom
-          timezone: contactTimezone, // Use contact's timezone
-        });
-
-        calendarEventId = calendarResult.eventId;
-        calendarHtmlLink = calendarResult.htmlLink;
-        // Extract generated Meet link (or use custom if provided)
-        generatedMeetLink = calendarResult.meetLink || meetingLink || null;
-        
-        // Log calendar result for debugging
-        console.log('Calendar Result:', {
-          eventId: calendarResult.eventId,
-          meetLink: calendarResult.meetLink,
-          hasMeetLink: !!calendarResult.meetLink,
-          meetLinkLength: calendarResult.meetLink?.length || 0,
-        });
-        
-        // Log final link being used
-        console.log('Final Meet Link for template:', generatedMeetLink ? `${generatedMeetLink.substring(0, 50)}...` : 'NULL');
-        console.log('Google Calendar invite sent automatically to:', typedContact.email);
-
-        // Note: Google Calendar automatically sends invite email to attendee via sendUpdates=all
-        // ICS file is optional - only generate if needed for backup or custom email
-        // For now, we'll skip ICS since Google handles the invite
-        icsContent = null; // Google sends the official invite, no need for ICS
-      } catch (calendarError: any) {
-        console.error("Failed to create calendar event:", calendarError);
-        // Continue without calendar event - still send email
-      }
-    }
-
-    // Get or find scheduling email template
+    // Get or find scheduling email template BEFORE creating calendar event
     let template: EmailTemplate | null = null;
     if (templateId) {
       const { data: templateData } = await insforge.database
@@ -275,69 +202,77 @@ export async function POST(request: NextRequest) {
     const meetingTime = startTime.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
-      timeZone: contactTimezone, // Use contact's timezone
+      timeZone: contactTimezone,
       timeZoneName: "short",
     });
 
-    // Generate meeting link - prioritize Calendar event page (with Yes/No buttons), then Meet link
-    let finalMeetLink: string | null = null;
-    
-    if (calendarHtmlLink) {
-      // Use calendar HTML link (event page with Yes/No buttons) - this is what user wants
-      finalMeetLink = calendarHtmlLink;
-      console.log('[Create Meeting] Using Calendar event page link:', finalMeetLink);
-    } else if (generatedMeetLink) {
-      // Fallback to Meet link if calendar event not created
-      finalMeetLink = generatedMeetLink;
-      console.log('[Create Meeting] Using Google Meet link as fallback:', finalMeetLink);
-    } else if (meetingLink) {
-      // Use custom meeting link if provided
-      finalMeetLink = meetingLink;
-    }
-    // Removed long Google Calendar create-event URL fallback - invite is sent automatically by Google Calendar API
-
+    // Build template variables (meeting_link will be added after calendar event is created)
     const variables: Record<string, string> = {
       sender_name: typedProfile.full_name || "Your Name",
-      sender_calendar: "", // Don't use calendar link - Google Calendar handles this
+      sender_calendar: "",
       meeting_date: meetingDate,
       meeting_time: meetingTime,
-      meeting_link: finalMeetLink || "", // Always provide a meeting link
-      industry: getIndustryForTemplate(typedContact), // Add industry for template rendering
+      meeting_link: "", // Will be updated after calendar event is created
+      industry: getIndustryForTemplate(typedContact),
     };
-    
-    // Log variables being sent to template (truncate meeting_link for logging)
-    console.log('Template variables:', {
-      ...variables,
-      meeting_link: finalMeetLink ? `${finalMeetLink.substring(0, 50)}...` : 'EMPTY',
-      meeting_time: meetingTime,
-      contact_timezone: contactTimezone,
-    });
 
-    // Send email via Resend if template exists
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const resendFromEmail = process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM;
-    let emailSent = false;
+    // Render template for calendar description (if template exists)
+    let calendarDescription = description || `Meeting with ${typedContact.first_name} ${typedContact.last_name || ""}`.trim();
+    if (template) {
+      // Render template with variables (meeting_link will be empty initially, but that's okay)
+      const renderedTemplate = renderTemplate(template.body_template, {
+        ...variables,
+        first_name: typedContact.first_name || "",
+        last_name: typedContact.last_name || "",
+        full_name: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
+        company: typedContact.company_name || "",
+        title: typedContact.title || "",
+        email: typedContact.email || "",
+        phone: typedContact.phone || typedContact.mobile || "",
+      });
+      // Convert HTML to plain text for calendar description
+      calendarDescription = htmlToPlainText(renderedTemplate);
+    }
 
-    if (template && resendApiKey && resendFromEmail) {
+    let calendarEventId: string | null = null;
+    let calendarHtmlLink: string | null = null;
+    let generatedMeetLink: string | null = null;
+
+    // Create Google Calendar event if requested and tokens are available
+    if (createCalendarInvite && typedProfile.google_calendar_access_token) {
       try {
-        const sendResult = await sendEmailWithTemplate({
-          apiKey: resendApiKey,
-          fromEmail: resendFromEmail,
-          contact: typedContact,
-          template,
-          variables,
+        const accessToken = await getValidAccessToken(
+          typedProfile.google_calendar_access_token,
+          typedProfile.google_calendar_refresh_token || null,
+          typedProfile.google_calendar_token_expires_at || null
+        );
+
+        const calendarResult = await createCalendarEvent({
+          accessToken,
+          summary: title,
+          description: calendarDescription, // Use rendered template in description
+          startTime,
+          endTime,
+          attendeeEmail: typedContact.email,
+          attendeeName: `${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
+          location,
+          meetingLink: meetingLink || undefined,
+          timezone: contactTimezone,
         });
 
-        if (sendResult.success) {
-          emailSent = true;
-          // Update contact with resend email ID
-          await insforge.database
-            .from("contacts")
-            .update({ resend_email_id: sendResult.emailId })
-            .eq("id", contactId);
-        }
-      } catch (emailError: any) {
-        console.error("Failed to send email:", emailError);
+        calendarEventId = calendarResult.eventId;
+        calendarHtmlLink = calendarResult.htmlLink;
+        generatedMeetLink = calendarResult.meetLink || meetingLink || null;
+        
+        console.log('Calendar Result:', {
+          eventId: calendarResult.eventId,
+          meetLink: calendarResult.meetLink,
+          hasMeetLink: !!calendarResult.meetLink,
+        });
+        
+        console.log('Google Calendar invite sent automatically to:', typedContact.email);
+      } catch (calendarError: any) {
+        console.error("Failed to create calendar event:", calendarError);
       }
     }
 
@@ -409,10 +344,9 @@ export async function POST(request: NextRequest) {
       calendar: {
         eventId: calendarEventId,
         htmlLink: calendarHtmlLink,
-        icsContent: icsContent ? Buffer.from(icsContent).toString("base64") : null,
+        meetLink: generatedMeetLink,
       },
-      emailSent,
-      message: "Meeting created successfully",
+      message: "Meeting created successfully. Google Calendar invite sent automatically.",
     });
   } catch (error: any) {
     console.error("Create meeting with calendar error:", error);
