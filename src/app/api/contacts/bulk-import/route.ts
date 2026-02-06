@@ -194,14 +194,30 @@ export async function POST(request: NextRequest) {
       // This ensures all phone numbers are in Twilio-compatible format
       // Examples: "971 55 221 2763" -> "+971552212763", "1 480-707-2246" -> "+14807072246"
       if (contactData.phone) {
+        const original = contactData.phone;
         const normalized = normalizeToE164(contactData.phone);
-        // Only use normalized version - don't fall back to unnormalized
-        contactData.phone = normalized;
+        if (normalized) {
+          contactData.phone = normalized;
+          if (normalized !== original) {
+            console.log(`[Bulk Import] Normalized phone: "${original}" -> "${normalized}"`);
+          }
+        } else {
+          console.warn(`[Bulk Import] Failed to normalize phone: "${contactData.phone}"`);
+          contactData.phone = null; // Set to null if can't normalize
+        }
       }
       if (contactData.mobile) {
+        const original = contactData.mobile;
         const normalized = normalizeToE164(contactData.mobile);
-        // Only use normalized version - don't fall back to unnormalized
-        contactData.mobile = normalized;
+        if (normalized) {
+          contactData.mobile = normalized;
+          if (normalized !== original) {
+            console.log(`[Bulk Import] Normalized mobile: "${original}" -> "${normalized}"`);
+          }
+        } else {
+          console.warn(`[Bulk Import] Failed to normalize mobile: "${contactData.mobile}"`);
+          contactData.mobile = null; // Set to null if can't normalize
+        }
       }
 
       // Validate required fields

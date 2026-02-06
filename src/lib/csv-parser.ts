@@ -808,6 +808,11 @@ function cleanPhoneNumber(phone: string | null | undefined): string | null {
   // and "1 480-707-2246" -> "+14807072246"
   const normalized = normalizeToE164(cleaned);
   
+  if (!normalized) {
+    // Log if normalization failed for debugging
+    console.warn(`[CSV Parser] Failed to normalize phone number: "${phone}" (cleaned: "${cleaned}")`);
+  }
+  
   // Always return normalized version if available, otherwise return null
   // Don't return unnormalized version as it won't work with Twilio
   return normalized;
