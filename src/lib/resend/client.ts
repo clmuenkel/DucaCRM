@@ -15,6 +15,12 @@ export interface SendEmailParams {
   scheduledAt?: Date;
   tags?: Array<{ name: string; value: string }>;
   replyTo?: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    cid?: string;
+    contentType?: string;
+  }>;
 }
 
 export interface SendEmailResult {
@@ -87,6 +93,25 @@ export async function sendEmailViaResend(
     // Add tags for tracking
     if (params.tags && params.tags.length > 0) {
       emailData.tags = params.tags;
+    }
+
+    // Add attachments (for CID images)
+    if (params.attachments && params.attachments.length > 0) {
+      emailData.attachments = params.attachments.map(att => {
+        const attachment: any = {
+          filename: att.filename,
+          content: att.content.toString('base64'),
+        };
+        // Add CID for inline images
+        if (att.cid) {
+          attachment.cid = att.cid;
+        }
+        // Add content type if provided
+        if (att.contentType) {
+          attachment.content_type = att.contentType;
+        }
+        return attachment;
+      });
     }
 
     const { data, error } = await resend.emails.send(emailData);

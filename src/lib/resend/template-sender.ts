@@ -126,88 +126,120 @@ export async function sendEmailWithTemplate(
     // Render HTML version with proper formatting
     let renderedHTML = renderHTMLTemplate(template.body_template, contactVariables);
     
-    // Track image conversion statistics
-    const conversionStats = {
-      total: 0,
-      alreadyBase64: 0,
-      converted: 0,
-      skipped: 0,
-      failed: 0,
-    };
+    // Format meeting_link as button if present (after all variables are rendered)
+    if (contactVariables.meeting_link && contactVariables.meeting_link.trim()) {
+      const meetingLinkUrl = contactVariables.meeting_link.trim();
+      const buttonHTML = `<div style="margin: 20px 0;"><a href="${meetingLinkUrl}" style="display: inline-block; padding: 12px 24px; background-color: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-weight: 500;">View Calendar Event</a></div>`;
+      
+      // Replace {{meeting_link}} placeholder
+      renderedHTML = renderedHTML.replace(/\{\{meeting_link\}\}/gi, buttonHTML);
+    }
     
-    // Convert external images to base64 for instant loading (small images only)
-    // This regex finds all img src attributes with both external URLs and data URIs
+    // Convert base64 images to CID attachments (email clients block inline base64)
+    const base64Attachments: Array<{
+      filename: string;
+      content: Buffer;
+      cid: string;
+      contentType: string;
+    }> = [];
+    let cidCounter = 0;
+    
+    // Find all base64 images and convert to CID
+    renderedHTML = renderedHTML.replace(/<img([^>]*)\ssrc=["'](data:image\/([^;]+);base64,([^"']+))["']([^>]*)>/gi, (match, before, dataUri, imageType, base64Data, after) => {
+      try {
+        const cid = `image_${cidCounter++}`;
+        const contentType = imageType || 'png';
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        base64Attachments.push({
+          filename: `${cid}.${contentType}`,
+          content: buffer,
+          cid: cid,
+          contentType: `image/${contentType}`,
+        });
+        
+        console.log(`[Image CID] Converted base64 image to CID: ${cid} (${contentType}, ${buffer.length} bytes)`);
+        
+        // Replace with CID reference
+        return `<img${before} src="cid:${cid}"${after}>`;
+      } catch (error) {
+        console.error(`[Image CID] Failed to convert base64 to CID:`, error);
+        return match; // Keep original if conversion fails
+      }
+    });
+    
+    // Convert external images to base64 then CID (for small images only)
+    const externalImageUrls = new Set<string>();
     const imgSrcPattern = /<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi;
-    const imagePromises: Promise<void>[] = [];
-    const imageReplacements = new Map<string, string>();
+    let match;
     
-    renderedHTML = renderedHTML.replace(imgSrcPattern, (match, before, url, after) => {
-      conversionStats.total++;
-      
-      // Check if already base64 - validate format
-      if (url.startsWith('data:')) {
-        if (isValidBase64Image(url)) {
-          conversionStats.alreadyBase64++;
-          console.log(`[Image Conversion] Found valid base64 image (${conversionStats.alreadyBase64})`);
-          return match; // Already valid base64, keep as-is
-        } else {
-          console.warn(`[Image Conversion] Found invalid base64 format, attempting to fix: ${url.substring(0, 50)}...`);
-          // Invalid base64 format - will try to process as external URL if possible
-        }
+    // First pass: collect external image URLs
+    while ((match = imgSrcPattern.exec(renderedHTML)) !== null) {
+      const url = match[2];
+      // Skip if already processed (has cid: or data:)
+      if (url.includes('cid:') || url.startsWith('data:')) {
+        continue;
       }
-      
-      // Vercel Blob URLs are trusted - use directly without conversion
+      // Skip Vercel Blob URLs (different domain issue)
       if (url.includes('blob.vercel-storage.com')) {
-        conversionStats.skipped++;
-        console.log(`[Image Conversion] Using Vercel Blob URL directly: ${url.substring(0, 50)}...`);
-        return match; // Use the URL directly - it's trusted
+        console.log(`[Image CID] Skipping Vercel Blob URL (domain mismatch): ${url.substring(0, 50)}...`);
+        continue;
       }
-      
-      // Process external URLs (Imgur or other image hosts)
+      // Collect external image URLs
       if (url.startsWith('http://') || url.startsWith('https://')) {
-        // Only process Imgur URLs or other external image URLs
         if (url.includes('i.imgur.com') || url.includes('imgur.com') || url.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)) {
-          // Convert to base64 (only for small images)
-          const promise = convertImageToBase64(url).then(base64 => {
-            if (base64) {
-              imageReplacements.set(url, base64);
-              conversionStats.converted++;
-              console.log(`[Image Conversion] Successfully converted: ${url.substring(0, 50)}...`);
-            } else {
-              conversionStats.failed++;
-              console.warn(`[Image Conversion] Failed to convert: ${url.substring(0, 50)}...`);
-            }
-          }).catch(error => {
-            conversionStats.failed++;
-            console.error(`[Image Conversion] Error processing: ${url.substring(0, 50)}...`, error);
-          });
-          imagePromises.push(promise);
-        } else {
-          conversionStats.skipped++;
-          console.log(`[Image Conversion] Skipped non-image URL: ${url.substring(0, 50)}...`);
+          externalImageUrls.add(url);
         }
-      } else {
-        conversionStats.skipped++;
       }
+    }
+    
+    // Convert external images to base64 then CID
+    const imagePromises: Promise<void>[] = [];
+    const urlToCid = new Map<string, string>();
+    
+    externalImageUrls.forEach(url => {
+      const promise = convertImageToBase64(url).then(base64 => {
+        if (base64) {
+          // Extract base64 data from data URI
+          const base64Match = base64.match(/data:image\/([^;]+);base64,(.+)/);
+          if (base64Match) {
+            const [, imageType, base64Data] = base64Match;
+            const cid = `image_${cidCounter++}`;
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            base64Attachments.push({
+              filename: `${cid}.${imageType}`,
+              content: buffer,
+              cid: cid,
+              contentType: `image/${imageType}`,
+            });
+            
+            urlToCid.set(url, cid);
+            console.log(`[Image CID] Converted external image to CID: ${cid} (${url.substring(0, 50)}...)`);
+          }
+        }
+      }).catch(error => {
+        console.error(`[Image CID] Error converting external image: ${url.substring(0, 50)}...`, error);
+      });
+      imagePromises.push(promise);
+    });
+    
+    // Wait for external image conversions
+    if (imagePromises.length > 0) {
+      console.log(`[Image CID] Processing ${imagePromises.length} external images...`);
+      await Promise.race([
+        Promise.all(imagePromises),
+        new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout
+      ]);
       
-      return match;
-    });
+      // Replace external URLs with CID references
+      urlToCid.forEach((cid, url) => {
+        const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        renderedHTML = renderedHTML.replace(new RegExp(`src=["']${escapedUrl}["']`, 'gi'), `src="cid:${cid}"`);
+      });
+    }
     
-    // Wait for all image conversions (with increased timeout)
-    console.log(`[Image Conversion] Processing ${imagePromises.length} images...`);
-    await Promise.race([
-      Promise.all(imagePromises),
-      new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout
-    ]);
-    
-    // Replace URLs with base64 data URIs
-    imageReplacements.forEach((base64, url) => {
-      const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      renderedHTML = renderedHTML.replace(new RegExp(escapedUrl, 'g'), base64);
-    });
-    
-    // Log conversion statistics
-    console.log(`[Image Conversion] Summary: Total=${conversionStats.total}, AlreadyBase64=${conversionStats.alreadyBase64}, Converted=${conversionStats.converted}, Skipped=${conversionStats.skipped}, Failed=${conversionStats.failed}`);
+    console.log(`[Image CID] Total attachments: ${base64Attachments.length}`);
     
     // Generate plain text version for better deliverability
     const renderedText = htmlToPlainText(renderedHTML);
@@ -241,7 +273,7 @@ export async function sendEmailWithTemplate(
       finalReplyTo = fromEmailAddress;
     }
 
-    // Send via Resend
+    // Send via Resend with CID attachments
     const result = await sendEmailViaResend({
       apiKey,
       from: formattedFrom,
@@ -251,6 +283,7 @@ export async function sendEmailWithTemplate(
       text: renderedText, // Plain text version for better deliverability
       scheduledAt,
       replyTo: finalReplyTo, // Use domain-matched reply-to
+      attachments: base64Attachments.length > 0 ? base64Attachments : undefined,
       tags: [
         { name: "contact_id", value: contact.id },
         { name: "template_id", value: template.id },

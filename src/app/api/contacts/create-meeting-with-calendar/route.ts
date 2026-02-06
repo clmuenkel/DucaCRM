@@ -279,39 +279,22 @@ export async function POST(request: NextRequest) {
       timeZoneName: "short",
     });
 
-    // Generate meeting link - prioritize Meet link, then calendar HTML link, then generate Google Calendar URL
+    // Generate meeting link - prioritize Calendar event page (with Yes/No buttons), then Meet link
     let finalMeetLink: string | null = null;
     
-    if (generatedMeetLink) {
-      // Use generated Google Meet link if available
-      finalMeetLink = generatedMeetLink;
-    } else if (calendarHtmlLink) {
-      // Use calendar HTML link if Meet link not available
+    if (calendarHtmlLink) {
+      // Use calendar HTML link (event page with Yes/No buttons) - this is what user wants
       finalMeetLink = calendarHtmlLink;
+      console.log('[Create Meeting] Using Calendar event page link:', finalMeetLink);
+    } else if (generatedMeetLink) {
+      // Fallback to Meet link if calendar event not created
+      finalMeetLink = generatedMeetLink;
+      console.log('[Create Meeting] Using Google Meet link as fallback:', finalMeetLink);
     } else if (meetingLink) {
       // Use custom meeting link if provided
       finalMeetLink = meetingLink;
-    } else {
-      // Generate Google Calendar URL as fallback (works even without API)
-      const formatGoogleCalendarDate = (date: Date): string => {
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-      };
-      
-      const startDateStr = formatGoogleCalendarDate(startTime);
-      const endDateStr = formatGoogleCalendarDate(endTime);
-      
-      const calendarParams = new URLSearchParams({
-        action: 'TEMPLATE',
-        text: title,
-        dates: `${startDateStr}/${endDateStr}`,
-        details: description || `Meeting with ${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
-        location: location || '',
-        add: typedContact.email,
-      });
-      
-      finalMeetLink = `https://calendar.google.com/calendar/render?${calendarParams.toString()}`;
-      console.log('[Create Meeting] Generated Google Calendar URL as fallback:', finalMeetLink);
     }
+    // Removed long Google Calendar create-event URL fallback - invite is sent automatically by Google Calendar API
 
     const variables: Record<string, string> = {
       sender_name: typedProfile.full_name || "Your Name",
