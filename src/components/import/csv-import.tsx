@@ -422,7 +422,7 @@ export function CSVImport() {
     }
   };
 
-  // Apollo CSV Import handler
+  // Apollo CSV Import handler - uses server-side bulk import API
   const handleApolloImport = async () => {
     const toImport = apolloRows.filter((_, i) => selectedContacts.has(i));
     if (toImport.length === 0) {
@@ -430,7 +430,7 @@ export function CSVImport() {
       return;
     }
 
-    console.log("[Apollo Import] Starting import of", toImport.length, "contacts");
+    console.log("[Apollo Import] Starting bulk import of", toImport.length, "contacts");
     
     setStep("importing");
     setImportProgress(0);
@@ -449,398 +449,83 @@ export function CSVImport() {
     setFailedImports([]);
 
     const sourceList = listName || `Apollo Import ${new Date().toLocaleDateString()}`;
-    let created = 0;
-    let updated = 0;
-    let skipped = 0; // True duplicates (already exists, no update needed)
-    let companiesCreated = 0;
-    let companiesUpdated = 0;
-    let failed = 0;
-    let notesCreated = 0;
-    let processed = 0;
-    const failures: FailedImport[] = [];
 
-    // Cache for companies by domain to avoid duplicates
-    const companyCache = new Map<string, string>(); // domain or name -> company_id
-
-    for (let i = 0; i < toImport.length; i++) {
-      const row = toImport[i];
-      processed++;
-      const contactIdentifier = row.email || `${row.firstName} ${row.lastName}`.trim() || `Row ${i + 1}`;
-      console.log(`[Apollo Import] Processing ${i + 1}/${toImport.length}: ${contactIdentifier}`);
+    try {
+      // Simulate progress updates
+      setImportProgress(10);
       
-      try {
-        // 1. Find or create company
-        let companyId: string | null = null;
-        const domain = extractDomain(row.email);
-        
-        if (row.companyName) {
-          const cacheKey = domain || row.companyName.toLowerCase();
-          
-          // Check cache first
-          if (companyCache.has(cacheKey)) {
-            companyId = companyCache.get(cacheKey)!;
-          } else {
-            // Check if company exists by domain
-            if (domain) {
-              try {
-                const result = await retryWithBackoff(async () =>
-                  insforge.database
-                    .from("companies")
-                    .select("id")
-                    .eq("user_id", userId)
-                    .eq("domain", domain)
-                    .maybeSingle()
-                );
-                const existingCompany = result.data as { id: string } | null;
-                
-                if (existingCompany?.id) {
-                  companyId = existingCompany.id;
-                  if (companyId) companyCache.set(cacheKey, companyId);
-                  
-                  // Update company with new data
-                  const companyData = mapApolloToCompany(row, userId, domain);
-                  if (companyData) {
-                    await retryWithBackoff(async () =>
-                      insforge.database
-                        .from("companies")
-                        .update({
-                          employee_count: companyData.employee_count,
-                          employee_range: companyData.employee_range,
-                          city: companyData.city,
-                          state: companyData.state,
-                          industry: companyData.industry,
-                        })
-                        .eq("id", companyId)
-                    );
-                    companiesUpdated++;
-                  }
-                }
-              } catch (error) {
-                console.error(`[Apollo Import] Error checking company by domain:`, error);
-              }
-              
-              // Add delay after each database call
-              await delay(50);
-            }
-            
-            // If no company found, check by name
-            if (!companyId) {
-              try {
-                const result = await retryWithBackoff(async () =>
-                  insforge.database
-                    .from("companies")
-                    .select("id")
-                    .eq("user_id", userId)
-                    .eq("name", row.companyName)
-                    .maybeSingle()
-                );
-                const existingByName = result.data as { id: string } | null;
-                
-                if (existingByName?.id) {
-                  companyId = existingByName.id;
-                  if (companyId) companyCache.set(cacheKey, companyId);
-                  
-                  // Update company with new data
-                  const companyData = mapApolloToCompany(row, userId, domain);
-                  if (companyData) {
-                    await retryWithBackoff(async () =>
-                      insforge.database
-                        .from("companies")
-                        .update({
-                          domain: domain || undefined,
-                          employee_count: companyData.employee_count,
-                          employee_range: companyData.employee_range,
-                          city: companyData.city,
-                          state: companyData.state,
-                          industry: companyData.industry,
-                        })
-                        .eq("id", companyId)
-                    );
-                    companiesUpdated++;
-                  }
-                }
-              } catch (error) {
-                console.error(`[Apollo Import] Error checking company by name:`, error);
-              }
-              
-              // Add delay after each database call
-              await delay(50);
-            }
-            
-            // Create new company if not found
-            if (!companyId) {
-              const companyData = mapApolloToCompany(row, userId, domain);
-              if (companyData) {
-                try {
-                  const result = await retryWithBackoff(async () =>
-                    insforge.database
-                      .from("companies")
-                      .insert([companyData])
-                      .select("id")
-                      .single()
-                  );
-                  const newCompany = result.data as { id: string } | null;
-                  const companyError = result.error;
-                  
-                  if (!companyError && newCompany) {
-                    companyId = newCompany.id;
-                    companiesCreated++;
-                    if (companyId) companyCache.set(cacheKey, companyId);
-                  } else if (companyError) {
-                    console.error("Company insert error:", companyError);
-                  }
-                } catch (error) {
-                  console.error(`[Apollo Import] Error creating company:`, error);
-                }
-                
-                // Add delay after each database call
-                await delay(50);
-              }
-            }
-          }
-        }
+      const response = await fetch("/api/contacts/bulk-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rows: toImport,
+          userId,
+          sourceList,
+        }),
+      });
 
-        // 2. Find existing contact by email only (as per user preference)
-        let existingContactId: string | null = null;
-        
-        if (row.email) {
-          try {
-            const result = await retryWithBackoff(async () =>
-              insforge.database
-                .from("contacts")
-                .select("id")
-                .eq("user_id", userId)
-                .eq("email", row.email.toLowerCase())
-                .maybeSingle()
-            );
-            const byEmail = result.data as { id: string } | null;
-            
-            if (byEmail?.id) existingContactId = byEmail.id;
-          } catch (error) {
-            console.error(`[Apollo Import] Error checking contact by email:`, error);
-          }
-          
-          // Add delay after each database call
-          await delay(50);
-        }
+      setImportProgress(50);
 
-        // 3. Insert or update contact
-        const contactData = {
-          ...mapApolloToContact(row, userId, companyId || undefined),
-          source_list: sourceList,
-        };
-
-        // Validate required fields before insert/update
-        if (!contactData.first_name || contactData.first_name.trim() === "") {
-          console.error(`[Apollo Import] Skipping contact with empty first_name: ${contactIdentifier}`);
-          failures.push({
-            row,
-            type: "contact",
-            error: "first_name is required but was empty after fallback",
-            errorCode: "VALIDATION_ERROR",
-          });
-          failed++;
-          continue;
-        }
-
-        if (!contactData.user_id) {
-          console.error(`[Apollo Import] Skipping contact with empty user_id: ${contactIdentifier}`);
-          failures.push({
-            row,
-            type: "contact",
-            error: "user_id is required but was empty",
-            errorCode: "VALIDATION_ERROR",
-          });
-          failed++;
-          continue;
-        }
-
-        if (existingContactId) {
-          console.log(`[Apollo Import] Contact exists (email: ${row.email}), updating: ${existingContactId}`);
-          // Update existing contact - but don't overwrite phone/mobile with empty values
-          const updateData: Record<string, unknown> = { ...contactData };
-          
-          // Remove phone fields if they're empty to avoid wiping existing good numbers
-          if (!updateData.phone) delete updateData.phone;
-          if (!updateData.mobile) delete updateData.mobile;
-          
-          try {
-            const { error: updateError } = await retryWithBackoff(async () =>
-              insforge.database
-                .from("contacts")
-                .update(updateData)
-                .eq("id", existingContactId)
-            );
-            
-            if (updateError) {
-              console.error(`[Apollo Import] Update error for ${contactIdentifier}:`, updateError);
-              failures.push({
-                row,
-                type: "contact",
-                error: updateError.message,
-                errorCode: (updateError as any).code,
-              });
-              failed++;
-            } else {
-              updated++;
-              console.log(`[Apollo Import] ✓ Updated contact: ${contactIdentifier}`);
-              
-              // Create note for extra phones if present
-              if (row.extraPhonesNote) {
-                try {
-                  const { error: noteError } = await retryWithBackoff(async () =>
-                    insforge.database
-                      .from("notes")
-                      .insert([{
-                        user_id: userId,
-                        contact_id: existingContactId,
-                        company_id: companyId,
-                        content: row.extraPhonesNote,
-                        is_pinned: false,
-                        is_company_wide: false,
-                      }])
-                  );
-                  
-                  if (!noteError) notesCreated++;
-                  
-                  // Add delay after note insert
-                  await delay(50);
-                } catch (error) {
-                  console.error(`[Apollo Import] Error creating note:`, error);
-                }
-              }
-            }
-            
-            // Add delay after each database call
-            await delay(50);
-          } catch (error: any) {
-            console.error(`[Apollo Import] Update failed after retries for ${contactIdentifier}:`, error);
-            failures.push({
-              row,
-              type: "contact",
-              error: error?.message || "Update failed after retries",
-              errorCode: error?.code || "RETRY_FAILED",
-            });
-            failed++;
-          }
-        } else {
-          // Insert new contact
-          try {
-            const result = await retryWithBackoff(async () =>
-              insforge.database
-                .from("contacts")
-                .insert([contactData])
-                .select("id")
-                .single()
-            );
-            const newContact = result.data as { id: string } | null;
-            const insertError = result.error;
-            
-            if (insertError) {
-              console.error("Insert error:", insertError);
-              failures.push({
-                row,
-                type: "contact",
-                error: insertError.message,
-                errorCode: (insertError as any).code,
-              });
-              failed++;
-            } else {
-              created++;
-              
-              // Create note for extra phones if present
-              if (row.extraPhonesNote && newContact) {
-                try {
-                  const { error: noteError } = await retryWithBackoff(async () =>
-                    insforge.database
-                      .from("notes")
-                      .insert([{
-                        user_id: userId,
-                        contact_id: newContact.id,
-                        company_id: companyId,
-                        content: row.extraPhonesNote,
-                        is_pinned: false,
-                        is_company_wide: false,
-                      }])
-                  );
-                  
-                  if (!noteError) notesCreated++;
-                  
-                  // Add delay after note insert
-                  await delay(50);
-                } catch (error) {
-                  console.error(`[Apollo Import] Error creating note:`, error);
-                }
-              }
-            }
-            
-            // Add delay after each database call
-            await delay(50);
-          } catch (error: any) {
-            console.error(`[Apollo Import] Insert failed after retries for ${contactIdentifier}:`, error);
-            failures.push({
-              row,
-              type: "contact",
-              error: error?.message || "Insert failed after retries",
-              errorCode: error?.code || "RETRY_FAILED",
-            });
-            failed++;
-          }
-        }
-      } catch (error) {
-        const contactIdentifier = row.email || `${row.firstName} ${row.lastName}`.trim() || `Row ${i + 1}`;
-        console.error(`[Apollo Import] Unexpected error for ${contactIdentifier}:`, error);
-        
-        failures.push({
-          row,
-          type: "contact",
-          error: error instanceof Error ? error.message : String(error),
-        });
-        failed++;
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Import failed");
       }
 
-      // Update progress
-      setImportProgress(Math.round(((i + 1) / toImport.length) * 100));
-      setImportStats(prev => ({
-        ...prev,
-        created,
-        updated,
-        companiesCreated,
-        companiesUpdated,
-        failed,
-        notesCreated,
+      setImportProgress(90);
+
+      // Update stats from API response
+      setImportStats({
+        created: result.stats.created,
+        updated: result.stats.updated,
+        companiesCreated: result.stats.companiesCreated,
+        companiesUpdated: result.stats.companiesUpdated,
+        failed: result.stats.failed,
+        notesCreated: result.stats.notesCreated,
+        withMobile: apolloStats.withMobile,
+        withWorkPhone: apolloStats.withWorkPhone,
+        missingBothPhones: apolloStats.missingBothPhones,
+        topTags: apolloStats.topTags,
+      });
+
+      // Convert API failures to FailedImport format
+      const failures: FailedImport[] = (result.failures || []).map((f: any) => ({
+        row: f.row,
+        type: "contact" as const,
+        error: f.error,
+        errorCode: f.errorCode,
       }));
+      setFailedImports(failures);
       
-      // Add a small delay between contacts to avoid rate limiting
-      // This ensures we don't hit the rate limit even with retries
-      if (i < toImport.length - 1) {
-        await delay(100); // 100ms delay between each contact
+      setImportProgress(100);
+      
+      // Invalidate all queries to refresh dashboard tabs
+      console.log("[Apollo Import] Invalidating query cache to refresh dashboard...");
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["companies"] });
+      queryClient.invalidateQueries({ queryKey: ["activity"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      // Invalidate all queries to ensure all tabs refresh
+      queryClient.invalidateQueries();
+
+      setStep("done");
+      
+      const totalProcessed = result.stats.created + result.stats.updated;
+      const summary = `Processed ${toImport.length}: ${result.stats.created} created, ${result.stats.updated} updated${result.stats.failed > 0 ? `, ${result.stats.failed} failed` : ""}`;
+      console.log(`[Apollo Import] Import complete: ${summary}`);
+      
+      if (failures.length > 0) {
+        toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts (${failures.length} failed)`);
+      } else if (totalProcessed < toImport.length) {
+        toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts. Some may have been skipped as duplicates.`);
+      } else {
+        toast.success(`Successfully imported ${totalProcessed} contacts!`);
       }
-    }
-
-    // Invalidate all queries to refresh dashboard tabs
-    console.log("[Apollo Import] Invalidating query cache to refresh dashboard...");
-    queryClient.invalidateQueries({ queryKey: ["contacts"] });
-    queryClient.invalidateQueries({ queryKey: ["companies"] });
-    queryClient.invalidateQueries({ queryKey: ["activity"] });
-    queryClient.invalidateQueries({ queryKey: ["analytics"] });
-    // Invalidate all queries to ensure all tabs refresh
-    queryClient.invalidateQueries();
-
-    // Set final state
-    setFailedImports(failures);
-    setStep("done");
-    
-    const totalProcessed = created + updated;
-    const summary = `Processed ${processed}/${toImport.length}: ${created} created, ${updated} updated${failed > 0 ? `, ${failed} failed` : ""}`;
-    console.log(`[Apollo Import] Import complete: ${summary}`);
-    
-    if (failures.length > 0) {
-      toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts (${failures.length} failed)`);
-    } else if (totalProcessed < toImport.length) {
-      toast.warning(`Imported ${totalProcessed} of ${toImport.length} contacts. Some may have been skipped as duplicates.`);
-    } else {
-      toast.success(`Successfully imported ${totalProcessed} contacts!`);
+    } catch (error: any) {
+      console.error("[Apollo Import] Error:", error);
+      toast.error(error.message || "Import failed");
+      setStep("preview");
+      setImportProgress(0);
     }
   };
 
