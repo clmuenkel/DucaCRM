@@ -73,27 +73,33 @@ export async function GET(request: NextRequest) {
       ? new Date(Date.now() + expires_in * 1000).toISOString()
       : null;
 
-    // Store tokens in database
-        const userId = DEFAULT_USER_ID;
+    // Store tokens in database (create profile if it doesn't exist)
+    const userId = DEFAULT_USER_ID;
+    const { USER_INFO } = await import("@/lib/default-user");
 
+    // Use upsert to create profile if it doesn't exist, or update if it does
     const { error: updateError } = await insforge.database
       .from("profiles")
-      .update({
+      .upsert({
+        id: userId,
+        full_name: USER_INFO.full_name, // Required field
+        email: USER_INFO.email, // Required field
         google_calendar_access_token: access_token,
         google_calendar_refresh_token: refresh_token || null,
         google_calendar_token_expires_at: expiresAt,
-      })
-      .eq("id", userId);
+        daily_call_goal: 50, // Default values
+        daily_email_goal: 20,
+      });
 
     if (updateError) {
       console.error("Error storing tokens:", updateError);
       return NextResponse.redirect(
-        `${request.nextUrl.origin}/settings?error=token_storage_failed`
+        `${request.nextUrl.origin}/?error=token_storage_failed&message=${encodeURIComponent(updateError.message)}`
       );
     }
 
     return NextResponse.redirect(
-      `${request.nextUrl.origin}/settings?success=google_calendar_connected`
+      `${request.nextUrl.origin}/?success=google_calendar_connected`
     );
   } catch (error: any) {
     console.error("Google OAuth callback error:", error);

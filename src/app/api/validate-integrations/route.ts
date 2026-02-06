@@ -27,6 +27,15 @@ export async function GET(request: NextRequest) {
     },
   };
 
+  // Ensure profile exists first
+  try {
+    await fetch(`${request.nextUrl.origin}/api/profile/ensure`, {
+      method: "POST",
+    });
+  } catch (e) {
+    // Continue even if ensure fails
+  }
+
   // Check Google Calendar
   try {
     const { data: profileData } = await insforge.database

@@ -112,6 +112,15 @@ export async function POST(request: NextRequest) {
     const startTime = createDateInTimezone(year, month, day, hours, minutes, contactTimezone);
     const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
 
+    // Ensure profile exists first
+    try {
+      await fetch(`${request.nextUrl.origin}/api/profile/ensure`, {
+        method: "POST",
+      });
+    } catch (e) {
+      // Continue even if ensure fails - profile might already exist
+    }
+
     // Get Google Calendar tokens from profile (use maybeSingle to avoid errors if not found)
     const { data: profileData, error: profileError } = await insforge.database
       .from("profiles")
@@ -138,7 +147,7 @@ export async function POST(request: NextRequest) {
     if (!accessToken || !refreshToken) {
       return NextResponse.json(
         { 
-          error: "Google Calendar not connected. Please connect Google Calendar via /api/auth/google first.",
+          error: "Google Calendar not connected. Visit https://duca-crm.vercel.app/api/auth/google to connect.",
           success: false 
         },
         { status: 400 }
