@@ -27,13 +27,13 @@ interface DialerState {
   isCallActive: boolean;
   selectedPhoneType: PhoneType;
 
-  // Twilio-specific state
-  twilioDevice: any | null; // Twilio Voice SDK Device
-  twilioCall: any | null; // Active Twilio Call
+  // Telnyx-specific state
+  telnyxClient: any | null; // Telnyx WebRTC Client
+  telnyxCall: any | null; // Active Telnyx Call
   isConnecting: boolean;
-  twilioError: string | null;
-  twilioCallSid: string | null;
-  twilioNumberUsed: string | null;
+  telnyxError: string | null;
+  telnyxCallId: string | null;
+  telnyxNumberUsed: string | null;
 
   // Call data
   notes: string;
@@ -84,13 +84,13 @@ interface DialerState {
   setSelectedPhoneType: (phoneType: PhoneType) => void;
   getSelectedPhone: () => string | null;
 
-  // Twilio actions
-  initializeTwilioDevice: (token: string) => Promise<void>;
-  connectTwilioCall: (phoneNumber: string) => Promise<void>;
-  disconnectTwilioCall: () => void;
-  setTwilioError: (error: string | null) => void;
-  setTwilioCallSid: (callSid: string | null) => void;
-  setTwilioNumberUsed: (number: string | null) => void;
+  // Telnyx actions
+  initializeTelnyxClient: (token: string) => Promise<void>;
+  connectTelnyxCall: (phoneNumber: string) => Promise<void>;
+  disconnectTelnyxCall: () => void;
+  setTelnyxError: (error: string | null) => void;
+  setTelnyxCallId: (callId: string | null) => void;
+  setTelnyxNumberUsed: (number: string | null) => void;
 
   resetCallState: () => void;
 }
@@ -115,12 +115,12 @@ export const useDialerStore = create<DialerState>((set, get) => ({
   confirmedNeed: false,
   confirmedTimeline: false,
   followUpDate: null,
-  twilioDevice: null,
-  twilioCall: null,
+  telnyxClient: null,
+  telnyxCall: null,
   isConnecting: false,
-  twilioError: null,
-  twilioCallSid: null,
-  twilioNumberUsed: null,
+  telnyxError: null,
+  telnyxCallId: null,
+  telnyxNumberUsed: null,
 
   startSession: (contacts) => {
     set({
@@ -132,13 +132,21 @@ export const useDialerStore = create<DialerState>((set, get) => ({
   },
 
   endSession: () => {
-    // Disconnect Twilio call if active
-    const { twilioCall, twilioDevice } = get();
-    if (twilioCall) {
-      twilioCall.disconnect();
+    // Disconnect Telnyx call if active
+    const { telnyxCall, telnyxClient } = get();
+    if (telnyxCall) {
+      try {
+        telnyxCall.hangup();
+      } catch (e) {
+        console.error("Error hanging up call:", e);
+      }
     }
-    if (twilioDevice) {
-      twilioDevice.destroy();
+    if (telnyxClient) {
+      try {
+        telnyxClient.disconnect();
+      } catch (e) {
+        console.error("Error disconnecting client:", e);
+      }
     }
 
     set({
@@ -159,12 +167,12 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       confirmedNeed: false,
       confirmedTimeline: false,
       followUpDate: null,
-      twilioDevice: null,
-      twilioCall: null,
+      telnyxClient: null,
+      telnyxCall: null,
       isConnecting: false,
-      twilioError: null,
-      twilioCallSid: null,
-      twilioNumberUsed: null,
+      telnyxError: null,
+      telnyxCallId: null,
+      telnyxNumberUsed: null,
     });
   },
 
@@ -300,58 +308,65 @@ export const useDialerStore = create<DialerState>((set, get) => ({
     return currentContact.phone || currentContact.mobile || null;
   },
 
-  initializeTwilioDevice: async (token: string) => {
+  initializeTelnyxClient: async (token: string) => {
     try {
-      // Dynamically import Twilio Voice SDK (browser only)
-      const { Device } = await import("@twilio/voice-sdk");
+      // Dynamically import Telnyx WebRTC SDK (browser only)
+      const { TelnyxRTC } = await import("@telnyx/webrtc");
 
-      const { twilioDevice } = get();
-      // Destroy existing device if any
-      if (twilioDevice) {
-        twilioDevice.destroy();
+      const { telnyxClient } = get();
+      // Disconnect existing client if any
+      if (telnyxClient) {
+        try {
+          telnyxClient.disconnect();
+        } catch (e) {
+          console.error("Error disconnecting existing client:", e);
+        }
       }
 
-      // Create new device
-      const device = new Device(token, {
-        logLevel: 1, // Error level logging
+      // Create new client
+      const client = new TelnyxRTC({
+        login_token: token,
       });
 
       // Set up event handlers
-      device.on("registered", () => {
-        console.log("Twilio device registered");
-        set({ twilioError: null });
+      client.on("telnyx.ready", () => {
+        console.log("Telnyx client ready");
+        set({ telnyxError: null });
       });
 
-      device.on("error", (error: any) => {
-        console.error("Twilio device error:", error);
-        set({ twilioError: error.message || "Twilio device error" });
+      client.on("telnyx.error", (error: any) => {
+        console.error("Telnyx client error:", error);
+        set({ telnyxError: error.message || "Telnyx client error" });
       });
 
-      device.on("incoming", (call: any) => {
-        // We don't handle incoming calls (outbound only)
-        console.log("Incoming call (ignored):", call);
+      client.on("telnyx.socket.error", (error: any) => {
+        console.error("Telnyx socket error:", error);
+        set({ telnyxError: "Connection error. Please try again." });
       });
 
-      set({ twilioDevice: device, twilioError: null });
+      // Connect the client
+      await client.connect();
+
+      set({ telnyxClient: client, telnyxError: null });
     } catch (error: any) {
-      console.error("Error initializing Twilio device:", error);
-      set({ twilioError: error.message || "Failed to initialize Twilio device" });
+      console.error("Error initializing Telnyx client:", error);
+      set({ telnyxError: error.message || "Failed to initialize Telnyx client" });
       throw error;
     }
   },
 
-  connectTwilioCall: async (phoneNumber: string) => {
-    const { twilioDevice, currentContact } = get();
+  connectTelnyxCall: async (phoneNumber: string) => {
+    const { telnyxClient, currentContact } = get();
 
-    if (!twilioDevice) {
-      throw new Error("Twilio device not initialized. Please initialize first.");
+    if (!telnyxClient) {
+      throw new Error("Telnyx client not initialized. Please initialize first.");
     }
 
     if (!currentContact) {
       throw new Error("No contact selected");
     }
 
-    // Normalize phone number to E.164 format required by Twilio
+    // Normalize phone number to E.164 format
     const { normalizeToE164 } = await import("@/lib/utils");
     const normalizedNumber = normalizeToE164(phoneNumber);
     
@@ -359,16 +374,16 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       throw new Error(`Invalid phone number format: ${phoneNumber}. Please use E.164 format (e.g., +18322941575)`);
     }
 
-    set({ isConnecting: true, twilioError: null });
+    set({ isConnecting: true, telnyxError: null });
 
     try {
       // First, initiate call via API to get number and track usage
-      const initiateResponse = await fetch("/api/twilio/call/initiate", {
+      const initiateResponse = await fetch("/api/telnyx/call/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId: currentContact.id,
-          toNumber: normalizedNumber, // Use normalized number
+          toNumber: normalizedNumber,
         }),
       });
 
@@ -377,105 +392,101 @@ export const useDialerStore = create<DialerState>((set, get) => ({
         throw new Error(errorData.error || "Failed to initiate call");
       }
 
-      const { phoneNumber: twilioNumberUsed, twilioCallId } = await initiateResponse.json();
-      set({ twilioNumberUsed });
+      const { phoneNumber: telnyxNumberUsed, telnyxCallId } = await initiateResponse.json();
+      set({ telnyxNumberUsed, telnyxCallId });
 
-      // Normalize Twilio number as well (should already be E.164, but be safe)
-      const normalizedTwilioNumber = normalizeToE164(twilioNumberUsed) || twilioNumberUsed;
+      // Normalize Telnyx number as well
+      const normalizedTelnyxNumber = normalizeToE164(telnyxNumberUsed) || telnyxNumberUsed;
 
-      // Connect call using Twilio Voice SDK
-      const params = {
-        To: normalizedNumber, // Contact's phone number (normalized to E.164)
-        From: normalizedTwilioNumber, // Twilio number to use (normalized to E.164)
-      };
-
-      const call = await twilioDevice.connect({ params });
+      // Create the call using Telnyx WebRTC SDK
+      const call = telnyxClient.newCall({
+        destinationNumber: normalizedNumber,
+        callerNumber: normalizedTelnyxNumber,
+      });
 
       // Set up call event handlers
-      call.on("accept", () => {
-        console.log("Call accepted");
-        set({
-          isConnecting: false,
-          isCallActive: true,
-          callStartTime: new Date(),
-          callDuration: 0,
-          twilioCall: call,
-          twilioCallSid: call.parameters.CallSid,
-        });
-        get().startCall();
-      });
+      call.on("telnyx.notification", (notification: any) => {
+        const { call: callState } = notification;
+        console.log("Telnyx call notification:", callState?.state);
 
-      call.on("disconnect", () => {
-        console.log("Call disconnected");
-        const { callStartTime } = get();
-        const duration = callStartTime
-          ? Math.floor((new Date().getTime() - callStartTime.getTime()) / 1000)
-          : 0;
-        set({
-          isConnecting: false,
-          isCallActive: false,
-          callDuration: duration,
-          twilioCall: null,
-        });
-        get().endCall();
-      });
-
-      call.on("error", (error: any) => {
-        console.error("Call error:", error);
-        set({
-          isConnecting: false,
-          isCallActive: false,
-          twilioError: error.message || "Call error",
-          twilioCall: null,
-        });
-      });
-
-      call.on("cancel", () => {
-        console.log("Call cancelled");
-        set({
-          isConnecting: false,
-          isCallActive: false,
-          twilioCall: null,
-        });
+        switch (callState?.state) {
+          case "ringing":
+            console.log("Call ringing");
+            break;
+          case "active":
+            console.log("Call active");
+            set({
+              isConnecting: false,
+              isCallActive: true,
+              callStartTime: new Date(),
+              callDuration: 0,
+              telnyxCall: call,
+            });
+            get().startCall();
+            break;
+          case "hangup":
+          case "destroy":
+            console.log("Call ended");
+            const { callStartTime } = get();
+            const duration = callStartTime
+              ? Math.floor((new Date().getTime() - callStartTime.getTime()) / 1000)
+              : 0;
+            set({
+              isConnecting: false,
+              isCallActive: false,
+              callDuration: duration,
+              telnyxCall: null,
+            });
+            get().endCall();
+            break;
+        }
       });
 
       // Store call reference
-      set({ twilioCall: call });
+      set({ telnyxCall: call });
     } catch (error: any) {
-      console.error("Error connecting Twilio call:", error);
+      console.error("Error connecting Telnyx call:", error);
       set({
         isConnecting: false,
         isCallActive: false,
-        twilioError: error.message || "Failed to connect call",
-        twilioCall: null,
+        telnyxError: error.message || "Failed to connect call",
+        telnyxCall: null,
       });
       throw error;
     }
   },
 
-  disconnectTwilioCall: () => {
-    const { twilioCall } = get();
-    if (twilioCall) {
-      twilioCall.disconnect();
+  disconnectTelnyxCall: () => {
+    const { telnyxCall } = get();
+    if (telnyxCall) {
+      try {
+        telnyxCall.hangup();
+      } catch (e) {
+        console.error("Error hanging up call:", e);
+      }
     }
     set({
-      twilioCall: null,
+      telnyxCall: null,
       isConnecting: false,
       isCallActive: false,
     });
     get().endCall();
   },
 
-  setTwilioError: (error) => set({ twilioError: error }),
-  setTwilioCallSid: (callSid) => set({ twilioCallSid: callSid }),
-  setTwilioNumberUsed: (number) => set({ twilioNumberUsed: number }),
+  setTelnyxError: (error) => set({ telnyxError: error }),
+  setTelnyxCallId: (callId) => set({ telnyxCallId: callId }),
+  setTelnyxNumberUsed: (number) => set({ telnyxNumberUsed: number }),
 
   resetCallState: () => {
-    const { currentContact, twilioCall } = get();
+    const { currentContact, telnyxCall } = get();
     
-    // Disconnect any active Twilio call
-    if (twilioCall) {
-      twilioCall.disconnect();
+    // Disconnect any active Telnyx call
+    if (telnyxCall) {
+      try {
+        telnyxCall.hangup();
+      } catch (e) {
+        console.error("Error hanging up call:", e);
+      }
     }
 
     // Default to mobile if available, otherwise office
@@ -496,10 +507,10 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       confirmedNeed: currentContact?.has_need || false,
       confirmedTimeline: currentContact?.has_timeline || false,
       followUpDate: null,
-      twilioCall: null,
-      twilioError: null,
-      twilioCallSid: null,
-      twilioNumberUsed: null,
+      telnyxCall: null,
+      telnyxError: null,
+      telnyxCallId: null,
+      telnyxNumberUsed: null,
     });
   },
 }));

@@ -75,15 +75,15 @@ export function CallControlsHeader() {
     previousContact,
     skipContact,
     endSession,
-    twilioDevice,
+    telnyxClient,
     isConnecting,
-    twilioError,
-    twilioCallSid,
-    twilioNumberUsed,
-    initializeTwilioDevice,
-    connectTwilioCall,
-    disconnectTwilioCall,
-    setTwilioError,
+    telnyxError,
+    telnyxCallId,
+    telnyxNumberUsed,
+    initializeTelnyxClient,
+    connectTelnyxCall,
+    disconnectTelnyxCall,
+    setTelnyxError,
   } = useDialerStore();
 
   const logCall = useLogCall();
@@ -139,7 +139,7 @@ export function CallControlsHeader() {
   const hasBothNumbers = !!(mobileNumber && officeNumber && mobileNumber !== officeNumber);
   const selectedPhone = getSelectedPhone();
 
-  const dialTwilio = async () => {
+  const dialTelnyx = async () => {
     const phoneToCall = selectedPhone;
     if (!phoneToCall) {
       toast.error("No phone number available");
@@ -152,28 +152,28 @@ export function CallControlsHeader() {
     }
 
     try {
-      // Check if device is initialized
-      if (!twilioDevice) {
-        // Get access token and initialize device
-        const tokenResponse = await fetch("/api/twilio/token");
+      // Check if client is initialized
+      if (!telnyxClient) {
+        // Get access token and initialize client
+        const tokenResponse = await fetch("/api/telnyx/token");
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json();
-          throw new Error(errorData.error || "Failed to get Twilio token");
+          throw new Error(errorData.error || "Failed to get Telnyx token");
         }
 
         const { token } = await tokenResponse.json();
-        await initializeTwilioDevice(token);
+        await initializeTelnyxClient(token);
       }
 
       // Connect the call
-      setTwilioError(null);
-      await connectTwilioCall(phoneToCall);
+      setTelnyxError(null);
+      await connectTelnyxCall(phoneToCall);
       
       toast.success(`Connecting to ${selectedPhoneType === "mobile" ? "mobile" : "office"}...`);
     } catch (error: any) {
-      console.error("Error dialing Twilio:", error);
+      console.error("Error dialing Telnyx:", error);
       toast.error(error.message || "Failed to connect call");
-      setTwilioError(error.message || "Failed to connect call");
+      setTelnyxError(error.message || "Failed to connect call");
     }
   };
 
@@ -187,7 +187,7 @@ export function CallControlsHeader() {
   };
 
   const handleEndCall = () => {
-    disconnectTwilioCall();
+    disconnectTelnyxCall();
     endCall();
     toast.info("Call ended. Don't forget to log your outcome.");
   };
@@ -242,8 +242,8 @@ export function CallControlsHeader() {
           outcome,
           disposition: disposition || undefined,
           phone_used: selectedPhoneType,
-          twilio_call_sid: twilioCallSid || undefined,
-          twilio_number_used: twilioNumberUsed || undefined,
+          telnyx_call_id: telnyxCallId || undefined,
+          telnyx_number_used: telnyxNumberUsed || undefined,
           notes: notes || undefined,
           confirmed_budget: confirmedBudget,
           confirmed_authority: confirmedAuthority,
@@ -337,10 +337,10 @@ export function CallControlsHeader() {
 
         {/* Center: Phone Selector + Main Call Actions */}
         <div className="flex items-center gap-3">
-          {/* Twilio Error Display */}
-          {twilioError && (
+          {/* Telnyx Error Display */}
+          {telnyxError && (
             <div className="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-md text-sm text-red-600">
-              {twilioError}
+              {telnyxError}
             </div>
           )}
 
@@ -420,7 +420,7 @@ export function CallControlsHeader() {
               {/* DIAL BUTTON - Large and Prominent */}
               <Button 
                 size="lg" 
-                onClick={dialTwilio}
+                onClick={dialTelnyx}
                 disabled={!selectedPhone || isConnecting}
                 className="h-12 px-6 text-base font-semibold gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg disabled:opacity-50"
               >

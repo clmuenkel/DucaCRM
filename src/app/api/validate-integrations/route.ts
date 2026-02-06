@@ -1,6 +1,6 @@
 /**
  * GET /api/validate-integrations
- * Validate Google Calendar and Twilio integrations
+ * Validate Google Calendar and Telnyx integrations
  * Returns status of both integrations
  */
 
@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { getValidAccessToken } from "@/lib/google-calendar/client";
-import { getTwilioConfig, validateCredentials } from "@/lib/twilio/client";
+import { getTelnyxConfig, validateCredentials } from "@/lib/telnyx/client";
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       error: null as string | null,
       message: "",
     },
-    twilio: {
+    telnyx: {
       connected: false,
       error: null as string | null,
       message: "",
@@ -67,38 +67,42 @@ export async function GET(request: NextRequest) {
     results.googleCalendar.message = "Failed to check Google Calendar status";
   }
 
-  // Check Twilio
+  // Check Telnyx
   try {
-    const config = getTwilioConfig();
+    const config = getTelnyxConfig();
     
-    if (!config.accountSid || !config.authToken) {
-      results.twilio.error = "Twilio credentials not found in environment variables";
-      results.twilio.message = "Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in environment";
+    if (!config.apiKey) {
+      results.telnyx.error = "Telnyx API key not found in environment variables";
+      results.telnyx.message = "Set TELNYX_API_KEY in environment";
     } else {
       // Validate credentials
       const validation = await validateCredentials();
       if (validation.valid) {
-        results.twilio.connected = true;
-        results.twilio.hasNumbers = config.hasPhoneNumbers;
-        results.twilio.message = `Twilio connected. ${config.phoneNumbers.length} phone number(s) configured.`;
+        results.telnyx.connected = true;
+        results.telnyx.hasNumbers = config.hasPhoneNumbers;
+        results.telnyx.message = `Telnyx connected. ${config.phoneNumbers.length} phone number(s) configured.`;
+        
+        if (!config.sipConnectionId) {
+          results.telnyx.message += " Warning: TELNYX_SIP_CONNECTION_ID not set (needed for WebRTC).";
+        }
       } else {
-        results.twilio.error = validation.error || "Invalid credentials";
-        results.twilio.message = "Twilio credentials invalid - check environment variables";
+        results.telnyx.error = validation.error || "Invalid credentials";
+        results.telnyx.message = "Telnyx credentials invalid - check environment variables";
       }
     }
   } catch (error: any) {
-    results.twilio.error = error.message;
-    results.twilio.message = "Failed to check Twilio status";
+    results.telnyx.error = error.message;
+    results.telnyx.message = "Failed to check Telnyx status";
   }
 
-  const allConnected = results.googleCalendar.connected && results.twilio.connected;
+  const allConnected = results.googleCalendar.connected && results.telnyx.connected;
 
   return NextResponse.json({
     success: allConnected,
     ...results,
     summary: {
       googleCalendar: results.googleCalendar.connected ? "✅ Connected" : "❌ Not Connected",
-      twilio: results.twilio.connected ? "✅ Connected" : "❌ Not Connected",
+      telnyx: results.telnyx.connected ? "✅ Connected" : "❌ Not Connected",
     },
   });
 }

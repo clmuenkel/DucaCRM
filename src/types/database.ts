@@ -401,8 +401,8 @@ export interface Database {
           outcome: string;
           disposition: string | null;
           phone_used: string | null;
-          twilio_call_sid: string | null;
-          twilio_number_used: string | null;
+          telnyx_call_id: string | null;
+          telnyx_number_used: string | null;
           notes: string | null;
           timestamped_notes: TimestampedNote[];
           tags_applied: string[];
@@ -424,8 +424,8 @@ export interface Database {
           outcome: string;
           disposition?: string | null;
           phone_used?: string | null;
-          twilio_call_sid?: string | null;
-          twilio_number_used?: string | null;
+          telnyx_call_id?: string | null;
+          telnyx_number_used?: string | null;
           notes?: string | null;
           timestamped_notes?: TimestampedNote[];
           tags_applied?: string[];
@@ -447,8 +447,8 @@ export interface Database {
           outcome?: string;
           disposition?: string | null;
           phone_used?: string | null;
-          twilio_call_sid?: string | null;
-          twilio_number_used?: string | null;
+          telnyx_call_id?: string | null;
+          telnyx_number_used?: string | null;
           notes?: string | null;
           timestamped_notes?: TimestampedNote[];
           tags_applied?: string[];
@@ -462,12 +462,11 @@ export interface Database {
         };
         Relationships: [];
       };
-      twilio_numbers: {
+      telnyx_numbers: {
         Row: {
           id: string;
           user_id: string;
           phone_number: string;
-          twilio_sid: string | null;
           daily_call_count: number;
           daily_call_limit: number;
           last_used_at: string | null;
@@ -480,7 +479,6 @@ export interface Database {
           id?: string;
           user_id: string;
           phone_number: string;
-          twilio_sid?: string | null;
           daily_call_count?: number;
           daily_call_limit?: number;
           last_used_at?: string | null;
@@ -493,7 +491,6 @@ export interface Database {
           id?: string;
           user_id?: string;
           phone_number?: string;
-          twilio_sid?: string | null;
           daily_call_count?: number;
           daily_call_limit?: number;
           last_used_at?: string | null;
@@ -504,20 +501,19 @@ export interface Database {
         };
         Relationships: [];
       };
-      twilio_calls: {
+      telnyx_calls: {
         Row: {
           id: string;
-          call_sid: string;
+          call_control_id: string | null;
+          call_leg_id: string | null;
           user_id: string;
           contact_id: string | null;
-          twilio_number_id: string | null;
+          telnyx_number_id: string | null;
           status: string;
           duration: number | null;
           from_number: string;
           to_number: string;
           direction: string;
-          price: string | null;
-          price_unit: string | null;
           started_at: string | null;
           answered_at: string | null;
           ended_at: string | null;
@@ -526,17 +522,16 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          call_sid: string;
+          call_control_id?: string | null;
+          call_leg_id?: string | null;
           user_id: string;
           contact_id?: string | null;
-          twilio_number_id?: string | null;
+          telnyx_number_id?: string | null;
           status: string;
           duration?: number | null;
           from_number: string;
           to_number: string;
           direction?: string;
-          price?: string | null;
-          price_unit?: string | null;
           started_at?: string | null;
           answered_at?: string | null;
           ended_at?: string | null;
@@ -545,17 +540,16 @@ export interface Database {
         };
         Update: {
           id?: string;
-          call_sid?: string;
+          call_control_id?: string | null;
+          call_leg_id?: string | null;
           user_id?: string;
           contact_id?: string | null;
-          twilio_number_id?: string | null;
+          telnyx_number_id?: string | null;
           status?: string;
           duration?: number | null;
           from_number?: string;
           to_number?: string;
           direction?: string;
-          price?: string | null;
-          price_unit?: string | null;
           started_at?: string | null;
           answered_at?: string | null;
           ended_at?: string | null;

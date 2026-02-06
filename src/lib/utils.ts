@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-// Phone number normalization for Twilio E.164 format
+// Phone number normalization for E.164 format (required by Telnyx)
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -32,7 +32,7 @@ export function getValidPhone(phone: string | null | undefined, mobile: string |
 }
 
 /**
- * Normalize phone number to E.164 format required by Twilio
+ * Normalize phone number to E.164 format required by Telnyx
  * E.164 format: +[country code][number] (max 15 digits total)
  * Examples:
  *   "+18322941575" -> "+18322941575" (already correct)

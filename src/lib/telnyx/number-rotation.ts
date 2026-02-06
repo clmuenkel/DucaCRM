@@ -1,8 +1,8 @@
 import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { getTwilioConfig } from "./client";
+import { getTelnyxConfig } from "./client";
 
-export interface TwilioNumber {
+export interface TelnyxNumber {
   id: string;
   phone_number: string;
   daily_call_count: number;
@@ -13,16 +13,16 @@ export interface TwilioNumber {
 }
 
 /**
- * Initialize Twilio numbers in database from environment variables
+ * Initialize Telnyx numbers in database from environment variables
  * Call this once on startup or when numbers are added
  */
-export async function initializeTwilioNumbers(): Promise<{
+export async function initializeTelnyxNumbers(): Promise<{
   created: number;
   updated: number;
   errors: string[];
 }> {
-    const userId = DEFAULT_USER_ID;
-  const config = getTwilioConfig();
+  const userId = DEFAULT_USER_ID;
+  const config = getTelnyxConfig();
 
   if (!config.hasPhoneNumbers) {
     return { created: 0, updated: 0, errors: ["No phone numbers found in environment variables"] };
@@ -36,7 +36,7 @@ export async function initializeTwilioNumbers(): Promise<{
     try {
       // Check if number already exists
       const { data: existing } = await insforge.database
-        .from("twilio_numbers")
+        .from("telnyx_numbers")
         .select("id")
         .eq("user_id", userId)
         .eq("phone_number", phoneNumber)
@@ -46,7 +46,7 @@ export async function initializeTwilioNumbers(): Promise<{
       if (typedExisting) {
         // Update existing number (ensure it's active)
         const { error } = await (insforge.database as any)
-          .from("twilio_numbers")
+          .from("telnyx_numbers")
           .update({
             is_active: true,
             updated_at: new Date().toISOString(),
@@ -60,13 +60,13 @@ export async function initializeTwilioNumbers(): Promise<{
         }
       } else {
         // Create new number record
-        const { error } = await (insforge.database as any).from("twilio_numbers").insert({
+        const { error } = await (insforge.database as any).from("telnyx_numbers").insert([{
           user_id: userId,
           phone_number: phoneNumber,
           daily_call_count: 0,
           daily_call_limit: 50, // Default limit
           is_active: true,
-        });
+        }]);
 
         if (error) {
           errors.push(`Failed to create ${phoneNumber}: ${error.message}`);
@@ -87,23 +87,22 @@ export async function initializeTwilioNumbers(): Promise<{
 }
 
 /**
- * Get the next available Twilio number for calling
+ * Get the next available Telnyx number for calling
  * Selects number with lowest daily call count that hasn't hit limit
  */
 export async function getNextAvailableNumber(): Promise<{
-  number: TwilioNumber | null;
+  number: TelnyxNumber | null;
   error?: string;
 }> {
-    const userId = DEFAULT_USER_ID;
+  const userId = DEFAULT_USER_ID;
 
   try {
     // First, ensure numbers are initialized
-    await initializeTwilioNumbers();
+    await initializeTelnyxNumbers();
 
     // Get all active numbers, ordered by daily_call_count ascending
-    // Prefer numbers that haven't hit their daily limit
     const { data: numbers, error } = await insforge.database
-      .from("twilio_numbers")
+      .from("telnyx_numbers")
       .select("*")
       .eq("user_id", userId)
       .eq("is_active", true)
@@ -114,11 +113,11 @@ export async function getNextAvailableNumber(): Promise<{
       return { number: null, error: error.message };
     }
 
-    const typedNumbers = (numbers || []) as TwilioNumber[];
+    const typedNumbers = (numbers || []) as TelnyxNumber[];
     if (typedNumbers.length === 0) {
       return {
         number: null,
-        error: "No active Twilio numbers found. Please configure phone numbers in environment variables.",
+        error: "No active Telnyx numbers found. Please configure phone numbers in environment variables.",
       };
     }
 
@@ -130,28 +129,28 @@ export async function getNextAvailableNumber(): Promise<{
     if (!availableNumber) {
       return {
         number: null,
-        error: "All Twilio numbers have reached their daily call limit. Please wait or increase limits.",
+        error: "All Telnyx numbers have reached their daily call limit. Please wait or increase limits.",
       };
     }
 
-    return { number: availableNumber as TwilioNumber };
+    return { number: availableNumber as TelnyxNumber };
   } catch (error: any) {
     return { number: null, error: error.message || "Failed to get next available number" };
   }
 }
 
 /**
- * Increment call count for a Twilio number
+ * Increment call count for a Telnyx number
  */
 export async function incrementCallCount(
   numberId: string
 ): Promise<{ success: boolean; error?: string }> {
-    const userId = DEFAULT_USER_ID;
+  const userId = DEFAULT_USER_ID;
 
   try {
     // Get current count
     const { data: number, error: fetchError } = await insforge.database
-      .from("twilio_numbers")
+      .from("telnyx_numbers")
       .select("daily_call_count")
       .eq("id", numberId)
       .eq("user_id", userId)
@@ -164,7 +163,7 @@ export async function incrementCallCount(
     const typedNumber = number as { daily_call_count: number | null };
     // Increment count and update last_used_at
     const { error: updateError } = await (insforge.database as any)
-      .from("twilio_numbers")
+      .from("telnyx_numbers")
       .update({
         daily_call_count: (typedNumber.daily_call_count || 0) + 1,
         last_used_at: new Date().toISOString(),
@@ -183,61 +182,17 @@ export async function incrementCallCount(
 }
 
 /**
- * Check if a number has reached its daily limit
+ * Get all Telnyx numbers with their usage stats
  */
-export async function checkDailyLimits(
-  numberId: string
-): Promise<{ withinLimit: boolean; current: number; limit: number; error?: string }> {
-    const userId = DEFAULT_USER_ID;
-
-  try {
-    const { data: number, error } = await insforge.database
-      .from("twilio_numbers")
-      .select("daily_call_count, daily_call_limit")
-      .eq("id", numberId)
-      .eq("user_id", userId)
-      .single();
-
-    if (error || !number) {
-      return {
-        withinLimit: false,
-        current: 0,
-        limit: 0,
-        error: error?.message || "Number not found",
-      };
-    }
-
-    const typedNumber = number as { daily_call_count: number | null; daily_call_limit: number | null };
-    const current = typedNumber.daily_call_count || 0;
-    const limit = typedNumber.daily_call_limit || 50;
-
-    return {
-      withinLimit: current < limit,
-      current,
-      limit,
-    };
-  } catch (error: any) {
-    return {
-      withinLimit: false,
-      current: 0,
-      limit: 0,
-      error: error.message,
-    };
-  }
-}
-
-/**
- * Get all Twilio numbers with their usage stats
- */
-export async function getAllTwilioNumbers(): Promise<{
-  numbers: TwilioNumber[];
+export async function getAllTelnyxNumbers(): Promise<{
+  numbers: TelnyxNumber[];
   error?: string;
 }> {
-    const userId = DEFAULT_USER_ID;
+  const userId = DEFAULT_USER_ID;
 
   try {
     const { data: numbers, error } = await insforge.database
-      .from("twilio_numbers")
+      .from("telnyx_numbers")
       .select("*")
       .eq("user_id", userId)
       .order("phone_number", { ascending: true });
@@ -246,65 +201,8 @@ export async function getAllTwilioNumbers(): Promise<{
       return { numbers: [], error: error.message };
     }
 
-    return { numbers: (numbers as TwilioNumber[]) || [] };
+    return { numbers: (numbers as TelnyxNumber[]) || [] };
   } catch (error: any) {
     return { numbers: [], error: error.message };
-  }
-}
-
-/**
- * Update spam score for a number
- */
-export async function updateSpamScore(
-  numberId: string,
-  spamScore: number | null
-): Promise<{ success: boolean; error?: string }> {
-    const userId = DEFAULT_USER_ID;
-
-  try {
-    const { error } = await (insforge.database as any)
-      .from("twilio_numbers")
-      .update({
-        spam_score: spamScore,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", numberId)
-      .eq("user_id", userId);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * Deactivate a number (e.g., due to high spam score)
- */
-export async function deactivateNumber(
-  numberId: string
-): Promise<{ success: boolean; error?: string }> {
-    const userId = DEFAULT_USER_ID;
-
-  try {
-    const { error } = await (insforge.database as any)
-      .from("twilio_numbers")
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", numberId)
-      .eq("user_id", userId);
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
   }
 }

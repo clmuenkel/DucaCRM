@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
 
       // FORCE normalize phone numbers to E.164 format (double-check)
       // Even though mapApolloToContact already normalizes, we do it again here as a safety check
-      // This ensures ALL phone numbers are in Twilio-compatible format
+      // This ensures ALL phone numbers are in Telnyx-compatible format
       // Examples: "971 55 221 2763" -> "+971552212763", "1 480-707-2246" -> "+14807072246"
       if (contactData.phone) {
         const original = contactData.phone;
