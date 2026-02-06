@@ -42,7 +42,10 @@ export async function POST(request: NextRequest) {
           
           // Always update if different (handles spaces, dashes, missing +, etc.)
           // Use strict comparison to catch any differences
-          if (normalizedPhone !== currentPhone) {
+          // Also check if current phone doesn't start with + (definitely needs update)
+          const needsUpdatePhone = normalizedPhone !== currentPhone || !currentPhone.startsWith("+");
+          
+          if (needsUpdatePhone) {
             updates.phone = normalizedPhone;
             needsUpdate = true;
             console.log(`[Normalize] Contact ${contact.id}: phone "${currentPhone}" -> "${normalizedPhone}"`);
@@ -61,8 +64,10 @@ export async function POST(request: NextRequest) {
         if (normalized) {
           const normalizedMobile = normalized.trim();
           
-          // Always update if different
-          if (normalizedMobile !== currentMobile) {
+          // Always update if different or doesn't start with +
+          const needsUpdateMobile = normalizedMobile !== currentMobile || !currentMobile.startsWith("+");
+          
+          if (needsUpdateMobile) {
             updates.mobile = normalizedMobile;
             needsUpdate = true;
             console.log(`[Normalize] Contact ${contact.id}: mobile "${currentMobile}" -> "${normalizedMobile}"`);
@@ -86,6 +91,13 @@ export async function POST(request: NextRequest) {
           errors.push(`Contact ${contact.id}: ${updateError.message}`);
         } else {
           updated++;
+          // Log successful update for debugging
+          if (updates.phone) {
+            console.log(`[Normalize] ✓ Updated contact ${contact.id} phone to "${updates.phone}"`);
+          }
+          if (updates.mobile) {
+            console.log(`[Normalize] ✓ Updated contact ${contact.id} mobile to "${updates.mobile}"`);
+          }
         }
       }
     }
