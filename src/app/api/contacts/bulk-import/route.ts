@@ -220,10 +220,23 @@ export async function POST(request: NextRequest) {
       const email = row.email?.toLowerCase();
       if (email && existingContactsMap.has(email)) {
         const contactId = existingContactsMap.get(email)!;
-        // Don't overwrite phone/mobile with empty values
+        // Don't overwrite phone/mobile with empty values, but always normalize if present
         const updateData: Record<string, unknown> = { ...contactData };
-        if (!updateData.phone) delete updateData.phone;
-        if (!updateData.mobile) delete updateData.mobile;
+        
+        // Ensure phone numbers are normalized in update data too
+        if (updateData.phone) {
+          const normalized = normalizeToE164(updateData.phone as string);
+          updateData.phone = normalized || null;
+        } else {
+          delete updateData.phone;
+        }
+        
+        if (updateData.mobile) {
+          const normalized = normalizeToE164(updateData.mobile as string);
+          updateData.mobile = normalized || null;
+        } else {
+          delete updateData.mobile;
+        }
         
         contactsToUpdate.push({
           id: contactId,
@@ -306,17 +319,30 @@ export async function POST(request: NextRequest) {
       // Update individually (can't batch update with different data)
       for (const { id, data } of batch) {
         try {
+          // Double-check phone numbers are normalized before update
+          const updateData = { ...data };
+          if (updateData.phone && typeof updateData.phone === 'string') {
+            const normalized = normalizeToE164(updateData.phone);
+            updateData.phone = normalized || null;
+          }
+          if (updateData.mobile && typeof updateData.mobile === 'string') {
+            const normalized = normalizeToE164(updateData.mobile);
+            updateData.mobile = normalized || null;
+          }
+          
           const { error } = await insforge.database
             .from("contacts")
-            .update(data)
+            .update(updateData)
             .eq("id", id);
 
           if (error) {
+            console.error(`[Bulk Import] Update error for contact ${id}:`, error);
             stats.failed++;
           } else {
             stats.updated++;
           }
         } catch (error) {
+          console.error(`[Bulk Import] Update exception for contact:`, error);
           stats.failed++;
         }
       }

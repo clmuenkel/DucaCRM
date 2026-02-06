@@ -35,9 +35,11 @@ export async function POST(request: NextRequest) {
       if (contact.phone) {
         const normalized = normalizeToE164(contact.phone);
         if (normalized) {
+          // Always update if normalized version is different (handles spaces, dashes, etc.)
           if (normalized !== contact.phone) {
             updates.phone = normalized;
             needsUpdate = true;
+            console.log(`[Normalize] Contact ${contact.id}: "${contact.phone}" -> "${normalized}"`);
           }
         } else {
           // If normalization failed, log it but don't update
@@ -48,9 +50,11 @@ export async function POST(request: NextRequest) {
       if (contact.mobile) {
         const normalized = normalizeToE164(contact.mobile);
         if (normalized) {
+          // Always update if normalized version is different
           if (normalized !== contact.mobile) {
             updates.mobile = normalized;
             needsUpdate = true;
+            console.log(`[Normalize] Contact ${contact.id}: mobile "${contact.mobile}" -> "${normalized}"`);
           }
         } else {
           // If normalization failed, log it but don't update
