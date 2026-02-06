@@ -279,14 +279,46 @@ export async function POST(request: NextRequest) {
       timeZoneName: "short",
     });
 
-    // Build variables for template (use generated Meet link or custom link)
-    const finalMeetLink = generatedMeetLink || meetingLink || null;
+    // Generate meeting link - prioritize Meet link, then calendar HTML link, then generate Google Calendar URL
+    let finalMeetLink: string | null = null;
+    
+    if (generatedMeetLink) {
+      // Use generated Google Meet link if available
+      finalMeetLink = generatedMeetLink;
+    } else if (calendarHtmlLink) {
+      // Use calendar HTML link if Meet link not available
+      finalMeetLink = calendarHtmlLink;
+    } else if (meetingLink) {
+      // Use custom meeting link if provided
+      finalMeetLink = meetingLink;
+    } else {
+      // Generate Google Calendar URL as fallback (works even without API)
+      const formatGoogleCalendarDate = (date: Date): string => {
+        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      };
+      
+      const startDateStr = formatGoogleCalendarDate(startTime);
+      const endDateStr = formatGoogleCalendarDate(endTime);
+      
+      const calendarParams = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: title,
+        dates: `${startDateStr}/${endDateStr}`,
+        details: description || `Meeting with ${typedContact.first_name} ${typedContact.last_name || ""}`.trim(),
+        location: location || '',
+        add: typedContact.email,
+      });
+      
+      finalMeetLink = `https://calendar.google.com/calendar/render?${calendarParams.toString()}`;
+      console.log('[Create Meeting] Generated Google Calendar URL as fallback:', finalMeetLink);
+    }
+
     const variables: Record<string, string> = {
       sender_name: typedProfile.full_name || "Your Name",
       sender_calendar: "", // Don't use calendar link - Google Calendar handles this
       meeting_date: meetingDate,
       meeting_time: meetingTime,
-      meeting_link: finalMeetLink || "", // Google Meet link from calendar event
+      meeting_link: finalMeetLink || "", // Always provide a meeting link
       industry: getIndustryForTemplate(typedContact), // Add industry for template rendering
     };
     
