@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     // Use upsert to create profile if it doesn't exist, or update if it does
     const { error: updateError } = await insforge.database
       .from("profiles")
-      .upsert({
+      .upsert([{
         id: userId,
         full_name: USER_INFO.full_name, // Required field
         email: USER_INFO.email, // Required field
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
         google_calendar_token_expires_at: expiresAt,
         daily_call_goal: 50, // Default values
         daily_email_goal: 20,
-      });
+      }], { onConflict: "id" });
 
     if (updateError) {
       console.error("Error storing tokens:", updateError);
