@@ -66,6 +66,11 @@ export function normalizeToE164(phone: string | null | undefined): string | null
     cleaned = cleaned.slice(1);
   }
   
+  // Must have at least 7 digits (shortest valid phone number)
+  if (cleaned.length < 7) {
+    return null;
+  }
+  
   // If it's 11 digits starting with 1 (US/Canada with country code)
   if (cleaned.length === 11 && cleaned.startsWith("1")) {
     return `+${cleaned}`;
@@ -76,7 +81,7 @@ export function normalizeToE164(phone: string | null | undefined): string | null
     return `+1${cleaned}`;
   }
   
-  // If it's already digits but not matching above patterns
+  // For international numbers or other formats
   if (cleaned.length > 0 && /^\d+$/.test(cleaned)) {
     // If starts with 1 and is 11 digits, add +
     if (cleaned.startsWith("1") && cleaned.length === 11) {
@@ -86,10 +91,14 @@ export function normalizeToE164(phone: string | null | undefined): string | null
     if (cleaned.length === 10) {
       return `+1${cleaned}`;
     }
-    // For other lengths, assume it's already correct format and add +
-    // But limit to 15 digits max
-    if (cleaned.length <= 15) {
+    // For other lengths (international numbers), add + prefix
+    // E.164 allows up to 15 digits total (including country code)
+    if (cleaned.length >= 7 && cleaned.length <= 15) {
       return `+${cleaned}`;
+    }
+    // If longer than 15 digits, truncate to 15
+    if (cleaned.length > 15) {
+      return `+${cleaned.slice(0, 15)}`;
     }
   }
   
