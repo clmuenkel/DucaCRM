@@ -33,31 +33,43 @@ export async function POST(request: NextRequest) {
       let needsUpdate = false;
 
       if (contact.phone) {
-        const normalized = normalizeToE164(contact.phone);
+        // Always normalize, even if it looks like it might already be normalized
+        const currentPhone = String(contact.phone).trim();
+        const normalized = normalizeToE164(currentPhone);
+        
         if (normalized) {
-          // Always update if normalized version is different (handles spaces, dashes, etc.)
-          if (normalized !== contact.phone) {
-            updates.phone = normalized;
+          const normalizedPhone = normalized.trim();
+          
+          // Always update if different (handles spaces, dashes, missing +, etc.)
+          // Use strict comparison to catch any differences
+          if (normalizedPhone !== currentPhone) {
+            updates.phone = normalizedPhone;
             needsUpdate = true;
-            console.log(`[Normalize] Contact ${contact.id}: "${contact.phone}" -> "${normalized}"`);
+            console.log(`[Normalize] Contact ${contact.id}: phone "${currentPhone}" -> "${normalizedPhone}"`);
           }
         } else {
-          // If normalization failed, log it but don't update
+          // If normalization failed, log it
+          console.warn(`[Normalize] Failed to normalize phone "${contact.phone}" for contact ${contact.id}`);
           errors.push(`Contact ${contact.id}: Could not normalize phone "${contact.phone}"`);
         }
       }
 
       if (contact.mobile) {
-        const normalized = normalizeToE164(contact.mobile);
+        const currentMobile = String(contact.mobile).trim();
+        const normalized = normalizeToE164(currentMobile);
+        
         if (normalized) {
-          // Always update if normalized version is different
-          if (normalized !== contact.mobile) {
-            updates.mobile = normalized;
+          const normalizedMobile = normalized.trim();
+          
+          // Always update if different
+          if (normalizedMobile !== currentMobile) {
+            updates.mobile = normalizedMobile;
             needsUpdate = true;
-            console.log(`[Normalize] Contact ${contact.id}: mobile "${contact.mobile}" -> "${normalized}"`);
+            console.log(`[Normalize] Contact ${contact.id}: mobile "${currentMobile}" -> "${normalizedMobile}"`);
           }
         } else {
-          // If normalization failed, log it but don't update
+          // If normalization failed, log it
+          console.warn(`[Normalize] Failed to normalize mobile "${contact.mobile}" for contact ${contact.id}`);
           errors.push(`Contact ${contact.id}: Could not normalize mobile "${contact.mobile}"`);
         }
       }

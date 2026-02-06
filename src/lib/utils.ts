@@ -44,9 +44,13 @@ export function getValidPhone(phone: string | null | undefined, mobile: string |
 export function normalizeToE164(phone: string | null | undefined): string | null {
   if (!phone) return null;
   
+  // Convert to string and trim whitespace
+  const phoneStr = String(phone).trim();
+  if (phoneStr.length === 0) return null;
+  
   // Remove all non-digit characters except +
   // This handles: "971 55 221 2763", "1 480-707-2246", etc.
-  let cleaned = phone.replace(/[^\d+]/g, "");
+  let cleaned = phoneStr.replace(/[^\d+]/g, "");
   
   // If it already starts with +, validate and return
   if (cleaned.startsWith("+")) {
@@ -72,6 +76,11 @@ export function normalizeToE164(phone: string | null | undefined): string | null
     return null;
   }
   
+  // Ensure we only have digits at this point
+  if (!/^\d+$/.test(cleaned)) {
+    return null;
+  }
+  
   // If it's 11 digits starting with 1 (US/Canada with country code)
   // Examples: "14807072246" -> "+14807072246"
   if (cleaned.length === 11 && cleaned.startsWith("1")) {
@@ -85,25 +94,15 @@ export function normalizeToE164(phone: string | null | undefined): string | null
   }
   
   // For international numbers or other formats
-  if (cleaned.length > 0 && /^\d+$/.test(cleaned)) {
-    // If starts with 1 and is 11 digits, add +
-    if (cleaned.startsWith("1") && cleaned.length === 11) {
-      return `+${cleaned}`;
-    }
-    // If 10 digits, assume US and add +1
-    if (cleaned.length === 10) {
-      return `+1${cleaned}`;
-    }
-    // For other lengths (international numbers), add + prefix
-    // Examples: "971552212763" (UAE) -> "+971552212763"
-    // E.164 allows up to 15 digits total (including country code)
-    if (cleaned.length >= 7 && cleaned.length <= 15) {
-      return `+${cleaned}`;
-    }
-    // If longer than 15 digits, truncate to 15
-    if (cleaned.length > 15) {
-      return `+${cleaned.slice(0, 15)}`;
-    }
+  // Examples: "971552212763" (UAE, 12 digits) -> "+971552212763"
+  // E.164 allows up to 15 digits total (including country code)
+  if (cleaned.length >= 7 && cleaned.length <= 15) {
+    return `+${cleaned}`;
+  }
+  
+  // If longer than 15 digits, truncate to 15
+  if (cleaned.length > 15) {
+    return `+${cleaned.slice(0, 15)}`;
   }
   
   // If we can't normalize it, return null
