@@ -34,10 +34,12 @@ export async function POST(request: NextRequest) {
 
       if (contact.phone) {
         const normalized = normalizeToE164(contact.phone);
-        if (normalized && normalized !== contact.phone) {
-          updates.phone = normalized;
-          needsUpdate = true;
-        } else if (!normalized && contact.phone) {
+        if (normalized) {
+          if (normalized !== contact.phone) {
+            updates.phone = normalized;
+            needsUpdate = true;
+          }
+        } else {
           // If normalization failed, log it but don't update
           errors.push(`Contact ${contact.id}: Could not normalize phone "${contact.phone}"`);
         }
@@ -45,10 +47,12 @@ export async function POST(request: NextRequest) {
 
       if (contact.mobile) {
         const normalized = normalizeToE164(contact.mobile);
-        if (normalized && normalized !== contact.mobile) {
-          updates.mobile = normalized;
-          needsUpdate = true;
-        } else if (!normalized && contact.mobile) {
+        if (normalized) {
+          if (normalized !== contact.mobile) {
+            updates.mobile = normalized;
+            needsUpdate = true;
+          }
+        } else {
           // If normalization failed, log it but don't update
           errors.push(`Contact ${contact.id}: Could not normalize mobile "${contact.mobile}"`);
         }

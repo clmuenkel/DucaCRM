@@ -804,10 +804,13 @@ function cleanPhoneNumber(phone: string | null | undefined): string | null {
   if (cleaned.length === 0) return null;
   
   // Normalize to E.164 format for Twilio compatibility
+  // This handles formats like "971 55 221 2763" -> "+971552212763"
+  // and "1 480-707-2246" -> "+14807072246"
   const normalized = normalizeToE164(cleaned);
   
-  // Return normalized version, or cleaned version if normalization fails
-  return normalized || cleaned;
+  // Always return normalized version if available, otherwise return null
+  // Don't return unnormalized version as it won't work with Twilio
+  return normalized;
 }
 
 export function mapApolloToContact(

@@ -45,6 +45,7 @@ export function normalizeToE164(phone: string | null | undefined): string | null
   if (!phone) return null;
   
   // Remove all non-digit characters except +
+  // This handles: "971 55 221 2763", "1 480-707-2246", etc.
   let cleaned = phone.replace(/[^\d+]/g, "");
   
   // If it already starts with +, validate and return
@@ -72,11 +73,13 @@ export function normalizeToE164(phone: string | null | undefined): string | null
   }
   
   // If it's 11 digits starting with 1 (US/Canada with country code)
+  // Examples: "14807072246" -> "+14807072246"
   if (cleaned.length === 11 && cleaned.startsWith("1")) {
     return `+${cleaned}`;
   }
   
   // If it's 10 digits (US/Canada without country code)
+  // Examples: "4807072246" -> "+14807072246"
   if (cleaned.length === 10) {
     return `+1${cleaned}`;
   }
@@ -92,6 +95,7 @@ export function normalizeToE164(phone: string | null | undefined): string | null
       return `+1${cleaned}`;
     }
     // For other lengths (international numbers), add + prefix
+    // Examples: "971552212763" (UAE) -> "+971552212763"
     // E.164 allows up to 15 digits total (including country code)
     if (cleaned.length >= 7 && cleaned.length <= 15) {
       return `+${cleaned}`;

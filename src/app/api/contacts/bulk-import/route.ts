@@ -191,13 +191,17 @@ export async function POST(request: NextRequest) {
       };
 
       // Normalize phone numbers to E.164 format
+      // This ensures all phone numbers are in Twilio-compatible format
+      // Examples: "971 55 221 2763" -> "+971552212763", "1 480-707-2246" -> "+14807072246"
       if (contactData.phone) {
         const normalized = normalizeToE164(contactData.phone);
-        contactData.phone = normalized || contactData.phone;
+        // Only use normalized version - don't fall back to unnormalized
+        contactData.phone = normalized;
       }
       if (contactData.mobile) {
         const normalized = normalizeToE164(contactData.mobile);
-        contactData.mobile = normalized || contactData.mobile;
+        // Only use normalized version - don't fall back to unnormalized
+        contactData.mobile = normalized;
       }
 
       // Validate required fields
