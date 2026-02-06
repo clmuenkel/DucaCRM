@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useCreateMeeting } from "@/hooks/use-meetings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,8 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar, Clock, MapPin, Link as LinkIcon, Bell, Loader2, Globe } from "lucide-react";
 import { toast } from "sonner";
-import { format, addMinutes, setHours, setMinutes, addDays } from "date-fns";
-import { Checkbox } from "@/components/ui/checkbox";
+import { format, addDays } from "date-fns";
 import { getUSTimezones } from "@/lib/timezone";
 import type { Contact } from "@/types/database";
 
@@ -72,7 +70,6 @@ const TIME_SLOTS = generateTimeSlots();
 const US_TIMEZONES = getUSTimezones();
 
 export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDialogProps) {
-  const createMeeting = useCreateMeeting();
   
   // Default to tomorrow at 10 AM
   const tomorrow = addDays(new Date(), 1);
@@ -87,7 +84,6 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
   const [meetingLink, setMeetingLink] = useState("");
   const [reminder, setReminder] = useState("15");
   const [description, setDescription] = useState("");
-  const [createCalendarInvite, setCreateCalendarInvite] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -99,62 +95,32 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
     setIsSubmitting(true);
 
     try {
-      // If Google Calendar invite is requested, use the new endpoint
-      if (createCalendarInvite) {
-        const response = await fetch("/api/contacts/create-meeting-with-calendar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contactId: contact.id,
-            title: title.trim(),
-            date,
-            time,
-            timezone, // Include timezone
-            duration: parseInt(duration),
-            location: location.trim() || undefined,
-            meetingLink: meetingLink.trim() || undefined,
-            description: description.trim() || undefined,
-            createCalendarInvite: true,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to create meeting with calendar");
-        }
-
-        if (data.calendar?.htmlLink) {
-          toast.success("Meeting scheduled with Google Calendar invite!");
-        } else {
-          toast.success("Meeting scheduled! (Calendar invite may not be available)");
-        }
-      } else {
-        // Use regular meeting creation
-        const [hours, minutes] = time.split(":").map(Number);
-        const scheduledDate = new Date(date);
-        scheduledDate.setHours(hours, minutes, 0, 0);
-
-        const reminderMinutes = parseInt(reminder);
-        const reminderAt = reminderMinutes > 0 
-          ? addMinutes(scheduledDate, -reminderMinutes).toISOString()
-          : null;
-
-        await createMeeting.mutateAsync({
-          user_id: userId,
-          contact_id: contact.id,
-          company_id: contact.company_id || undefined,
+      const response = await fetch("/api/contacts/create-meeting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId: contact.id,
           title: title.trim(),
-          description: description.trim() || undefined,
-          scheduled_at: scheduledDate.toISOString(),
-          duration_minutes: parseInt(duration),
+          date,
+          time,
+          timezone,
+          duration: parseInt(duration),
           location: location.trim() || undefined,
-          meeting_link: meetingLink.trim() || undefined,
-          reminder_at: reminderAt,
-          status: "scheduled",
-        });
+          meetingLink: meetingLink.trim() || undefined,
+          description: description.trim() || undefined,
+        }),
+      });
 
-        toast.success("Meeting scheduled!");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create meeting");
+      }
+
+      if (data.calendar?.htmlLink) {
+        toast.success("Meeting scheduled with Google Calendar invite!");
+      } else {
+        toast.success("Meeting scheduled! (Calendar invite may not be available)");
       }
 
       onOpenChange(false);
@@ -331,28 +297,14 @@ export function MeetingDialog({ open, onOpenChange, contact, userId }: MeetingDi
             />
           </div>
 
-          {/* Google Calendar Integration */}
-          <div className="flex items-center space-x-2 pt-2 border-t">
-            <Checkbox
-              id="create-calendar-invite"
-              checked={createCalendarInvite}
-              onCheckedChange={(checked) => setCreateCalendarInvite(checked === true)}
-            />
-            <Label
-              htmlFor="create-calendar-invite"
-              className="text-sm font-normal cursor-pointer"
-            >
-              Create Google Calendar invite and send email to contact
-            </Label>
-          </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || createMeeting.isPending}>
-            {isSubmitting || createMeeting.isPending ? (
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 Scheduling...

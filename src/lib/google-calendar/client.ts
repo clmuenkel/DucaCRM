@@ -105,15 +105,10 @@ export async function createCalendarEvent(
     timezone,
   } = params;
 
-  // Format dates in RFC3339 format without timezone
+  // Format dates in RFC3339 format for Google Calendar
   // Google Calendar will interpret this according to the timeZone field
   const formatDate = (date: Date, tz?: string): string => {
-    // If timezone is provided, format the date as if it's in that timezone
-    // We need to convert the Date to the specified timezone's local time
     if (tz) {
-      console.log(`[Calendar API] Formatting date for timezone: ${tz}`);
-      console.log(`[Calendar API] Input Date (UTC): ${date.toISOString()}`);
-      
       // Use Intl.DateTimeFormat to get the date components in the specified timezone
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: tz,
@@ -135,27 +130,18 @@ export async function createCalendarEvent(
       const second = parts.find(p => p.type === 'second')?.value || '00';
       
       // Format as RFC3339 without timezone (Google Calendar will use timeZone field)
-      // Ensure all parts are defined
       if (!year || !month || !day || !hour || !minute) {
-        console.warn(`[Calendar API] Failed to format date parts, using ISO fallback`);
-        // Fallback to ISO string if formatting fails
         return date.toISOString();
       }
       
-      const formatted = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-      console.log(`[Calendar API] Formatted date string: ${formatted} (timezone: ${tz})`);
-      return formatted;
+      return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
     }
-    console.log(`[Calendar API] No timezone provided, using ISO: ${date.toISOString()}`);
     return date.toISOString();
   };
 
   const eventTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const startDateTime = formatDate(startTime, timezone);
   const endDateTime = formatDate(endTime, timezone);
-  
-  console.log(`[Calendar API] Creating event with timezone: ${eventTimezone}`);
-  console.log(`[Calendar API] Start: ${startDateTime}, End: ${endDateTime}`);
   
   const event = {
     summary,
@@ -215,27 +201,10 @@ export async function createCalendarEvent(
 
   const eventData = await response.json();
 
-  // Debug logging
-  console.log('Google Calendar API Response - Conference Data:', JSON.stringify(eventData.conferenceData, null, 2));
-  console.log('Google Calendar API Response - Full Event:', {
-    id: eventData.id,
-    hasConferenceData: !!eventData.conferenceData,
-    conferenceDataType: eventData.conferenceData?.conferenceSolution?.key?.type,
-  });
-
-  // Extract Meet link - try multiple paths with comprehensive fallbacks
+  // Extract Meet link from conference data
   let generatedMeetLink = null;
-  let extractionMethod = null;
   
   if (eventData.conferenceData) {
-    console.log('Conference Data Structure:', {
-      hasEntryPoints: !!eventData.conferenceData.entryPoints,
-      entryPointsCount: eventData.conferenceData.entryPoints?.length || 0,
-      hasHangoutLink: !!eventData.conferenceData.hangoutLink,
-      conferenceId: eventData.conferenceData.conferenceId,
-      conferenceSolution: eventData.conferenceData.conferenceSolution,
-    });
-
     // Method 1: Try entryPoints array (most common)
     if (eventData.conferenceData.entryPoints && eventData.conferenceData.entryPoints.length > 0) {
       // First, try to find video entry point
@@ -245,7 +214,6 @@ export async function createCalendarEvent(
       
       if (videoEntryPoint?.uri) {
         generatedMeetLink = videoEntryPoint.uri;
-        extractionMethod = 'entryPoints[video]';
       } else {
         // Fallback to first entry point that contains meet.google.com
         const meetEntryPoint = eventData.conferenceData.entryPoints.find(
@@ -253,48 +221,20 @@ export async function createCalendarEvent(
         );
         if (meetEntryPoint?.uri) {
           generatedMeetLink = meetEntryPoint.uri;
-          extractionMethod = 'entryPoints[meet.google.com]';
         } else {
           // Last resort: use first entry point
           const firstEntryPoint = eventData.conferenceData.entryPoints[0];
           if (firstEntryPoint?.uri) {
             generatedMeetLink = firstEntryPoint.uri;
-            extractionMethod = 'entryPoints[0]';
           }
         }
       }
-      console.log('Extracted Meet Link from entryPoints:', generatedMeetLink, 'Method:', extractionMethod);
     }
     
     // Method 2: Try hangoutLink property (older format)
     if (!generatedMeetLink && eventData.conferenceData.hangoutLink) {
       generatedMeetLink = eventData.conferenceData.hangoutLink;
-      extractionMethod = 'hangoutLink';
-      console.log('Extracted Meet Link from hangoutLink:', generatedMeetLink);
     }
-    
-    // Method 3: Try to construct from conferenceId if available
-    if (!generatedMeetLink && eventData.conferenceData.conferenceId) {
-      // Some Meet links can be constructed from conference ID
-      // Format: https://meet.google.com/[conference-id]
-      const conferenceId = eventData.conferenceData.conferenceId;
-      if (conferenceId && typeof conferenceId === 'string') {
-        // Try to extract the meeting code from conference ID
-        // Conference ID format varies, but sometimes contains the meeting code
-        generatedMeetLink = `https://meet.google.com/${conferenceId}`;
-        extractionMethod = 'conferenceId';
-        console.log('Constructed Meet Link from conferenceId:', generatedMeetLink);
-      }
-    }
-  } else {
-    console.warn('No conferenceData in API response - Meet link may not have been generated');
-  }
-
-  console.log('Final Extracted Meet Link:', generatedMeetLink, 'Method:', extractionMethod);
-  
-  // Validate the link format
-  if (generatedMeetLink && !generatedMeetLink.includes('meet.google.com')) {
-    console.warn('Extracted link does not appear to be a Google Meet link:', generatedMeetLink);
   }
 
   return {
