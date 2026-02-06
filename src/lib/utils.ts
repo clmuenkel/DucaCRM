@@ -41,71 +41,76 @@ export function getValidPhone(phone: string | null | undefined, mobile: string |
  *   "18322941575" -> "+18322941575"
  *   "8322941575" -> "+18322941575"
  */
+/**
+ * FOOLPROOF phone number normalization to E.164 format
+ * Handles ALL possible formats:
+ * - "971 55 221 2763" -> "+971552212763"
+ * - "1 480-707-2246" -> "+14807072246"
+ * - "1 757-748-1302" -> "+17577481302"
+ * - "+12066603391" -> "+12066603391" (already correct)
+ * - "(480) 707-2246" -> "+14807072246"
+ * - "480.707.2246" -> "+14807072246"
+ * - "14807072246" -> "+14807072246"
+ * - "4807072246" -> "+14807072246"
+ */
 export function normalizeToE164(phone: string | null | undefined): string | null {
   if (!phone) return null;
   
-  // Convert to string and trim whitespace
-  const phoneStr = String(phone).trim();
-  if (phoneStr.length === 0) return null;
+  // Step 1: Convert to string and trim ALL whitespace
+  let cleaned = String(phone).trim();
+  if (cleaned.length === 0) return null;
   
-  // Remove all non-digit characters except +
-  // This handles: "971 55 221 2763", "1 480-707-2246", etc.
-  let cleaned = phoneStr.replace(/[^\d+]/g, "");
+  // Step 2: Remove ALL non-digit characters EXCEPT leading +
+  // This handles: spaces, dashes, dots, parentheses, quotes, etc.
+  const hasLeadingPlus = cleaned.startsWith("+");
+  cleaned = cleaned.replace(/[^\d+]/g, "");
   
-  // If it already starts with +, validate and return
-  if (cleaned.startsWith("+")) {
-    const digits = cleaned.slice(1);
-    // E.164 allows 1-15 digits after the +
-    if (digits.length >= 1 && digits.length <= 15 && /^\d+$/.test(digits)) {
-      return cleaned;
-    }
-    // If invalid format, try to fix it
-    if (digits.length > 15) {
-      // Too long, truncate to 15 digits
-      return `+${digits.slice(0, 15)}`;
-    }
+  // Step 3: If it had a leading +, ensure it's still there
+  if (hasLeadingPlus && !cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
   }
   
-  // Remove leading + if present for processing
+  // Step 4: Remove leading + for processing (we'll add it back at the end)
   if (cleaned.startsWith("+")) {
     cleaned = cleaned.slice(1);
   }
   
-  // Must have at least 7 digits (shortest valid phone number)
-  if (cleaned.length < 7) {
-    return null;
-  }
-  
-  // Ensure we only have digits at this point
+  // Step 5: Validate we have ONLY digits now
   if (!/^\d+$/.test(cleaned)) {
     return null;
   }
   
-  // If it's 11 digits starting with 1 (US/Canada with country code)
+  // Step 6: Must have at least 7 digits (shortest valid phone number)
+  if (cleaned.length < 7) {
+    return null;
+  }
+  
+  // Step 7: Handle different length patterns
+  // 11 digits starting with 1 = US/Canada with country code
   // Examples: "14807072246" -> "+14807072246"
   if (cleaned.length === 11 && cleaned.startsWith("1")) {
     return `+${cleaned}`;
   }
   
-  // If it's 10 digits (US/Canada without country code)
+  // 10 digits = US/Canada without country code
   // Examples: "4807072246" -> "+14807072246"
   if (cleaned.length === 10) {
     return `+1${cleaned}`;
   }
   
-  // For international numbers or other formats
+  // For international numbers (7-15 digits), add + prefix
   // Examples: "971552212763" (UAE, 12 digits) -> "+971552212763"
   // E.164 allows up to 15 digits total (including country code)
   if (cleaned.length >= 7 && cleaned.length <= 15) {
     return `+${cleaned}`;
   }
   
-  // If longer than 15 digits, truncate to 15
+  // Too long, truncate to 15 digits
   if (cleaned.length > 15) {
     return `+${cleaned.slice(0, 15)}`;
   }
   
-  // If we can't normalize it, return null
+  // If we get here, something is wrong
   return null;
 }
 

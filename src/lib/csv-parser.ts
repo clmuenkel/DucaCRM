@@ -792,29 +792,36 @@ export function mapToCompany(
 /**
  * Clean phone number by removing quotes, plus signs, and extra whitespace
  */
+/**
+ * FOOLPROOF phone number cleaning - ALWAYS normalizes to E.164
+ * Returns null if normalization fails (never returns unnormalized number)
+ * This ensures ALL phone numbers in the database are in E.164 format
+ */
 function cleanPhoneNumber(phone: string | null | undefined): string | null {
   if (!phone) return null;
   
-  // Remove quotes and clean whitespace
-  let cleaned = phone
+  // Remove quotes and trim
+  let cleaned = String(phone)
     .replace(/^['"]+|['"]+$/g, "") // Remove leading/trailing quotes
     .trim();
   
-  // Return null if empty after cleaning
   if (cleaned.length === 0) return null;
   
-  // Normalize to E.164 format for Twilio compatibility
-  // This handles formats like "971 55 221 2763" -> "+971552212763"
-  // and "1 480-707-2246" -> "+14807072246"
+  // ALWAYS normalize - never return unnormalized number
+  // The normalizeToE164 function handles ALL formats:
+  // - Spaces: "971 55 221 2763"
+  // - Dashes: "1 480-707-2246"
+  // - Already normalized: "+12066603391"
+  // - Dots: "480.707.2246"
+  // - Parentheses: "(480) 707-2246"
   const normalized = normalizeToE164(cleaned);
   
   if (!normalized) {
     // Log if normalization failed for debugging
     console.warn(`[CSV Parser] Failed to normalize phone number: "${phone}" (cleaned: "${cleaned}")`);
+    return null; // Return null if can't normalize (don't store invalid formats)
   }
   
-  // Always return normalized version if available, otherwise return null
-  // Don't return unnormalized version as it won't work with Twilio
   return normalized;
 }
 

@@ -190,33 +190,30 @@ export async function POST(request: NextRequest) {
         source_list: sourceList,
       };
 
-      // Normalize phone numbers to E.164 format
-      // This ensures all phone numbers are in Twilio-compatible format
+      // FORCE normalize phone numbers to E.164 format (double-check)
+      // Even though mapApolloToContact already normalizes, we do it again here as a safety check
+      // This ensures ALL phone numbers are in Twilio-compatible format
       // Examples: "971 55 221 2763" -> "+971552212763", "1 480-707-2246" -> "+14807072246"
       if (contactData.phone) {
         const original = contactData.phone;
         const normalized = normalizeToE164(contactData.phone);
-        if (normalized) {
-          contactData.phone = normalized;
-          if (normalized !== original) {
-            console.log(`[Bulk Import] Normalized phone: "${original}" -> "${normalized}"`);
-          }
-        } else {
-          console.warn(`[Bulk Import] Failed to normalize phone: "${contactData.phone}"`);
-          contactData.phone = null; // Set to null if can't normalize
+        // ALWAYS use normalized version, set to null if normalization fails
+        contactData.phone = normalized;
+        if (normalized && normalized !== original) {
+          console.log(`[Bulk Import] Normalized phone: "${original}" -> "${normalized}"`);
+        } else if (!normalized) {
+          console.warn(`[Bulk Import] Failed to normalize phone: "${original}" - setting to null`);
         }
       }
       if (contactData.mobile) {
         const original = contactData.mobile;
         const normalized = normalizeToE164(contactData.mobile);
-        if (normalized) {
-          contactData.mobile = normalized;
-          if (normalized !== original) {
-            console.log(`[Bulk Import] Normalized mobile: "${original}" -> "${normalized}"`);
-          }
-        } else {
-          console.warn(`[Bulk Import] Failed to normalize mobile: "${contactData.mobile}"`);
-          contactData.mobile = null; // Set to null if can't normalize
+        // ALWAYS use normalized version, set to null if normalization fails
+        contactData.mobile = normalized;
+        if (normalized && normalized !== original) {
+          console.log(`[Bulk Import] Normalized mobile: "${original}" -> "${normalized}"`);
+        } else if (!normalized) {
+          console.warn(`[Bulk Import] Failed to normalize mobile: "${original}" - setting to null`);
         }
       }
 
@@ -335,15 +332,21 @@ export async function POST(request: NextRequest) {
       // Update individually (can't batch update with different data)
       for (const { id, data } of batch) {
         try {
-          // Double-check phone numbers are normalized before update
+          // FORCE normalize phone numbers before update (triple-check)
           const updateData = { ...data };
           if (updateData.phone && typeof updateData.phone === 'string') {
             const normalized = normalizeToE164(updateData.phone);
-            updateData.phone = normalized || null;
+            updateData.phone = normalized; // Set to null if normalization fails
+            if (normalized && normalized !== updateData.phone) {
+              console.log(`[Bulk Import] Update: normalized phone "${updateData.phone}" -> "${normalized}"`);
+            }
           }
           if (updateData.mobile && typeof updateData.mobile === 'string') {
             const normalized = normalizeToE164(updateData.mobile);
-            updateData.mobile = normalized || null;
+            updateData.mobile = normalized; // Set to null if normalization fails
+            if (normalized && normalized !== updateData.mobile) {
+              console.log(`[Bulk Import] Update: normalized mobile "${updateData.mobile}" -> "${normalized}"`);
+            }
           }
           
           const { error } = await insforge.database
