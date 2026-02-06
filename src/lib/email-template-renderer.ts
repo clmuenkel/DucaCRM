@@ -83,7 +83,7 @@ function convertPlainTextToHTML(text: string): string {
       if (currentParagraph.length > 0) {
         const paraText = currentParagraph.join(' ').trim();
         if (paraText) {
-          htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+          htmlParagraphs.push(`<p style="margin: 0 0 10px 0;">${paraText}</p>`);
         }
         currentParagraph = [];
       }
@@ -110,8 +110,8 @@ function convertPlainTextToHTML(text: string): string {
       if (isSignatureComponent || isSignatureStartLine) {
         signatureLineCount++;
         const formattedLine = convertLineToLink(trimmedLine);
-        const marginTop = signatureLineCount === 1 ? '24px' : '0';
-        htmlParagraphs.push(`<p style="margin: ${marginTop} 0 0 0; line-height: 1.6;">${formattedLine}</p>`);
+        const marginTop = signatureLineCount === 1 ? '16px' : '0';
+        htmlParagraphs.push(`<p style="margin: ${marginTop} 0 0 0;">${formattedLine}</p>`);
         continue;
       } else {
         // No longer in signature
@@ -129,7 +129,7 @@ function convertPlainTextToHTML(text: string): string {
         if (currentParagraph.length > 0) {
           const paraText = currentParagraph.join(' ').trim();
           if (paraText) {
-            htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+            htmlParagraphs.push(`<p style="margin: 0 0 10px 0;">${paraText}</p>`);
           }
           currentParagraph = [];
         }
@@ -155,7 +155,7 @@ function convertPlainTextToHTML(text: string): string {
   if (currentParagraph.length > 0) {
     const paraText = currentParagraph.join(' ').trim();
     if (paraText) {
-      htmlParagraphs.push(`<p style="margin: 0 0 16px 0; line-height: 1.6;">${paraText}</p>`);
+      htmlParagraphs.push(`<p style="margin: 0 0 10px 0;">${paraText}</p>`);
     }
   }
   
@@ -270,32 +270,16 @@ export function renderHTMLTemplate(
 }
 
 /**
- * Wrap content in proper email HTML structure
- * Professional email formatting to avoid Promotions tab
+ * Wrap content in minimal HTML structure
+ * Looks like a personal email — no tables, no marketing layout
+ * Gmail classifies table-heavy HTML as promotional
  */
 function wrapEmailHTML(content: string): string {
   return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Email</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #1f2937; background-color: #ffffff;">
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #ffffff;">
-    <tr>
-      <td align="center" style="padding: 20px 0;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff;">
-          <tr>
-            <td style="padding: 20px 24px; font-size: 16px; line-height: 1.6; color: #1f2937;">
-              ${content}
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; font-size: 14px; color: #222;">
+<div>${content}</div>
 </body>
 </html>`;
 }

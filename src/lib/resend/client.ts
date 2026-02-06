@@ -45,31 +45,14 @@ export async function sendEmailViaResend(
   try {
     const resend = getResendClient(params.apiKey);
     
-    // Extract domain from fromEmail for unsubscribe link
-    const fromEmailAddress = params.from.includes('<') 
-      ? params.from.match(/<(.+)>/)?.[1] || params.from
-      : params.from;
-    const domain = fromEmailAddress.split('@')[1] || 'example.com';
-    
-    // Build unsubscribe URLs (user should replace with their actual domain)
-    const unsubscribeEmail = `unsubscribe@${domain}`;
-    const unsubscribeUrl = `https://${domain}/unsubscribe`;
-    
     const emailData: any = {
       from: params.from,
       to: params.to,
       subject: params.subject,
       html: params.html,
-      headers: {
-        // CRITICAL: List-Unsubscribe headers for inbox placement (Gmail requirement)
-        'List-Unsubscribe': `<mailto:${unsubscribeEmail}?subject=Unsubscribe>, <${unsubscribeUrl}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        // Helps avoid Promotions tab
-        'Precedence': 'bulk',
-        // Signals personal email, not marketing
-        'X-Priority': '1',
-        'X-Mailer': 'Resend',
-      },
+      // No extra headers — keep it clean like a personal email
+      // Marketing headers (List-Unsubscribe, Precedence, X-Priority) cause Gmail
+      // to route to Promotions/Updates instead of Primary inbox
     };
 
     // Add plain text version if provided (better deliverability)
@@ -77,12 +60,9 @@ export async function sendEmailViaResend(
       emailData.text = params.text;
     }
 
-    // Add reply-to (should match from domain for better deliverability)
+    // Add reply-to if provided
     if (params.replyTo) {
       emailData.reply_to = params.replyTo;
-    } else {
-      // Default to from email if no reply-to specified (ensures same domain)
-      emailData.reply_to = fromEmailAddress;
     }
 
     // Add scheduling if provided
