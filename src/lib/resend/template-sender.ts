@@ -98,6 +98,14 @@ export async function sendEmailWithTemplate(
 
     // Build variables from contact
     const industry = getIndustryForTemplate(contact);
+    
+    // Extract domain from fromEmail for unsubscribe link
+    const fromEmailAddress = fromEmail.includes('<') 
+      ? fromEmail.match(/<(.+)>/)?.[1] || fromEmail
+      : fromEmail;
+    const domain = fromEmailAddress.split('@')[1] || 'example.com';
+    const unsubscribeUrl = `https://${domain}/unsubscribe?email=${encodeURIComponent(contact.email || '')}`;
+    
     const contactVariables: Record<string, string> = {
       first_name: contact.first_name || "",
       last_name: contact.last_name || "",
@@ -107,6 +115,7 @@ export async function sendEmailWithTemplate(
       email: contact.email || "",
       phone: contact.phone || contact.mobile || "",
       industry: industry,
+      unsubscribe_url: unsubscribeUrl, // Add unsubscribe URL variable
       // Merge with custom variables (overrides contact data)
       ...variables,
     };
@@ -216,6 +225,22 @@ export async function sendEmailWithTemplate(
       formattedFrom = `${senderName} <${fromEmail}>`;
     }
 
+    // Ensure reply-to matches from domain (critical for deliverability)
+    // If replyTo is provided but different domain, use fromEmail domain
+    let finalReplyTo = replyTo;
+    if (replyTo) {
+      const replyToDomain = replyTo.includes('@') ? replyTo.split('@')[1] : null;
+      const fromDomain = fromEmailAddress.split('@')[1];
+      if (replyToDomain && replyToDomain !== fromDomain) {
+        // Reply-to domain doesn't match from domain - use from email instead
+        console.warn(`[Email] Reply-to domain (${replyToDomain}) doesn't match from domain (${fromDomain}). Using from email for reply-to.`);
+        finalReplyTo = fromEmailAddress;
+      }
+    } else {
+      // No reply-to specified - use from email (ensures same domain)
+      finalReplyTo = fromEmailAddress;
+    }
+
     // Send via Resend
     const result = await sendEmailViaResend({
       apiKey,
@@ -225,7 +250,7 @@ export async function sendEmailWithTemplate(
       html: renderedHTML,
       text: renderedText, // Plain text version for better deliverability
       scheduledAt,
-      replyTo,
+      replyTo: finalReplyTo, // Use domain-matched reply-to
       tags: [
         { name: "contact_id", value: contact.id },
         { name: "template_id", value: template.id },

@@ -341,6 +341,10 @@ export function renderHTMLTemplate(
  * Professional email formatting to avoid Promotions tab
  */
 function wrapEmailHTML(content: string): string {
+  // Extract email from content if available (for unsubscribe link)
+  // This is a fallback - the actual email will be passed via variables
+  const emailMatch = content.match(/{{email}}/);
+  
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -357,6 +361,10 @@ function wrapEmailHTML(content: string): string {
           <tr>
             <td style="padding: 20px 24px; font-size: 16px; line-height: 1.6; color: #1f2937;">
               ${content}
+              <!-- Unsubscribe footer - required for inbox placement -->
+              <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; line-height: 1.5;">
+                <p style="margin: 0 0 8px 0;">If you no longer wish to receive these emails, you can <a href="{{unsubscribe_url}}" style="color: #3b82f6; text-decoration: underline;">unsubscribe here</a>.</p>
+              </div>
             </td>
           </tr>
         </table>

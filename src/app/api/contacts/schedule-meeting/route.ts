@@ -83,14 +83,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user profile for calendar link
-    const { data: profile } = await insforge.database
-      .from("profiles")
-      .select("calendar_link, full_name")
-      .eq("id", userId)
-      .single();
+    // Get user profile (optional - don't fail if not found)
+    let profile: any = null;
+    
+    try {
+      const { data: profileData } = await insforge.database
+        .from("profiles")
+        .select("calendar_link, full_name")
+        .eq("id", userId)
+        .limit(1);
 
-    const typedProfile = profile as { calendar_link: string | null; full_name: string | null } | null;
+      if (profileData && profileData.length > 0) {
+        profile = profileData[0];
+      }
+    } catch (error) {
+      // Continue without profile
+      console.warn("[Schedule Meeting] Profile query failed, continuing without profile");
+    }
+
+    const typedProfile = {
+      full_name: profile?.full_name || "Your Name",
+      calendar_link: null, // Use Google Calendar, not Calendly
+    };
 
     // Render template with variables
     const variables = {

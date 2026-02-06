@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
         const userId = DEFAULT_USER_ID;
+    console.log("[Create Meeting] Using userId:", userId);
 
     // Get contact
     const { data: contact, error: fetchError } = await insforge.database
@@ -142,27 +143,34 @@ export async function POST(request: NextRequest) {
     // Note: The Google Calendar API's createCalendarEvent function will use the timezone parameter
     // to properly interpret these Date objects
 
-    // Get user profile
-    const { data: profile } = await insforge.database
-      .from("profiles")
-      .select("full_name, calendar_link, email, google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at")
-      .eq("id", userId)
-      .single();
+    // Get user profile for Google Calendar tokens (optional - don't fail if not found)
+    let profile: any = null;
+    
+    // Try to fetch profile for Google Calendar tokens, but don't fail if it doesn't exist
+    try {
+      const { data: profileData, error: profileFetchError } = await insforge.database
+        .from("profiles")
+        .select("full_name, calendar_link, email, google_calendar_access_token, google_calendar_refresh_token, google_calendar_token_expires_at")
+        .eq("id", userId)
+        .limit(1);
 
-    if (!profile) {
-      return NextResponse.json(
-        { error: "User profile not found" },
-        { status: 404 }
-      );
+      if (!profileFetchError && profileData && profileData.length > 0) {
+        profile = profileData[0];
+        console.log("[Create Meeting] Profile found with Google Calendar tokens");
+      }
+    } catch (error) {
+      // Profile query failed - continue without it
+      console.warn("[Create Meeting] Profile query failed, continuing without profile:", error);
     }
 
-    const typedProfile = profile as {
-      full_name: string | null;
-      calendar_link: string | null;
-      email: string;
-      google_calendar_access_token: string | null;
-      google_calendar_refresh_token: string | null;
-      google_calendar_token_expires_at: string | null;
+    // Use profile data if available, otherwise use defaults
+    const typedProfile = {
+      full_name: profile?.full_name || "Your Name",
+      calendar_link: null, // Don't use Calendly - use Google Calendar
+      email: profile?.email || process.env.RESEND_FROM_EMAIL || process.env.RESEND_FROM || "user@example.com",
+      google_calendar_access_token: profile?.google_calendar_access_token || null,
+      google_calendar_refresh_token: profile?.google_calendar_refresh_token || null,
+      google_calendar_token_expires_at: profile?.google_calendar_token_expires_at || null,
     };
 
     let calendarEventId: string | null = null;
@@ -171,25 +179,30 @@ export async function POST(request: NextRequest) {
     let generatedMeetLink: string | null = null;
 
     // Create Google Calendar event if requested and tokens are available
+    // Note: Google Calendar tokens are not currently stored in profiles table
+    // Calendar functionality will be skipped if tokens are not available
     if (createCalendarInvite && typedProfile.google_calendar_access_token) {
       try {
         const accessToken = await getValidAccessToken(
           typedProfile.google_calendar_access_token,
-          typedProfile.google_calendar_refresh_token,
-          typedProfile.google_calendar_token_expires_at
+          typedProfile.google_calendar_refresh_token || null,
+          typedProfile.google_calendar_token_expires_at || null
         );
 
         // Update tokens if refreshed
-        if (accessToken !== typedProfile.google_calendar_access_token) {
-          const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour
-          await insforge.database
-            .from("profiles")
-            .update({
-              google_calendar_access_token: accessToken,
-              google_calendar_token_expires_at: expiresAt,
-            })
-            .eq("id", userId);
-        }
+        // Note: Google Calendar token fields are not currently in profiles table
+        // Token refresh is handled in memory for this session only
+        // TODO: Add google_calendar_* fields to profiles table if calendar integration is needed
+        // if (accessToken !== typedProfile.google_calendar_access_token) {
+        //   const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString(); // 1 hour
+        //   await insforge.database
+        //     .from("profiles")
+        //     .update({
+        //       google_calendar_access_token: accessToken,
+        //       google_calendar_token_expires_at: expiresAt,
+        //     })
+        //     .eq("id", userId);
+        // }
 
         const calendarResult = await createCalendarEvent({
           accessToken,
@@ -270,10 +283,10 @@ export async function POST(request: NextRequest) {
     const finalMeetLink = generatedMeetLink || meetingLink || null;
     const variables: Record<string, string> = {
       sender_name: typedProfile.full_name || "Your Name",
-      sender_calendar: typedProfile.calendar_link || "[Calendar Link]",
+      sender_calendar: "", // Don't use calendar link - Google Calendar handles this
       meeting_date: meetingDate,
       meeting_time: meetingTime,
-      meeting_link: finalMeetLink || "", // Add generated Meet link to template variables
+      meeting_link: finalMeetLink || "", // Google Meet link from calendar event
       industry: getIndustryForTemplate(typedContact), // Add industry for template rendering
     };
     
