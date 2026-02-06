@@ -398,18 +398,13 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       // Normalize Telnyx number as well
       const normalizedTelnyxNumber = normalizeToE164(telnyxNumberUsed) || telnyxNumberUsed;
 
-      // Create the call using Telnyx WebRTC SDK
-      const call = telnyxClient.newCall({
-        destinationNumber: normalizedNumber,
-        callerNumber: normalizedTelnyxNumber,
-      });
+      // Set up call notification handler on the CLIENT (Telnyx SDK sends
+      // notifications through the client, not individual call objects)
+      telnyxClient.on("telnyx.notification", (notification: any) => {
+        const callState = notification?.call?.state;
+        console.log("Telnyx call notification:", callState);
 
-      // Set up call event handlers
-      call.on("telnyx.notification", (notification: any) => {
-        const { call: callState } = notification;
-        console.log("Telnyx call notification:", callState?.state);
-
-        switch (callState?.state) {
+        switch (callState) {
           case "ringing":
             console.log("Call ringing");
             break;
@@ -420,7 +415,6 @@ export const useDialerStore = create<DialerState>((set, get) => ({
               isCallActive: true,
               callStartTime: new Date(),
               callDuration: 0,
-              telnyxCall: call,
             });
             get().startCall();
             break;
@@ -440,6 +434,12 @@ export const useDialerStore = create<DialerState>((set, get) => ({
             get().endCall();
             break;
         }
+      });
+
+      // Create the call using Telnyx WebRTC SDK
+      const call = telnyxClient.newCall({
+        destinationNumber: normalizedNumber,
+        callerNumber: normalizedTelnyxNumber,
       });
 
       // Store call reference
