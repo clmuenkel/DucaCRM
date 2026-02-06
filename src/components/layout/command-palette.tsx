@@ -16,7 +16,6 @@ import {
   CheckSquare,
   Mail,
   Download,
-  Settings,
   Plus,
   Search,
   User,
@@ -31,7 +30,6 @@ const pages = [
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Email Templates", href: "/templates", icon: Mail },
   { name: "Import from Apollo", href: "/import", icon: Download },
-  { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 const actions = [

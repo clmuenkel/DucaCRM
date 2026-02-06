@@ -11,7 +11,7 @@ import type { Contact, EmailTemplate } from "@/types/database";
 import { renderTemplate, htmlToPlainText } from "@/lib/email-template-renderer";
 import { createCalendarEvent, getValidAccessToken } from "@/lib/google-calendar/client";
 import { getIndustryForTemplate } from "@/lib/utils";
-import { getTimezoneFromLocation, createDateInTimezone } from "@/lib/timezone";
+import { getTimezoneFromLocation, createDateInTimezone, getTimezoneAbbreviation } from "@/lib/timezone";
 
 export const dynamic = 'force-dynamic';
 
@@ -184,12 +184,12 @@ export async function POST(request: NextRequest) {
       day: "numeric",
       timeZone: contactTimezone,
     });
-    const meetingTime = startTime.toLocaleTimeString("en-US", {
+    const timeAbbr = getTimezoneAbbreviation(contactTimezone);
+    const meetingTime = `${startTime.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       timeZone: contactTimezone,
-      timeZoneName: "short",
-    });
+    })} ${timeAbbr}`;
 
     // Build template variables (use hardcoded user info)
     const variables: Record<string, string> = {

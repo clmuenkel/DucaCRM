@@ -14,7 +14,6 @@ import {
   CheckSquare,
   Mail,
   Download,
-  Settings,
   PanelLeftClose,
   PanelLeft,
   Calendar,
@@ -144,41 +143,6 @@ export function Sidebar() {
             showLabel 
             className="w-full text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground px-3" 
           />
-        )}
-
-        {/* Settings */}
-        {isCollapsed ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Link
-                href="/settings"
-                className={cn(
-                  "flex items-center justify-center rounded-lg px-2 py-2.5 text-sm font-medium transition-all duration-200",
-                  pathname === "/settings"
-                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
-                )}
-              >
-                <Settings className="h-5 w-5" />
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="font-medium">
-              Settings
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <Link
-            href="/settings"
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-              pathname === "/settings"
-                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
-            )}
-          >
-            <Settings className="h-5 w-5 shrink-0" />
-            <span className="whitespace-nowrap">Settings</span>
-          </Link>
         )}
 
         {/* Collapse Toggle */}

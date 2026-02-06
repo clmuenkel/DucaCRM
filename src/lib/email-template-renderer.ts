@@ -3,67 +3,12 @@
  * Replaces {{variable}} placeholders with actual values
  */
 
-/**
- * Convert Imgur links to actual image tags
- * Handles direct i.imgur.com URLs and regular imgur.com links
- */
-function convertImgurLinksToImages(text: string): string {
-  // First, handle direct i.imgur.com image URLs (these are guaranteed to be images)
-  // Match: https://i.imgur.com/ID.png or i.imgur.com/ID.jpg, etc.
-  // Only match if not already inside an img src attribute
-  const directImagePattern = /(https?:\/\/)?i\.imgur\.com\/([a-zA-Z0-9]+)(\.[a-z]+)?/g;
-  text = text.replace(directImagePattern, (match, protocol, id, ext, offset, fullString) => {
-    // Check if this URL is already inside an img src attribute
-    const beforeMatch = fullString.substring(Math.max(0, offset - 50), offset);
-    if (beforeMatch.includes('src="') || beforeMatch.includes("src='")) {
-      return match; // Already in an image tag, don't process
-    }
-    
-    const fullUrl = protocol ? match : `https://${match}`;
-    
-    // Direct image URL - convert to clean, single-line image tag (left-aligned)
-    // Remove the URL text and only show the image
-    return `<div style="margin: 24px 0 0 0; text-align: left;"><img src="${fullUrl}" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0; border: none;" /></div>`;
-  });
-
-  // Then handle regular imgur.com links (album/post links)
-  const albumPattern = /(https?:\/\/)?(www\.)?imgur\.com\/(a\/)?([a-zA-Z0-9]+)/g;
-  text = text.replace(albumPattern, (match, protocol, www, albumPrefix, id, offset, fullString) => {
-    // Skip if already processed as direct image URL
-    if (match.includes('i.imgur.com')) {
-      return match;
-    }
-    
-    // Check if this URL is already inside an img src attribute
-    const beforeMatch = fullString.substring(Math.max(0, offset - 50), offset);
-    if (beforeMatch.includes('src="') || beforeMatch.includes("src='")) {
-      return match; // Already in an image tag, don't process
-    }
-    
-    // For regular imgur.com links, try to display as image (left-aligned)
-    // Remove the URL text and only show the image
-    return `<div style="margin: 24px 0 0 0; text-align: left;"><img src="https://i.imgur.com/${id}.jpg" alt="Logo" style="max-width: 200px; height: auto; display: block; margin: 0; border: none;" onerror="this.onerror=null;this.src='https://i.imgur.com/${id}.png';" /></div>`;
-  });
-
-  // Remove any remaining plain text Imgur URLs that weren't converted
-  // This handles cases where URLs appear on their own line
-  const remainingImgurPattern = /(?:^|\s)(https?:\/\/)?(www\.)?imgur\.com\/[^\s<>"]+(?:\s|$)/gi;
-  text = text.replace(remainingImgurPattern, '');
-
-  return text;
-}
 
 /**
  * Helper function to convert a line to a clickable link if it's a URL
- * Excludes Imgur URLs to prevent showing link text for images
  */
 function convertLineToLink(line: string): string {
   const trimmed = line.trim();
-  
-  // Skip Imgur URLs - these should be converted to images, not links
-  if (/imgur\.com/i.test(trimmed)) {
-    return ''; // Remove Imgur URLs from text
-  }
   
   // Check if line is a website link
   if (/^(www\.|http)/i.test(trimmed)) {
@@ -76,15 +21,9 @@ function convertLineToLink(line: string): string {
 
 /**
  * Helper function to detect if a line is part of a signature
- * Excludes Imgur URLs from being treated as signature links
  */
 function isSignatureLine(line: string): boolean {
   const trimmed = line.trim();
-  
-  // Exclude Imgur URLs - these should be converted to images, not signature links
-  if (/imgur\.com/i.test(trimmed)) {
-    return false;
-  }
   
   return /^(Founder|CEO|President|Director|Manager|VP|Vice President|Owner|www\.|http)/i.test(trimmed) ||
          /^\|/.test(trimmed) || // Lines starting with |
@@ -128,7 +67,7 @@ function convertPlainTextToHTML(text: string): string {
     const isEmpty = !trimmedLine;
     const prevLineWasEmpty = i > 0 && !rawLines[i - 1].trim();
     
-    // Skip lines that already contain HTML image tags (from convertImgurLinksToImages)
+    // Skip lines that already contain HTML image tags
     // These should be inserted as-is, not wrapped in paragraphs
     if (trimmedLine.includes('<div') && trimmedLine.includes('<img')) {
       htmlParagraphs.push(trimmedLine);
@@ -162,9 +101,7 @@ function convertPlainTextToHTML(text: string): string {
       // Check if this is still part of signature
       // Skip if it's already image HTML
       const isImageHTML = trimmedLine.includes('<div') && trimmedLine.includes('<img');
-      // Exclude Imgur URLs from signature detection
-      const isImgurUrl = /imgur\.com/i.test(trimmedLine);
-      const isSignatureComponent = !isImageHTML && !isImgurUrl && (
+      const isSignatureComponent = !isImageHTML && (
         isSignatureLine(trimmedLine) || 
         /^(www\.|http)/i.test(trimmedLine) ||
         (signatureLineCount > 0 && signatureLineCount < 5)
@@ -325,11 +262,7 @@ export function renderHTMLTemplate(
   // First render variables
   let rendered = renderTemplate(template, variables);
   
-  // Convert Imgur links to images FIRST (before paragraph formatting)
-  // This prevents URLs from being wrapped in <p> tags
-  rendered = convertImgurLinksToImages(rendered);
-  
-  // THEN convert plain text to HTML (this will leave image HTML as-is)
+  // Convert plain text to HTML
   rendered = convertPlainTextToHTML(rendered);
   
   // Wrap in proper email HTML structure
@@ -341,10 +274,6 @@ export function renderHTMLTemplate(
  * Professional email formatting to avoid Promotions tab
  */
 function wrapEmailHTML(content: string): string {
-  // Extract email from content if available (for unsubscribe link)
-  // This is a fallback - the actual email will be passed via variables
-  const emailMatch = content.match(/{{email}}/);
-  
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -361,10 +290,6 @@ function wrapEmailHTML(content: string): string {
           <tr>
             <td style="padding: 20px 24px; font-size: 16px; line-height: 1.6; color: #1f2937;">
               ${content}
-              <!-- Unsubscribe footer - required for inbox placement -->
-              <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; line-height: 1.5;">
-                <p style="margin: 0 0 8px 0;">If you no longer wish to receive these emails, you can <a href="{{unsubscribe_url}}" style="color: #3b82f6; text-decoration: underline;">unsubscribe here</a>.</p>
-              </div>
             </td>
           </tr>
         </table>

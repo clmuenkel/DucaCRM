@@ -96,13 +96,6 @@ export function Header({ title, showSearch = true }: HeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings")}>
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/settings#api")}>
-              API Keys
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

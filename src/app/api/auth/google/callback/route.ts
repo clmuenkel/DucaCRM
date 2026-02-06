@@ -16,13 +16,13 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       return NextResponse.redirect(
-        `${request.nextUrl.origin}/settings?error=oauth_cancelled`
+        `${request.nextUrl.origin}/?error=oauth_cancelled`
       );
     }
 
     if (!code) {
       return NextResponse.redirect(
-        `${request.nextUrl.origin}/settings?error=oauth_no_code`
+        `${request.nextUrl.origin}/?error=oauth_no_code`
       );
     }
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     if (!clientId || !clientSecret) {
       return NextResponse.redirect(
-        `${request.nextUrl.origin}/settings?error=oauth_not_configured`
+        `${request.nextUrl.origin}/?error=oauth_not_configured`
       );
     }
 
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error("Google OAuth callback error:", error);
     return NextResponse.redirect(
-      `${request.nextUrl.origin}/settings?error=oauth_callback_failed`
+      `${request.nextUrl.origin}/?error=oauth_callback_failed`
     );
   }
 }
