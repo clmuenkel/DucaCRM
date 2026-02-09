@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { STAGES } from "@/lib/constants";
 import { formatPhone, copyToClipboard, getInitials } from "@/lib/utils";
 import { getTimezoneFromLocation, getLocalTime, getTimezoneAbbreviation, isBusinessHours } from "@/lib/timezone";
+import { Input } from "@/components/ui/input";
 import {
   Phone,
   Mail,
@@ -22,19 +23,119 @@ import {
   Clock,
   Check,
   StickyNote,
+  Pencil,
+  RotateCcw,
+  Loader2,
+  Save,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { insforge } from "@/lib/insforge/client";
+import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export function ContactPanelCompact() {
-  const { currentContact } = useDialerStore();
+  const { currentContact, setQueue, queue, currentIndex } = useDialerStore();
 
   const { data: company } = useCompany(currentContact?.company_id || "");
   const { data: companyNotes } = useCompanyNotes(currentContact?.company_id);
 
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Inline editing state
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
   if (!currentContact) return null;
+
+  // Save phone number to DB and update local state
+  const handleSavePhone = async () => {
+    if (!editPhone.trim()) {
+      toast.error("Phone number cannot be empty");
+      return;
+    }
+    setIsSavingPhone(true);
+    try {
+      const { error } = await (insforge.database as any)
+        .from("contacts")
+        .update({ phone: editPhone.trim(), mobile: editPhone.trim() })
+        .eq("id", currentContact.id);
+      if (error) throw new Error(error.message);
+
+      // Update the contact in the dialer queue so UI refreshes
+      const updatedQueue = queue.map(c =>
+        c.id === currentContact.id ? { ...c, phone: editPhone.trim(), mobile: editPhone.trim() } : c
+      );
+      setQueue(updatedQueue);
+      setIsEditingPhone(false);
+      toast.success("Phone number updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update phone");
+    } finally {
+      setIsSavingPhone(false);
+    }
+  };
+
+  // Save email to DB and update local state
+  const handleSaveEmail = async () => {
+    if (!editEmail.trim()) {
+      toast.error("Email cannot be empty");
+      return;
+    }
+    setIsSavingEmail(true);
+    try {
+      const { error } = await (insforge.database as any)
+        .from("contacts")
+        .update({ email: editEmail.trim() })
+        .eq("id", currentContact.id);
+      if (error) throw new Error(error.message);
+
+      const updatedQueue = queue.map(c =>
+        c.id === currentContact.id ? { ...c, email: editEmail.trim() } : c
+      );
+      setQueue(updatedQueue);
+      setIsEditingEmail(false);
+      toast.success("Email updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update email");
+    } finally {
+      setIsSavingEmail(false);
+    }
+  };
+
+  // Reset contact: remove from active cadence → back to All Contacts pool
+  const handleResetToQueue = async () => {
+    setIsResetting(true);
+    try {
+      const { error } = await (insforge.database as any)
+        .from("contacts")
+        .update({
+          cadence_status: null,
+          cadence_step: null,
+          cadence_outcome: null,
+          next_action_date: null,
+          next_action_type: null,
+          call_attempts: 0,
+        })
+        .eq("id", currentContact.id);
+      if (error) throw new Error(error.message);
+
+      toast.success(`${currentContact.first_name} reset to All Contacts queue`);
+
+      // Remove this contact from the dialer queue
+      const updatedQueue = queue.filter(c => c.id !== currentContact.id);
+      setQueue(updatedQueue);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reset contact");
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const stage = STAGES.find((s) => s.value === currentContact.stage);
 
@@ -130,27 +231,83 @@ export function ContactPanelCompact() {
         </CardContent>
       </Card>
 
-      {/* Contact Info */}
+      {/* Contact Info — Editable */}
       <div className="space-y-2">
-        {(currentContact.phone || currentContact.mobile) && (
-          <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
-            <div className="flex items-center gap-3">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="font-mono">{formatPhone(currentContact.phone || currentContact.mobile!)}</span>
+        {/* Phone — inline edit */}
+        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
+          {isEditingPhone ? (
+            <div className="flex items-center gap-2 flex-1">
+              <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="+18322941575"
+                className="h-8 font-mono text-sm"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleSavePhone(); if (e.key === "Escape") setIsEditingPhone(false); }}
+              />
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleSavePhone} disabled={isSavingPhone}>
+                {isSavingPhone ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 text-green-500" />}
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setIsEditingPhone(false)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            <CopyButton text={currentContact.phone || currentContact.mobile!} field="phone" />
-          </div>
-        )}
-        
-        {currentContact.email && (
-          <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
-            <div className="flex items-center gap-3 min-w-0">
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span className="font-mono">{formatPhone(currentContact.phone || currentContact.mobile || "")}</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 hover:bg-primary/10" onClick={() => { setEditPhone(currentContact.phone || currentContact.mobile || ""); setIsEditingPhone(true); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                {(currentContact.phone || currentContact.mobile) && (
+                  <CopyButton text={currentContact.phone || currentContact.mobile!} field="phone" />
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Email — inline edit */}
+        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors">
+          {isEditingEmail ? (
+            <div className="flex items-center gap-2 flex-1">
               <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="truncate">{currentContact.email}</span>
+              <Input
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="h-8 text-sm"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleSaveEmail(); if (e.key === "Escape") setIsEditingEmail(false); }}
+              />
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={handleSaveEmail} disabled={isSavingEmail}>
+                {isSavingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 text-green-500" />}
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setIsEditingEmail(false)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            <CopyButton text={currentContact.email} field="email" />
-          </div>
-        )}
+          ) : (
+            <>
+              <div className="flex items-center gap-3 min-w-0">
+                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="truncate">{currentContact.email || "No email"}</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 hover:bg-primary/10" onClick={() => { setEditEmail(currentContact.email || ""); setIsEditingEmail(true); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                {currentContact.email && (
+                  <CopyButton text={currentContact.email} field="email" />
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         {currentContact.linkedin_url && (
           <div className="flex items-center gap-3 p-2">
@@ -165,6 +322,20 @@ export function ContactPanelCompact() {
             </a>
           </div>
         )}
+
+        {/* Reset to Queue */}
+        <div className="pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 text-muted-foreground hover:text-orange-600 hover:border-orange-500/50"
+            onClick={handleResetToQueue}
+            disabled={isResetting}
+          >
+            {isResetting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+            Reset to Queue
+          </Button>
+        </div>
       </div>
 
       {/* Company Info */}
