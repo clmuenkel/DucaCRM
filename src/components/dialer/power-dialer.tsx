@@ -48,23 +48,40 @@ export function PowerDialer() {
   } = useDialerStore();
 
   // Fetch ALL active cadence contacts (not just calls due today)
+  // Also refetch when page gains focus (e.g. user navigates back from work queue)
+  const [fetchKey, setFetchKey] = useState(0);
+
+  useEffect(() => {
+    const handleFocus = () => setFetchKey(k => k + 1);
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
   useEffect(() => {
     const fetchCadenceContacts = async () => {
       setIsLoadingCadence(true);
 
       // Get ALL active cadence contacts (regardless of next_action_type)
-      const { data: cadenceData } = await insforge.database
+      // Note: .or() filters can fail silently with InsForge, so we filter client-side
+      const { data: cadenceData, error: cadenceError } = await insforge.database
         .from("contacts")
         .select("*")
         .eq("user_id", userId)
         .eq("cadence_status", "active")
-        .or("phone.not.is.null,mobile.not.is.null")
         .order("next_action_date", { ascending: true, nullsFirst: true })
         .order("priority_score", { ascending: false });
 
-      setCadenceContacts((cadenceData as Contact[]) || []);
+      if (cadenceError) {
+        console.error("Error fetching cadence contacts:", cadenceError);
+      }
 
-      // Get hot leads (opened email)
+      // Client-side filter: must have at least one phone number
+      const cadenceWithPhone = ((cadenceData as Contact[]) || []).filter(
+        c => c.phone || c.mobile
+      );
+      setCadenceContacts(cadenceWithPhone);
+
+      // Get hot leads (opened email) — also filter client-side
       const { data: hotData } = await insforge.database
         .from("contacts")
         .select("*")
@@ -72,15 +89,17 @@ export function PowerDialer() {
         .eq("cadence_status", "active")
         .eq("email_opened", true)
         .eq("email_replied", false)
-        .or("phone.not.is.null,mobile.not.is.null")
         .order("email_open_count", { ascending: false });
 
-      setHotContacts((hotData as Contact[]) || []);
+      const hotWithPhone = ((hotData as Contact[]) || []).filter(
+        c => c.phone || c.mobile
+      );
+      setHotContacts(hotWithPhone);
       setIsLoadingCadence(false);
 
       // If initial contact ID provided, start session with that contact
-      if (initialContactId && cadenceData) {
-        const targetContact = cadenceData.find((c: any) => c.id === initialContactId);
+      if (initialContactId && cadenceWithPhone) {
+        const targetContact = cadenceWithPhone.find((c: any) => c.id === initialContactId);
         if (targetContact) {
           startSession([targetContact as Contact]);
         }
@@ -88,7 +107,7 @@ export function PowerDialer() {
     };
 
     fetchCadenceContacts();
-  }, [userId, initialContactId]);
+  }, [userId, initialContactId, fetchKey]);
 
   // Fallback: all fresh contacts
   const { data: allContacts, isLoading: isLoadingAll } = useContacts({
