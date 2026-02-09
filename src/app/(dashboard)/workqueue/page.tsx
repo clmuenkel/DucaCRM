@@ -133,56 +133,51 @@ export default function WorkQueuePage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
+      // Run ALL queries in parallel for speed
+      const [activeResult, nullCadenceResult, notActiveResult] = await Promise.all([
+        // Top table: All active cadence contacts
+        insforge.database
+          .from("contacts")
+          .select("*")
+          .eq("user_id", DEFAULT_USER_ID)
+          .eq("cadence_status", "active")
+          .order("next_action_date", { ascending: true, nullsFirst: true })
+          .order("last_call_attempt_date", { ascending: false, nullsFirst: true })
+          .order("priority_score", { ascending: false }),
 
-      // Top table: All active cadence contacts (not just to call)
-      // Show ALL contacts in active cadence regardless of next_action_type
-      const { data: activeData } = await insforge.database
-        .from("contacts")
-        .select("*")
-        .eq("user_id", DEFAULT_USER_ID)
-        .eq("cadence_status", "active")
-        .order("next_action_date", { ascending: true, nullsFirst: true })
-        .order("last_call_attempt_date", { ascending: false, nullsFirst: true })
-        .order("priority_score", { ascending: false });
+        // Bottom table query 1: Contacts with NULL cadence_status
+        insforge.database
+          .from("contacts")
+          .select("*")
+          .eq("user_id", DEFAULT_USER_ID)
+          .eq("status", "active")
+          .is("cadence_status", null),
 
-      setActiveCadenceContacts((activeData as Contact[]) || []);
+        // Bottom table query 2: Contacts with cadence_status not equal to "active"
+        insforge.database
+          .from("contacts")
+          .select("*")
+          .eq("user_id", DEFAULT_USER_ID)
+          .eq("status", "active")
+          .neq("cadence_status", "active"),
+      ]);
 
-      // Bottom table: All other contacts (not in active cadence)
-      // Show all active contacts that are NOT in active cadence
-      // Split into two queries to avoid .or() chaining issues
-      
-      // Query 1: Contacts with NULL cadence_status
-      const { data: nullCadenceData, error: nullError } = await insforge.database
-        .from("contacts")
-        .select("*")
-        .eq("user_id", DEFAULT_USER_ID)
-        .eq("status", "active")
-        .is("cadence_status", null);
+      setActiveCadenceContacts((activeResult.data as Contact[]) || []);
 
-      if (nullError) {
-        console.error("Error loading NULL cadence contacts:", nullError);
+      if (nullCadenceResult.error) {
+        console.error("Error loading NULL cadence contacts:", nullCadenceResult.error);
+      }
+      if (notActiveResult.error) {
+        console.error("Error loading non-active cadence contacts:", notActiveResult.error);
       }
 
-      // Query 2: Contacts with cadence_status not equal to "active"
-      const { data: notActiveData, error: notActiveError } = await insforge.database
-        .from("contacts")
-        .select("*")
-        .eq("user_id", DEFAULT_USER_ID)
-        .eq("status", "active")
-        .neq("cadence_status", "active");
-
-      if (notActiveError) {
-        console.error("Error loading non-active cadence contacts:", notActiveError);
-      }
-
-      // Combine results
-      let combinedData = [
-        ...(nullCadenceData || []),
-        ...(notActiveData || []),
+      // Combine bottom table results
+      const combinedData = [
+        ...(nullCadenceResult.data || []),
+        ...(notActiveResult.data || []),
       ];
 
-      // Remove duplicates (in case a contact appears in both - shouldn't happen but be safe)
+      // Remove duplicates
       const uniqueContacts = Array.from(
         new Map(combinedData.map(c => [c.id, c])).values()
       );
@@ -197,16 +192,10 @@ export default function WorkQueuePage() {
 
       // Sort by industry and employee_count
       filteredData.sort((a, b) => {
-        // First sort by industry
         const industryA = a.industry || "";
         const industryB = b.industry || "";
-        if (industryA !== industryB) {
-          return industryA.localeCompare(industryB);
-        }
-        // Then by employee_count (descending)
-        const countA = a.employee_count || 0;
-        const countB = b.employee_count || 0;
-        return countB - countA;
+        if (industryA !== industryB) return industryA.localeCompare(industryB);
+        return (b.employee_count || 0) - (a.employee_count || 0);
       });
 
       setAllContacts(filteredData as Contact[]);

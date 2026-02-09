@@ -84,8 +84,8 @@ export async function POST(request: NextRequest) {
     const errorDetails: string[] = []; // Track error messages
     const today = new Date().toISOString().split("T")[0];
     
-    // Stagger emails: 1 per minute (60 seconds delay between sends)
-    const STAGGER_DELAY_MS = 60000; // 60 seconds = 1 minute
+    // Stagger emails: 2 seconds between sends (Resend allows ~1/sec)
+    const STAGGER_DELAY_MS = 2000;
 
     for (let i = 0; i < contactIds.length; i++) {
       const contactId = contactIds[i];
