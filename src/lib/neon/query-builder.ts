@@ -65,7 +65,11 @@ export class QueryBuilder implements PromiseLike<QueryResult> {
   // ── Operation setters ─────────────────────────────────────
 
   select(columns?: string, options?: { count?: "exact"; head?: boolean }): QueryBuilder {
-    this.desc.operation = "select";
+    // Keep data-modifying operations intact when chaining .select()
+    // (Supabase-style: insert/update/upsert(...).select(...))
+    if (!["insert", "update", "delete", "upsert"].includes(this.desc.operation)) {
+      this.desc.operation = "select";
+    }
     this.desc.columns = columns || "*";
     if (options?.count) this.desc.countMode = options.count;
     if (options?.head) this.desc.headMode = options.head;
