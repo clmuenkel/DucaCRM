@@ -181,34 +181,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Check for contacts that need 7-day follow-up emails
-    // Note: This is handled by the send-follow-up endpoint which should be called separately
-    // We'll just log that these contacts exist but not trigger the follow-up here
-    // to avoid circular dependencies. The follow-up endpoint can be called via cron or manually.
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
-
-    const { data: followUpContacts } = await insforge.database
-      .from("contacts")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("cadence_status", "active")
-      .in("cadence_outcome", ["no_answer", "voicemail", "busy", "gatekeeper"])
-      .eq("last_call_attempt_date", sevenDaysAgoStr)
-      .eq("wrong_number_flag", false)
-      .not("email", "is", null);
-
-    const followUpsDue = followUpContacts?.length || 0;
-
     return NextResponse.json({
       success: true,
-      message: `Processed cadence: ${advanced} advanced, ${archived} archived${followUpsDue > 0 ? `, ${followUpsDue} follow-ups due (call /api/cadence/send-follow-up to send)` : ""}`,
+      message: `Processed cadence: ${advanced} advanced, ${archived} archived`,
       stats: {
         processed: typedDueContacts.length + typedSnoozedContacts.length,
         advanced,
         archived,
-        followUpsDue,
         errors,
       },
     });
