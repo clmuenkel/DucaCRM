@@ -33,6 +33,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { insforge } from "@/lib/insforge/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
@@ -47,8 +53,9 @@ import {
   Building2,
   Users,
   Sparkles,
-  ArrowRight,
-  Filter,
+  X,
+  MapPin,
+  SlidersHorizontal,
 } from "lucide-react";
 import { getValidPhone } from "@/lib/utils";
 import type { Contact } from "@/types/database";
@@ -62,14 +69,14 @@ const STEP_NAMES: Record<number, string> = {
   5: "Call 3",
 };
 
-const INDUSTRIES = [
-  { value: "all", label: "All Industries" },
-  { value: "hvac", label: "HVAC" },
-  { value: "plumbing", label: "Plumbing" },
-  { value: "roofing", label: "Roofing" },
-  { value: "electrical", label: "Electrical" },
-  { value: "solar", label: "Solar" },
-  { value: "construction", label: "General Contractors" },
+const EMPLOYEE_RANGES = [
+  { value: "all", label: "Any Size" },
+  { value: "1-10", label: "1–10", min: 1, max: 10 },
+  { value: "11-50", label: "11–50", min: 11, max: 50 },
+  { value: "51-200", label: "51–200", min: 51, max: 200 },
+  { value: "201-500", label: "201–500", min: 201, max: 500 },
+  { value: "501-1000", label: "501–1,000", min: 501, max: 1000 },
+  { value: "1001+", label: "1,000+", min: 1001, max: 999999 },
 ];
 
 export default function WorkQueuePage() {
@@ -83,7 +90,45 @@ export default function WorkQueuePage() {
   const [showStartCadenceDialog, setShowStartCadenceDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
+  const [stateFilter, setStateFilter] = useState("all");
+  const [employeeSizeFilter, setEmployeeSizeFilter] = useState("all");
+  const [hasPhoneFilter, setHasPhoneFilter] = useState(false);
+  const [hasEmailFilter, setHasEmailFilter] = useState(false);
   const [showLostFilter, setShowLostFilter] = useState(false);
+
+  // Derive unique states and industries from loaded data
+  const uniqueStates = useMemo(() => {
+    const states = new Set<string>();
+    allContacts.forEach(c => { if (c.state) states.add(c.state); });
+    return Array.from(states).sort();
+  }, [allContacts]);
+
+  const uniqueIndustries = useMemo(() => {
+    const industries = new Set<string>();
+    allContacts.forEach(c => { if (c.industry) industries.add(c.industry); });
+    return Array.from(industries).sort();
+  }, [allContacts]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (industryFilter !== "all") count++;
+    if (stateFilter !== "all") count++;
+    if (employeeSizeFilter !== "all") count++;
+    if (hasPhoneFilter) count++;
+    if (hasEmailFilter) count++;
+    if (showLostFilter) count++;
+    return count;
+  }, [industryFilter, stateFilter, employeeSizeFilter, hasPhoneFilter, hasEmailFilter, showLostFilter]);
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setIndustryFilter("all");
+    setStateFilter("all");
+    setEmployeeSizeFilter("all");
+    setHasPhoneFilter(false);
+    setHasEmailFilter(false);
+    setShowLostFilter(false);
+  };
 
   const loadData = async () => {
     setIsLoading(true);
@@ -181,6 +226,7 @@ export default function WorkQueuePage() {
   const filteredAllContacts = useMemo(() => {
     let filtered = allContacts;
 
+    // Text search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -188,16 +234,49 @@ export default function WorkQueuePage() {
           c.first_name?.toLowerCase().includes(query) ||
           c.last_name?.toLowerCase().includes(query) ||
           c.company_name?.toLowerCase().includes(query) ||
-          c.email?.toLowerCase().includes(query)
+          c.email?.toLowerCase().includes(query) ||
+          c.title?.toLowerCase().includes(query) ||
+          c.state?.toLowerCase().includes(query) ||
+          c.city?.toLowerCase().includes(query)
       );
     }
 
+    // Industry filter (supports comma-separated multi-industry values like "hvac, plumbing")
     if (industryFilter !== "all") {
-      filtered = filtered.filter((c) => c.industry === industryFilter);
+      filtered = filtered.filter((c) => 
+        c.industry?.toLowerCase().includes(industryFilter.toLowerCase())
+      );
+    }
+
+    // State filter
+    if (stateFilter !== "all") {
+      filtered = filtered.filter((c) => c.state === stateFilter);
+    }
+
+    // Employee size filter
+    if (employeeSizeFilter !== "all") {
+      const range = EMPLOYEE_RANGES.find(r => r.value === employeeSizeFilter);
+      if (range && range.min !== undefined) {
+        filtered = filtered.filter((c) => {
+          const count = c.employee_count;
+          if (!count) return false;
+          return count >= range.min! && count <= range.max!;
+        });
+      }
+    }
+
+    // Has phone filter
+    if (hasPhoneFilter) {
+      filtered = filtered.filter((c) => !!(c.phone || c.mobile));
+    }
+
+    // Has email filter
+    if (hasEmailFilter) {
+      filtered = filtered.filter((c) => !!c.email);
     }
 
     return filtered;
-  }, [allContacts, searchQuery, industryFilter]);
+  }, [allContacts, searchQuery, industryFilter, stateFilter, employeeSizeFilter, hasPhoneFilter, hasEmailFilter]);
 
   const handleStartCadence = async () => {
     if (selectedContacts.size === 0) {
@@ -420,36 +499,180 @@ export default function WorkQueuePage() {
           </CardHeader>
           <CardContent>
             {/* Filters */}
-            <div className="flex gap-4 mb-4">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search contacts..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+            <div className="space-y-3 mb-4">
+              {/* Row 1: Search + Filter button */}
+              <div className="flex gap-3 items-center">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name, company, title, city, state..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Filters
+                      {activeFilterCount > 0 && (
+                        <Badge variant="default" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full">
+                          {activeFilterCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-4" align="end">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Filters</h4>
+                        {activeFilterCount > 0 && (
+                          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground">
+                            Clear all
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* State */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3" /> State / Region
+                        </Label>
+                        <Select value={stateFilter} onValueChange={setStateFilter}>
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="All States" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            <SelectItem value="all">All States</SelectItem>
+                            {uniqueStates.map(s => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Industry */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium flex items-center gap-1.5">
+                          <Building2 className="h-3 w-3" /> Industry
+                        </Label>
+                        <Select value={industryFilter} onValueChange={setIndustryFilter}>
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="All Industries" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            <SelectItem value="all">All Industries</SelectItem>
+                            {uniqueIndustries.map(i => (
+                              <SelectItem key={i} value={i}>{i}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Employee count */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium flex items-center gap-1.5">
+                          <Users className="h-3 w-3" /> Employee Count
+                        </Label>
+                        <Select value={employeeSizeFilter} onValueChange={setEmployeeSizeFilter}>
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue placeholder="Any Size" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EMPLOYEE_RANGES.map(r => (
+                              <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Quick toggles */}
+                      <div className="space-y-2 pt-1 border-t">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="hasPhone"
+                            checked={hasPhoneFilter}
+                            onCheckedChange={(v) => setHasPhoneFilter(!!v)}
+                          />
+                          <Label htmlFor="hasPhone" className="text-xs cursor-pointer flex items-center gap-1.5">
+                            <Phone className="h-3 w-3" /> Has phone number
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="hasEmail"
+                            checked={hasEmailFilter}
+                            onCheckedChange={(v) => setHasEmailFilter(!!v)}
+                          />
+                          <Label htmlFor="hasEmail" className="text-xs cursor-pointer flex items-center gap-1.5">
+                            <Mail className="h-3 w-3" /> Has email
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="showLost"
+                            checked={showLostFilter}
+                            onCheckedChange={(v) => setShowLostFilter(!!v)}
+                          />
+                          <Label htmlFor="showLost" className="text-xs cursor-pointer">
+                            Include lost contacts
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {activeFilterCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground">
+                    <X className="h-4 w-4 mr-1" /> Clear
+                  </Button>
+                )}
               </div>
-              <Select value={industryFilter} onValueChange={setIndustryFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filter by industry" />
-                </SelectTrigger>
-                <SelectContent>
-                  {INDUSTRIES.map((ind) => (
-                    <SelectItem key={ind.value} value={ind.value}>
-                      {ind.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowLostFilter(!showLostFilter)}
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                {showLostFilter ? "Hide Lost" : "Show Lost"}
-              </Button>
+
+              {/* Active filter badges */}
+              {activeFilterCount > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {stateFilter !== "all" && (
+                    <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+                      <MapPin className="h-3 w-3" /> {stateFilter}
+                      <button onClick={() => setStateFilter("all")} className="ml-1 hover:text-foreground"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  )}
+                  {industryFilter !== "all" && (
+                    <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+                      <Building2 className="h-3 w-3" /> {industryFilter}
+                      <button onClick={() => setIndustryFilter("all")} className="ml-1 hover:text-foreground"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  )}
+                  {employeeSizeFilter !== "all" && (
+                    <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+                      <Users className="h-3 w-3" /> {EMPLOYEE_RANGES.find(r => r.value === employeeSizeFilter)?.label}
+                      <button onClick={() => setEmployeeSizeFilter("all")} className="ml-1 hover:text-foreground"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  )}
+                  {hasPhoneFilter && (
+                    <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+                      <Phone className="h-3 w-3" /> Has phone
+                      <button onClick={() => setHasPhoneFilter(false)} className="ml-1 hover:text-foreground"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  )}
+                  {hasEmailFilter && (
+                    <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+                      <Mail className="h-3 w-3" /> Has email
+                      <button onClick={() => setHasEmailFilter(false)} className="ml-1 hover:text-foreground"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  )}
+                  {showLostFilter && (
+                    <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
+                      Including lost
+                      <button onClick={() => setShowLostFilter(false)} className="ml-1 hover:text-foreground"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  )}
+                </div>
+              )}
             </div>
 
             {isLoading ? (
@@ -471,6 +694,7 @@ export default function WorkQueuePage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Company</TableHead>
                     <TableHead>Industry</TableHead>
+                    <TableHead>State</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Priority</TableHead>
@@ -497,6 +721,13 @@ export default function WorkQueuePage() {
                         <TableCell>
                           {contact.industry && (
                             <Badge variant="outline">{contact.industry}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {contact.state ? (
+                            <span className="text-sm">{contact.state}</span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
                         <TableCell>
