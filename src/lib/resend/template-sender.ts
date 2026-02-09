@@ -52,8 +52,8 @@ export async function sendEmailWithTemplate(
       email: contact.email || "",
       phone: contact.phone || contact.mobile || "",
       industry: industry,
-      // Auto logo URL on sending domain — use {{logo_url}} in templates
-      logo_url: `https://${imgDomain}/api/images/logo`,
+      // Static logo on sending domain — use {{logo_url}} in templates
+      logo_url: `https://${imgDomain}/logo.png`,
       // Merge with custom variables (overrides contact data)
       ...variables,
     };
@@ -67,30 +67,8 @@ export async function sendEmailWithTemplate(
     // meeting_link variable is already replaced by renderTemplate above
     // Keep it as a plain link — styled buttons trigger Gmail's Promotions filter
     
-    // Rewrite image URLs to use the sending domain
-    // Gmail flags images from domains that don't match the sender as suspicious
-    const fromEmailAddress = fromEmail.includes('<')
-      ? fromEmail.match(/<(.+)>/)?.[1] || fromEmail
-      : fromEmail;
-    const sendingDomain = fromEmailAddress.split('@')[1];
-    if (sendingDomain) {
-      // Replace duca-crm.vercel.app with sending domain
-      renderedHTML = renderedHTML.replace(
-        /https?:\/\/duca-crm\.vercel\.app/gi,
-        `https://${sendingDomain}`
-      );
-      // Also replace any NEXT_PUBLIC_APP_URL-based URLs if set
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-      if (appUrl) {
-        const appHost = new URL(appUrl).host;
-        if (appHost !== sendingDomain) {
-          renderedHTML = renderedHTML.replace(
-            new RegExp(`https?://${appHost.replace(/\./g, '\\.')}`, 'gi'),
-            `https://${sendingDomain}`
-          );
-        }
-      }
-    }
+    // Image URLs already point to the sending domain via logo_url variable
+    // No rewriting needed since we use static files on the same domain
     
     // Generate plain text version for better deliverability
     const renderedText = htmlToPlainText(renderedHTML);

@@ -13,7 +13,7 @@ function convertLineToLink(line: string): string {
   // Check if line is a website link
   if (/^(www\.|http)/i.test(trimmed)) {
     const url = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
-    return `<a href="${url}" style="color: #2563eb; text-decoration: none;">${trimmed}</a>`;
+    return `<a href="${url}">${trimmed}</a>`;
   }
   
   return trimmed;
@@ -83,7 +83,7 @@ function convertPlainTextToHTML(text: string): string {
       if (currentParagraph.length > 0) {
         const paraText = currentParagraph.join(' ').trim();
         if (paraText) {
-          htmlParagraphs.push(`<p style="margin: 0 0 10px 0;">${paraText}</p>`);
+          htmlParagraphs.push(`<div>${paraText}</div>`);
         }
         currentParagraph = [];
       }
@@ -111,7 +111,11 @@ function convertPlainTextToHTML(text: string): string {
         signatureLineCount++;
         const formattedLine = convertLineToLink(trimmedLine);
         const marginTop = signatureLineCount === 1 ? '16px' : '0';
-        htmlParagraphs.push(`<p style="margin: ${marginTop} 0 0 0;">${formattedLine}</p>`);
+        if (signatureLineCount === 1) {
+          htmlParagraphs.push(`<br><div>${formattedLine}</div>`);
+        } else {
+          htmlParagraphs.push(`<div>${formattedLine}</div>`);
+        }
         continue;
       } else {
         // No longer in signature
@@ -129,7 +133,7 @@ function convertPlainTextToHTML(text: string): string {
         if (currentParagraph.length > 0) {
           const paraText = currentParagraph.join(' ').trim();
           if (paraText) {
-            htmlParagraphs.push(`<p style="margin: 0 0 10px 0;">${paraText}</p>`);
+            htmlParagraphs.push(`<div>${paraText}</div>`);
           }
           currentParagraph = [];
         }
@@ -155,7 +159,7 @@ function convertPlainTextToHTML(text: string): string {
   if (currentParagraph.length > 0) {
     const paraText = currentParagraph.join(' ').trim();
     if (paraText) {
-      htmlParagraphs.push(`<p style="margin: 0 0 10px 0;">${paraText}</p>`);
+      htmlParagraphs.push(`<div>${paraText}</div>`);
     }
   }
   
@@ -270,16 +274,10 @@ export function renderHTMLTemplate(
 }
 
 /**
- * Wrap content in minimal HTML structure
- * Looks like a personal email — no tables, no marketing layout
- * Gmail classifies table-heavy HTML as promotional
+ * Wrap content in the simplest possible HTML structure
+ * Gmail classifies styled/complex HTML as promotional
+ * This mimics what Gmail itself generates for composed emails
  */
 function wrapEmailHTML(content: string): string {
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; font-size: 14px; color: #222;">
-<div>${content}</div>
-</body>
-</html>`;
+  return `<div dir="ltr">${content}</div>`;
 }
