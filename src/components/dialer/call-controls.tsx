@@ -74,6 +74,7 @@ export function CallControlsHeader() {
     nextContact,
     previousContact,
     skipContact,
+    moveCurrentToEnd,
     endSession,
     telnyxClient,
     isConnecting,
@@ -122,9 +123,16 @@ export function CallControlsHeader() {
 
       toast.success(data.message);
       
-      // Refetch contacts and move to next
+      // Refetch contacts
       await refetchContacts();
-      nextContact();
+
+      // For callbacks: move contact to end of queue so it comes back around
+      // For won/lost: just skip to next
+      if (outcomeType === "callback") {
+        moveCurrentToEnd();
+      } else {
+        nextContact();
+      }
     } catch (error: any) {
       toast.error(error.message);
     } finally {
