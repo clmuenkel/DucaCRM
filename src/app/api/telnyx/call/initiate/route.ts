@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { contactId, toNumber } = body;
+    const { contactId, toNumber, contactState } = body;
 
     if (!toNumber) {
       return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
@@ -34,14 +34,16 @@ export async function POST(request: NextRequest) {
 
     const userId = DEFAULT_USER_ID;
 
-    // Get next available number
-    const { number, error: numberError } = await getNextAvailableNumber();
+    // Get best available number (geo-matched to contact's state)
+    const { number, matchType, error: numberError } = await getNextAvailableNumber(contactState);
     if (numberError || !number) {
       return NextResponse.json(
         { error: numberError || "No available Telnyx numbers" },
         { status: 500 }
       );
     }
+
+    console.log(`[GeoMatch] Contact state: ${contactState || "unknown"} → Using ${number.phone_number} (${matchType})`);
 
     // Check daily limits
     if (number.daily_call_count >= number.daily_call_limit) {
@@ -88,6 +90,7 @@ export async function POST(request: NextRequest) {
       telnyxCallId: telnyxCall?.id || null,
       dailyCallCount: number.daily_call_count + 1,
       dailyCallLimit: number.daily_call_limit,
+      geoMatch: matchType || "fallback",
     });
   } catch (error: any) {
     console.error("Error initiating Telnyx call:", error);

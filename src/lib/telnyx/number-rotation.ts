@@ -1,6 +1,7 @@
 import { insforge } from "@/lib/insforge/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { getTelnyxConfig } from "./client";
+import { pickBestNumber } from "./geo-matching";
 
 export interface TelnyxNumber {
   id: string;
@@ -87,11 +88,15 @@ export async function initializeTelnyxNumbers(): Promise<{
 }
 
 /**
- * Get the next available Telnyx number for calling
- * Selects number with lowest daily call count that hasn't hit limit
+ * Get the best available Telnyx number for calling a contact.
+ * Uses geographic matching: picks a number in the same state as the contact,
+ * or the closest state if no exact match exists.
+ *
+ * @param contactState  The state of the contact being called (e.g. "Texas")
  */
-export async function getNextAvailableNumber(): Promise<{
+export async function getNextAvailableNumber(contactState?: string | null): Promise<{
   number: TelnyxNumber | null;
+  matchType?: "exact" | "closest" | "fallback";
   error?: string;
 }> {
   const userId = DEFAULT_USER_ID;
@@ -100,7 +105,7 @@ export async function getNextAvailableNumber(): Promise<{
     // First, ensure numbers are initialized
     await initializeTelnyxNumbers();
 
-    // Get all active numbers, ordered by daily_call_count ascending
+    // Get all active numbers
     const { data: numbers, error } = await insforge.database
       .from("telnyx_numbers")
       .select("*")
@@ -121,19 +126,29 @@ export async function getNextAvailableNumber(): Promise<{
       };
     }
 
-    // Find first number that hasn't hit its daily limit
-    const availableNumber = typedNumbers.find(
-      (n) => n.daily_call_count < n.daily_call_limit
-    );
+    // Use geographic matching to pick the best number
+    const bestNumber = pickBestNumber(contactState, typedNumbers);
 
-    if (!availableNumber) {
+    if (!bestNumber) {
       return {
         number: null,
         error: "All Telnyx numbers have reached their daily call limit. Please wait or increase limits.",
       };
     }
 
-    return { number: availableNumber as TelnyxNumber };
+    // Determine match type for logging
+    let matchType: "exact" | "closest" | "fallback" = "fallback";
+    if (contactState) {
+      const { getStateFromPhone } = await import("./geo-matching");
+      const numberState = getStateFromPhone(bestNumber.phone_number);
+      if (numberState === contactState) {
+        matchType = "exact";
+      } else if (numberState) {
+        matchType = "closest";
+      }
+    }
+
+    return { number: bestNumber, matchType };
   } catch (error: any) {
     return { number: null, error: error.message || "Failed to get next available number" };
   }

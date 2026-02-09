@@ -389,12 +389,14 @@ export const useDialerStore = create<DialerState>((set, get) => ({
 
     try {
       // First, initiate call via API to get number and track usage
+      // Pass contact's state so the backend can geo-match the best number
       const initiateResponse = await fetch("/api/telnyx/call/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId: currentContact.id,
           toNumber: normalizedNumber,
+          contactState: currentContact.state || null,
         }),
       });
 
