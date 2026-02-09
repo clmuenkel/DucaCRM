@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
     const brandingBlock = [
       "",
       "---",
-      "www.evioshq.com",
+      "https://www.evioshq.com",
     ].join("\n");
     
     calendarDescription = (calendarDescription ? calendarDescription + "\n" + brandingBlock : brandingBlock).trim();
