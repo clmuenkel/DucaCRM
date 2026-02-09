@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import type { PersonaSet, InsertTables, UpdateTables } from "@/types/database";
 
 /**

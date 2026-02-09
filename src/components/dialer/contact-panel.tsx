@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 
 export function ContactPanelCompact() {

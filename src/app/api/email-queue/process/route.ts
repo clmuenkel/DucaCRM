@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { sendEmailWithTemplate } from "@/lib/resend/template-sender";
 import type { Contact, EmailTemplate } from "@/types/database";

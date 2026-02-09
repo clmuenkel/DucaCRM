@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { DaysAgoBadge } from "@/components/workqueue/days-ago-badge";
 import { WrongNumberFlag } from "@/components/workqueue/wrong-number-flag";

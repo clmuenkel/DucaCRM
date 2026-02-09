@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { useDialerStore } from "@/stores/dialer-store";
 import type { TimestampedNote, Json } from "@/types/database";
 

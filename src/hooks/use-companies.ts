@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import type { Company, Contact, Call, CallWithContact, InsertTables, UpdateTables } from "@/types/database";
 
 export interface CompanyWithStats extends Company {
@@ -60,7 +60,7 @@ export function useCompanies(filters?: CompanyFilters) {
       }
 
       // Get contact counts and last contacted for each company
-      const companyIds = companies.map((c) => c.id);
+      const companyIds = companies.map((c: any) => c.id);
       
       const { data: contactStatsData } = await insforge.database
         .from("contacts")
@@ -72,7 +72,7 @@ export function useCompanies(filters?: CompanyFilters) {
       // Aggregate stats per company
       const statsMap = new Map<string, { count: number; lastContacted: string | null }>();
       
-      contactStats?.forEach((contact) => {
+      contactStats?.forEach((contact: any) => {
         if (!contact.company_id) return;
         
         const current = statsMap.get(contact.company_id) || { count: 0, lastContacted: null };
@@ -88,7 +88,7 @@ export function useCompanies(filters?: CompanyFilters) {
       });
 
       // Merge stats into companies
-      const companiesWithStats: CompanyWithStats[] = companies.map((company) => {
+      const companiesWithStats: CompanyWithStats[] = companies.map((company: any) => {
         const stats = statsMap.get(company.id) || { count: 0, lastContacted: null };
         return {
           ...company,
@@ -99,7 +99,7 @@ export function useCompanies(filters?: CompanyFilters) {
 
       // Filter by hasContacts if specified
       if (filters?.hasContacts) {
-        return companiesWithStats.filter((c) => c.contact_count > 0);
+        return companiesWithStats.filter((c: any) => c.contact_count > 0);
       }
 
       return companiesWithStats;
@@ -199,7 +199,7 @@ export function useCompanyCallHistory(companyId: string) {
         return [] as CallWithContact[];
       }
 
-      const contactIds = contacts.map((c) => c.id);
+      const contactIds = contacts.map((c: any) => c.id);
 
       // Get all calls for these contacts
       const { data: calls, error } = await insforge.database

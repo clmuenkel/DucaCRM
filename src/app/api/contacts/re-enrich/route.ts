@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { enrichPersonById, extractPersonMobile } from "@/lib/apollo/client";
 import type { Contact } from "@/types/database";

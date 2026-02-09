@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { 
   startOfDay, 
@@ -89,19 +89,19 @@ export function useAnalyticsSummary(
 
       if (meetingsError && meetingsError.code !== "42P01") throw meetingsError;
 
-      const callsList = calls || [];
-      const meetingsList = meetings || [];
+      const callsList: any[] = calls || [];
+      const meetingsList: any[] = meetings || [];
 
       const totalCalls = callsList.length;
-      const connectedCalls = callsList.filter((c) => c.outcome === "connected").length;
-      const voicemails = callsList.filter((c) => c.outcome === "voicemail").length;
-      const skipped = callsList.filter((c) => c.outcome === "skipped").length;
-      const noAnswers = callsList.filter((c) => c.outcome === "no_answer").length;
+      const connectedCalls = callsList.filter((c: any) => c.outcome === "connected").length;
+      const voicemails = callsList.filter((c: any) => c.outcome === "voicemail").length;
+      const skipped = callsList.filter((c: any) => c.outcome === "skipped").length;
+      const noAnswers = callsList.filter((c: any) => c.outcome === "no_answer").length;
       const actualAttempts = totalCalls - skipped;
 
       const totalTalkTime = callsList
-        .filter((c) => c.outcome === "connected")
-        .reduce((sum, c) => sum + (c.duration_seconds || 0), 0);
+        .filter((c: any) => c.outcome === "connected")
+        .reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0);
 
       return {
         totalCalls,
@@ -148,7 +148,7 @@ export function useDailyStats(days: number = 14) {
       const callsByDate: Record<string, { total: number; connected: number }> = {};
       const meetingsByDate: Record<string, number> = {};
 
-      (calls || []).forEach((call) => {
+      (calls || []).forEach((call: any) => {
         const date = format(new Date(call.started_at), "yyyy-MM-dd");
         if (!callsByDate[date]) callsByDate[date] = { total: 0, connected: 0 };
         if (call.outcome !== "skipped") {
@@ -157,7 +157,7 @@ export function useDailyStats(days: number = 14) {
         }
       });
 
-      (meetings || []).forEach((meeting) => {
+      (meetings || []).forEach((meeting: any) => {
         const date = format(new Date(meeting.created_at), "yyyy-MM-dd");
         meetingsByDate[date] = (meetingsByDate[date] || 0) + 1;
       });
@@ -201,11 +201,11 @@ export function useOutcomeBreakdown(range: DateRange = "this_week") {
       if (error && error.code !== "42P01") throw error;
 
       const counts: Record<string, number> = {};
-      (calls || []).forEach((call) => {
+      (calls || []).forEach((call: any) => {
         counts[call.outcome] = (counts[call.outcome] || 0) + 1;
       });
 
-      const total = Object.values(counts).reduce((sum, c) => sum + c, 0);
+      const total = Object.values(counts).reduce((sum: number, c: any) => sum + c, 0);
       const colors: Record<string, string> = {
         connected: "#22c55e",
         voicemail: "#f59e0b",
@@ -245,7 +245,7 @@ export function useHourlyPerformance() {
       // Group by day of week and hour
       const grid: Record<string, { total: number; connected: number }> = {};
       
-      (calls || []).forEach((call) => {
+      (calls || []).forEach((call: any) => {
         const date = new Date(call.started_at);
         const dayOfWeek = date.getDay(); // 0-6
         const hour = date.getHours(); // 0-23
@@ -343,13 +343,13 @@ export function useDispositionBreakdown(range: DateRange = "this_week") {
       if (error && error.code !== "42P01") throw error;
 
       const counts: Record<string, number> = {};
-      (calls || []).forEach((call) => {
+      (calls || []).forEach((call: any) => {
         if (call.disposition) {
           counts[call.disposition] = (counts[call.disposition] || 0) + 1;
         }
       });
 
-      const total = Object.values(counts).reduce((sum, c) => sum + c, 0);
+      const total = Object.values(counts).reduce((sum: number, c: any) => sum + c, 0);
 
       return Object.entries(counts).map(([disposition, count]) => ({
         disposition,
@@ -380,7 +380,7 @@ export function useCallingStreak() {
 
       // Get unique dates
       const dates = new Set<string>();
-      (calls || []).forEach((call) => {
+      (calls || []).forEach((call: any) => {
         dates.add(format(new Date(call.started_at), "yyyy-MM-dd"));
       });
 

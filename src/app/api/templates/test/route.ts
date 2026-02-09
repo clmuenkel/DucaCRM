@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { renderTemplate, renderHTMLTemplate, htmlToPlainText } from "@/lib/email-template-renderer";
 import { getIndustryForTemplate } from "@/lib/utils";

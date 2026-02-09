@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID, USER_INFO } from "@/lib/default-user";
 
 export const dynamic = 'force-dynamic';

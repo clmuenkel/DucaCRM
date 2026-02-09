@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getNextAvailableNumber, incrementCallCount } from "@/lib/telnyx/number-rotation";
 import { recordCall } from "@/lib/telnyx/call-pacing";
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { normalizeToE164 } from "@/lib/utils";
 

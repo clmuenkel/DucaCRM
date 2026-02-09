@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { normalizeToE164 } from "@/lib/utils";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 

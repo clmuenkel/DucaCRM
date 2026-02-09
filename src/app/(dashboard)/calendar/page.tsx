@@ -7,7 +7,7 @@ import { MeetingDetailDialog } from "@/components/meetings/meeting-detail";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { 
   format, 
   format as formatDate,

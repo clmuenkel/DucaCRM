@@ -1,7 +1,7 @@
 // Dummy data for testing the CRM
 // This file can be imported and run to seed the database with test data
 
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { getTimezoneFromLocation } from "@/lib/timezone";
 

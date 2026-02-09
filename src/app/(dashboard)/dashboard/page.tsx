@@ -14,7 +14,7 @@ import { Zap, Download, Target, BarChart3, Users, ListTodo } from "lucide-react"
 import Link from "next/link";
 import { useDailyTargets, useUpdateTarget } from "@/hooks/use-targets";
 import { InlineEditableTarget } from "@/components/dashboard/editable-target";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 
 function getGreeting(): string {
   const hour = new Date().getHours();

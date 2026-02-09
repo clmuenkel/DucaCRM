@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { extractDomain, mapApolloToContact, mapApolloToCompany } from "@/lib/csv-parser";
 import type { ApolloCSVRow } from "@/lib/csv-parser";
 import { normalizeToE164 } from "@/lib/utils";

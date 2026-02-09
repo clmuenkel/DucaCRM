@@ -1,4 +1,4 @@
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import { getTelnyxConfig } from "./client";
 import { pickBestNumber } from "./geo-matching";

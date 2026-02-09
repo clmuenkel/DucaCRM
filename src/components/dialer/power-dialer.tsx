@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Phone, Zap, Users, Save, CalendarClock, Flame, ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import type { Contact } from "@/types/database";
 
 type DialerMode = "cadence" | "all" | "hot";

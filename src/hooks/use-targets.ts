@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { UserTarget, UserTargetUpdate } from "@/types/analytics";
 
@@ -41,8 +41,8 @@ export function useTargets() {
         throw error;
       }
 
-      const daily = (data as UserTarget[]).find((t) => t.target_type === "daily");
-      const weekly = (data as UserTarget[]).find((t) => t.target_type === "weekly");
+      const daily = (data as UserTarget[]).find((t: any) => t.target_type === "daily");
+      const weekly = (data as UserTarget[]).find((t: any) => t.target_type === "weekly");
 
       return {
         daily: daily || { ...DEFAULT_DAILY_TARGETS, target_type: "daily" as const },

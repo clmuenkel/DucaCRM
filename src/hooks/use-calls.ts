@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
 import type { Call, CallWithContact, InsertTables } from "@/types/database";
 
@@ -67,10 +67,10 @@ export function useTodayCallStats() {
       const data = callData as { outcome: string | null; disposition: string | null }[];
       const stats: CallStats = {
         total: data.length,
-        connected: data.filter((c) => c.outcome === "connected").length,
-        voicemail: data.filter((c) => c.outcome === "voicemail").length,
-        noAnswer: data.filter((c) => c.outcome === "no_answer").length,
-        meetingsBooked: data.filter((c) => c.disposition === "interested_meeting").length,
+        connected: data.filter((c: any) => c.outcome === "connected").length,
+        voicemail: data.filter((c: any) => c.outcome === "voicemail").length,
+        noAnswer: data.filter((c: any) => c.outcome === "no_answer").length,
+        meetingsBooked: data.filter((c: any) => c.disposition === "interested_meeting").length,
       };
 
       return stats;

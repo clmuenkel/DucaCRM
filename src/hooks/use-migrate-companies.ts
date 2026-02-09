@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { getTimezoneFromLocation } from "@/lib/timezone";
 import type { Contact, InsertTables } from "@/types/database";
 
@@ -139,7 +139,7 @@ export function useMigrateCompanies() {
           }
 
           // Link all contacts in this group to the company
-          const contactIds = groupContacts.map((c) => c.id);
+          const contactIds = groupContacts.map((c: any) => c.id);
           
           const { error: updateError } = await insforge.database
             .from("contacts")

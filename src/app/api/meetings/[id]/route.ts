@@ -1,4 +1,4 @@
-import { insforge } from "@/lib/insforge/server";
+import { insforge } from "@/lib/neon/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';

@@ -6,7 +6,7 @@ import { usePersonaSets, useCreatePersonaSet, PERSONA_SET_TEMPLATES } from "@/ho
 import { useFindOrCreateCompany } from "@/hooks/use-companies";
 import { mapApolloToContact, mapApolloToCompany, APOLLO_INDUSTRIES } from "@/lib/apollo/client";
 import { getTimezoneFromLocation } from "@/lib/timezone";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

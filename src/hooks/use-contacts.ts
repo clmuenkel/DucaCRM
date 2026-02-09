@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { insforge } from "@/lib/insforge/client";
+import { insforge } from "@/lib/neon/client";
 import type { Contact, InsertTables, UpdateTables } from "@/types/database";
 
 export function useContacts(filters?: {
@@ -176,7 +176,7 @@ export function useContactsByStage() {
       if (error) throw error;
 
       const counts: Record<string, number> = {};
-      data.forEach((contact) => {
+      data.forEach((contact: any) => {
         counts[contact.stage] = (counts[contact.stage] || 0) + 1;
       });
       
