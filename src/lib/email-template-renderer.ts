@@ -19,6 +19,14 @@ function convertLineToLink(line: string): string {
   return trimmed;
 }
 
+function preserveInlineSpacing(line: string): string {
+  // Preserve multiple spaces in HTML by converting runs of 2+ spaces
+  // to a space followed by non-breaking spaces.
+  return line.replace(/ {2,}/g, (match) => {
+    return " " + "&nbsp;".repeat(match.length - 1);
+  });
+}
+
 /**
  * Helper function to detect if a line is part of a signature
  */
@@ -67,10 +75,17 @@ function convertPlainTextToHTML(text: string): string {
     const isEmpty = !trimmedLine;
     const prevLineWasEmpty = i > 0 && !rawLines[i - 1].trim();
     
-    // Skip lines that already contain HTML image tags
-    // These should be inserted as-is, not wrapped in paragraphs
-    if (trimmedLine.includes('<div') && trimmedLine.includes('<img')) {
+    // Keep image/html lines as-is
+    if (trimmedLine.includes("<img") || (trimmedLine.includes("<div") && trimmedLine.includes("<img"))) {
       htmlParagraphs.push(trimmedLine);
+      continue;
+    }
+
+    // If user pasted a raw image URL on its own line, render it as an image.
+    if (/^(https?:\/\/\S+\.(png|jpg|jpeg|gif|webp|svg)(\?\S*)?)$/i.test(trimmedLine)) {
+      htmlParagraphs.push(
+        `<img src="${trimmedLine}" alt="Logo" style="max-width: 200px; height: auto; display: block; margin-top: 16px;" />`
+      );
       continue;
     }
     
@@ -131,7 +146,10 @@ function convertPlainTextToHTML(text: string): string {
         // Empty line = paragraph break
         // Finalize current paragraph if we have content
         if (currentParagraph.length > 0) {
-          const paraText = currentParagraph.join(' ').trim();
+          const paraText = currentParagraph
+            .map((line) => preserveInlineSpacing(line))
+            .join("<br>")
+            .trim();
           if (paraText) {
             htmlParagraphs.push(`<div>${paraText}</div>`);
           }
@@ -143,13 +161,13 @@ function convertPlainTextToHTML(text: string): string {
         // Otherwise, add to current paragraph
         if (prevLineWasEmpty && currentParagraph.length === 0) {
           // Starting new paragraph after empty line
-          currentParagraph.push(trimmedLine);
+          currentParagraph.push(rawLine);
         } else if (currentParagraph.length === 0) {
           // First line of paragraph (no previous empty line)
-          currentParagraph.push(trimmedLine);
+          currentParagraph.push(rawLine);
         } else {
-          // Continuation of current paragraph - join with space
-          currentParagraph.push(trimmedLine);
+          // Continuation of current paragraph - preserve line break
+          currentParagraph.push(rawLine);
         }
       }
     }
@@ -157,7 +175,10 @@ function convertPlainTextToHTML(text: string): string {
   
   // Finalize any remaining paragraph
   if (currentParagraph.length > 0) {
-    const paraText = currentParagraph.join(' ').trim();
+    const paraText = currentParagraph
+      .map((line) => preserveInlineSpacing(line))
+      .join("<br>")
+      .trim();
     if (paraText) {
       htmlParagraphs.push(`<div>${paraText}</div>`);
     }

@@ -41,7 +41,13 @@ export async function sendEmailWithTemplate(
     const fromAddr = fromEmail.includes('<')
       ? fromEmail.match(/<(.+)>/)?.[1] || fromEmail
       : fromEmail;
-    const imgDomain = fromAddr.split('@')[1] || 'duca-crm.vercel.app';
+    const imgDomain = fromAddr.split("@")[1] || "duca-crm.vercel.app";
+    const appUrl = (process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim();
+    const normalizedAppUrl = appUrl ? appUrl.replace(/\/+$/, "") : "";
+    const defaultLogoUrl = "https://mail.evioshq.com/logo.png";
+    const derivedLogoUrl = normalizedAppUrl
+      ? `${normalizedAppUrl}/logo.png`
+      : `https://${imgDomain}/logo.png`;
     
     const contactVariables: Record<string, string> = {
       first_name: contact.first_name || "",
@@ -53,7 +59,7 @@ export async function sendEmailWithTemplate(
       phone: contact.phone || contact.mobile || "",
       industry: industry,
       // Static logo on sending domain — use {{logo_url}} in templates
-      logo_url: `https://${imgDomain}/logo.png`,
+      logo_url: process.env.EMAIL_LOGO_URL || derivedLogoUrl || defaultLogoUrl,
       // Merge with custom variables (overrides contact data)
       ...variables,
     };
