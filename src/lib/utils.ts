@@ -59,6 +59,9 @@ export function normalizeToE164(phone: string | null | undefined): string | null
   // Step 1: Convert to string and trim ALL whitespace
   let cleaned = String(phone).trim();
   if (cleaned.length === 0) return null;
+
+  // Remove common extension suffixes before normalization (x123, ext 123, extension 123)
+  cleaned = cleaned.replace(/\s*(?:ext\.?|extension|x)\s*\d+$/i, "");
   
   // Step 2: Remove ALL non-digit characters EXCEPT leading +
   // This handles: spaces, dashes, dots, parentheses, quotes, etc.
@@ -105,9 +108,9 @@ export function normalizeToE164(phone: string | null | undefined): string | null
     return `+${cleaned}`;
   }
   
-  // Too long, truncate to 15 digits
+  // Too long for E.164 (do not truncate silently; this causes bad calls)
   if (cleaned.length > 15) {
-    return `+${cleaned.slice(0, 15)}`;
+    return null;
   }
   
   // If we get here, something is wrong

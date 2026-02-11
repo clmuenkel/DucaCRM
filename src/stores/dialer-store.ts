@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Contact, TimestampedNote } from "@/types/database";
+import { isValidPhone } from "@/lib/utils";
 
 export type CallOutcome = "connected" | "voicemail" | "no_answer" | "busy" | "wrong_number" | "gatekeeper" | "skipped";
 export type CallDisposition = "interested_meeting" | "interested_info" | "callback" | "not_interested_fit" | "not_interested_solution" | "not_interested_budget" | "do_not_contact";
@@ -345,11 +346,21 @@ export const useDialerStore = create<DialerState>((set, get) => ({
   getSelectedPhone: () => {
     const { currentContact, selectedPhoneType } = get();
     if (!currentContact) return null;
-    
+
+    const mobile = currentContact.mobile || null;
+    const office = currentContact.phone || null;
+    const mobileValid = isValidPhone(mobile);
+    const officeValid = isValidPhone(office);
+
     if (selectedPhoneType === "mobile") {
-      return currentContact.mobile || currentContact.phone || null;
+      if (mobileValid) return mobile;
+      if (officeValid) return office;
+      return null;
     }
-    return currentContact.phone || currentContact.mobile || null;
+
+    if (officeValid) return office;
+    if (mobileValid) return mobile;
+    return null;
   },
 
   initializeTelnyxClient: async (token: string) => {
@@ -445,8 +456,15 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       });
 
       if (!initiateResponse.ok) {
-        const errorData = await initiateResponse.json();
-        throw new Error(errorData.error || "Failed to initiate call");
+        let errorMessage = "Failed to initiate call";
+        try {
+          const errorData = await initiateResponse.json();
+          errorMessage = errorData?.error || errorMessage;
+        } catch {
+          const rawText = await initiateResponse.text().catch(() => "");
+          if (rawText) errorMessage = rawText;
+        }
+        throw new Error(errorMessage);
       }
 
       const { phoneNumber: telnyxNumberUsed, telnyxCallId } = await initiateResponse.json();
