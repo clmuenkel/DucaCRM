@@ -61,6 +61,7 @@ export function PowerDialer() {
     const fetchCadenceContacts = async () => {
       setIsLoadingCadence(true);
       const today = new Date().toISOString().split("T")[0];
+      const todayStartIso = `${today}T00:00:00.000Z`;
       const terminalOutcomes = new Set([
         "won",
         "lost",
@@ -69,6 +70,17 @@ export function PowerDialer() {
         "replied",
         "archived",
       ]);
+
+      // Exclude contacts the user already skipped today for a true clean slate.
+      const { data: skippedTodayData } = await insforge.database
+        .from("calls")
+        .select("contact_id")
+        .eq("user_id", userId)
+        .eq("outcome", "skipped")
+        .gte("started_at", todayStartIso);
+      const skippedTodayIds = new Set(
+        ((skippedTodayData as { contact_id: string }[]) || []).map((row) => row.contact_id)
+      );
 
       // Get ALL active cadence contacts (regardless of next_action_type)
       // Note: .or() filters can fail silently with InsForge, so we filter client-side
@@ -90,6 +102,7 @@ export function PowerDialer() {
         c => {
           if (!c.phone && !c.mobile) return false;
           if (c.wrong_number_flag) return false;
+          if (skippedTodayIds.has(c.id)) return false;
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
 
           // Only show contacts that are actively in progress, or callbacks due now.
@@ -119,6 +132,7 @@ export function PowerDialer() {
         c => {
           if (!c.phone && !c.mobile) return false;
           if (c.wrong_number_flag) return false;
+          if (skippedTodayIds.has(c.id)) return false;
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
 
           if (!c.cadence_outcome || c.cadence_outcome === "in_progress") return true;

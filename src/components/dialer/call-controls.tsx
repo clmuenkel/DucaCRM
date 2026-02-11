@@ -244,9 +244,9 @@ export function CallControlsHeader() {
       toast.info("Contact skipped");
       removeCurrentContact();
     } catch (error: any) {
-      // If logging fails, still skip to next contact
+      // If logging fails, still remove current contact from this session queue.
       console.error("Failed to log skip:", error);
-      skipContact();
+      removeCurrentContact();
     }
   };
 
