@@ -98,6 +98,7 @@ export default function WorkQueuePage() {
   const [showLostFilter, setShowLostFilter] = useState(false);
   const [visibleCadenceRows, setVisibleCadenceRows] = useState(INITIAL_TABLE_ROWS);
   const [visibleAllRows, setVisibleAllRows] = useState(INITIAL_TABLE_ROWS);
+  const [cadenceSearchQuery, setCadenceSearchQuery] = useState("");
 
   // Derive unique states and industries from loaded data
   const uniqueStates = useMemo(() => {
@@ -270,9 +271,23 @@ export default function WorkQueuePage() {
     return filtered;
   }, [allContacts, searchQuery, industryFilter, stateFilter, employeeSizeFilter, hasPhoneFilter, hasEmailFilter]);
 
+  // Filter cadence contacts by search
+  const filteredCadenceContacts = useMemo(() => {
+    if (!cadenceSearchQuery) return activeCadenceContacts;
+    const q = cadenceSearchQuery.toLowerCase();
+    return activeCadenceContacts.filter(
+      (c) =>
+        c.first_name?.toLowerCase().includes(q) ||
+        c.last_name?.toLowerCase().includes(q) ||
+        c.company_name?.toLowerCase().includes(q) ||
+        c.title?.toLowerCase().includes(q) ||
+        c.state?.toLowerCase().includes(q)
+    );
+  }, [activeCadenceContacts, cadenceSearchQuery]);
+
   const visibleCadenceContacts = useMemo(
-    () => activeCadenceContacts.slice(0, visibleCadenceRows),
-    [activeCadenceContacts, visibleCadenceRows]
+    () => filteredCadenceContacts.slice(0, visibleCadenceRows),
+    [filteredCadenceContacts, visibleCadenceRows]
   );
 
   const visibleAllContacts = useMemo(
@@ -280,13 +295,14 @@ export default function WorkQueuePage() {
     [filteredAllContacts, visibleAllRows]
   );
 
+  // Reset visible rows when search changes so results aren't hidden
   useEffect(() => {
-    setVisibleCadenceRows((prev) => Math.min(Math.max(prev, INITIAL_TABLE_ROWS), Math.max(activeCadenceContacts.length, INITIAL_TABLE_ROWS)));
-  }, [activeCadenceContacts.length]);
+    setVisibleAllRows(INITIAL_TABLE_ROWS);
+  }, [searchQuery]);
 
   useEffect(() => {
-    setVisibleAllRows((prev) => Math.min(Math.max(prev, INITIAL_TABLE_ROWS), Math.max(filteredAllContacts.length, INITIAL_TABLE_ROWS)));
-  }, [filteredAllContacts.length]);
+    setVisibleCadenceRows(INITIAL_TABLE_ROWS);
+  }, [cadenceSearchQuery]);
 
   const handleStartCadence = async () => {
     if (selectedContacts.size === 0) {
@@ -377,17 +393,29 @@ export default function WorkQueuePage() {
               Active Cadence - To Call
             </CardTitle>
             <CardDescription>
-              Contacts in active cadence that need to be called ({activeCadenceContacts.length})
+              Contacts in active cadence that need to be called ({filteredCadenceContacts.length}{cadenceSearchQuery ? ` of ${activeCadenceContacts.length}` : ""})
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Cadence search */}
+            {activeCadenceContacts.length > 0 && (
+              <div className="relative max-w-md mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search cadence contacts..."
+                  value={cadenceSearchQuery}
+                  onChange={(e) => setCadenceSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            )}
             {isLoading ? (
               <div className="space-y-2">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="h-16 bg-muted animate-pulse rounded" />
                 ))}
               </div>
-            ) : activeCadenceContacts.length > 0 ? (
+            ) : filteredCadenceContacts.length > 0 ? (
               <>
                 <Table>
                   <TableHeader>
@@ -467,17 +495,17 @@ export default function WorkQueuePage() {
                   </TableBody>
                 </Table>
 
-                {activeCadenceContacts.length > INITIAL_TABLE_ROWS && (
+                {filteredCadenceContacts.length > INITIAL_TABLE_ROWS && (
                   <div className="flex justify-center gap-2 pt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setVisibleCadenceRows((prev) => prev + INITIAL_TABLE_ROWS)}
-                      disabled={visibleCadenceRows >= activeCadenceContacts.length}
-                    >
-                      Extend to see more ({Math.min(activeCadenceRowsLeft(activeCadenceContacts.length, visibleCadenceRows), INITIAL_TABLE_ROWS)} more)
-                    </Button>
-                    {visibleCadenceRows > INITIAL_TABLE_ROWS && (
+                    {visibleCadenceRows < filteredCadenceContacts.length ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setVisibleCadenceRows(filteredCadenceContacts.length)}
+                      >
+                        Show all ({filteredCadenceContacts.length - visibleCadenceRows} more)
+                      </Button>
+                    ) : (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -793,27 +821,27 @@ export default function WorkQueuePage() {
                   </TableBody>
                 </Table>
 
-                {filteredAllContacts.length > INITIAL_TABLE_ROWS && (
-                  <div className="flex justify-center gap-2 pt-4">
+              {filteredAllContacts.length > INITIAL_TABLE_ROWS && (
+                <div className="flex justify-center gap-2 pt-4">
+                  {visibleAllRows < filteredAllContacts.length ? (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setVisibleAllRows((prev) => prev + INITIAL_TABLE_ROWS)}
-                      disabled={visibleAllRows >= filteredAllContacts.length}
+                      onClick={() => setVisibleAllRows(filteredAllContacts.length)}
                     >
-                      Extend to see more ({Math.min(activeCadenceRowsLeft(filteredAllContacts.length, visibleAllRows), INITIAL_TABLE_ROWS)} more)
+                      Show all ({filteredAllContacts.length - visibleAllRows} more)
                     </Button>
-                    {visibleAllRows > INITIAL_TABLE_ROWS && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setVisibleAllRows(INITIAL_TABLE_ROWS)}
-                      >
-                        Show less
-                      </Button>
-                    )}
-                  </div>
-                )}
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setVisibleAllRows(INITIAL_TABLE_ROWS)}
+                    >
+                      Show less
+                    </Button>
+                  )}
+                </div>
+              )}
               </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
@@ -846,8 +874,4 @@ export default function WorkQueuePage() {
       </div>
     </div>
   );
-}
-
-function activeCadenceRowsLeft(total: number, visible: number) {
-  return Math.max(total - visible, 0);
 }

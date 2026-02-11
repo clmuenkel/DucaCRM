@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useContacts, useDeleteContact } from "@/hooks/use-contacts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,10 +41,27 @@ export function ContactList() {
   const [selected, setSelected] = useState<string[]>([]);
   const router = useRouter();
 
-  const { data: contacts, isLoading } = useContacts({
-    search: search || undefined,
+  // Fetch ALL contacts once — filter client-side for instant search
+  const { data: allContacts, isLoading } = useContacts({
     stage: stageFilter !== "all" ? stageFilter : undefined,
   });
+
+  // Client-side search filter (instant, no DB round-trip per keystroke)
+  const contacts = useMemo(() => {
+    if (!allContacts) return [];
+    if (!search) return allContacts;
+    const q = search.toLowerCase();
+    return allContacts.filter(
+      (c) =>
+        c.first_name?.toLowerCase().includes(q) ||
+        c.last_name?.toLowerCase().includes(q) ||
+        c.company_name?.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.title?.toLowerCase().includes(q) ||
+        c.phone?.includes(q) ||
+        c.mobile?.includes(q)
+    );
+  }, [allContacts, search]);
 
   const deleteContact = useDeleteContact();
 

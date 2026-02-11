@@ -59,6 +59,8 @@ function getDateBounds(range: DateRange, customStart?: string, customEnd?: strin
 }
 
 // Main analytics summary hook
+// Pulls from BOTH `calls` table AND `activity_log` (which captures cadence outcomes
+// like won/lost/callback/no_answer that quick-action buttons write).
 export function useAnalyticsSummary(
   range: DateRange = "today",
   customStart?: string,
@@ -69,49 +71,81 @@ export function useAnalyticsSummary(
   return useQuery({
     queryKey: ["analytics-summary", DEFAULT_USER_ID, range, customStart, customEnd],
     queryFn: async (): Promise<AnalyticsSummary> => {
-      // Get call stats
-      const { data: calls, error: callsError } = await insforge.database
-        .from("calls")
-        .select("outcome, duration_seconds, disposition")
-        .eq("user_id", DEFAULT_USER_ID)
-        .gte("started_at", start.toISOString())
-        .lte("started_at", end.toISOString());
+      // Fetch calls, activity_log, and meetings in parallel
+      const [callsRes, activityRes, meetingsRes] = await Promise.all([
+        insforge.database
+          .from("calls")
+          .select("outcome, duration_seconds, disposition")
+          .eq("user_id", DEFAULT_USER_ID)
+          .gte("started_at", start.toISOString())
+          .lte("started_at", end.toISOString()),
+        insforge.database
+          .from("activity_log")
+          .select("activity_type")
+          .eq("user_id", DEFAULT_USER_ID)
+          .gte("created_at", start.toISOString())
+          .lte("created_at", end.toISOString()),
+        insforge.database
+          .from("meetings")
+          .select("id")
+          .eq("user_id", DEFAULT_USER_ID)
+          .gte("created_at", start.toISOString())
+          .lte("created_at", end.toISOString()),
+      ]);
 
-      if (callsError && callsError.code !== "42P01") throw callsError;
+      if (callsRes.error && callsRes.error.code !== "42P01") throw callsRes.error;
+      if (meetingsRes.error && meetingsRes.error.code !== "42P01") throw meetingsRes.error;
 
-      // Get meetings booked in this period
-      const { data: meetings, error: meetingsError } = await insforge.database
-        .from("meetings")
-        .select("id")
-        .eq("user_id", DEFAULT_USER_ID)
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString());
+      const callsList: any[] = callsRes.data || [];
+      const activityList: any[] = activityRes.data || [];
+      const meetingsList: any[] = meetingsRes.data || [];
 
-      if (meetingsError && meetingsError.code !== "42P01") throw meetingsError;
+      // Count from calls table
+      const callsTotal = callsList.length;
+      const callsConnected = callsList.filter((c: any) => c.outcome === "connected").length;
+      const callsVoicemail = callsList.filter((c: any) => c.outcome === "voicemail").length;
+      const callsSkipped = callsList.filter((c: any) => c.outcome === "skipped").length;
+      const callsNoAnswer = callsList.filter((c: any) => c.outcome === "no_answer").length;
 
-      const callsList: any[] = calls || [];
-      const meetingsList: any[] = meetings || [];
+      // Count from activity_log (cadence outcomes from quick-action buttons)
+      const cadenceActivities = activityList.filter((a: any) => 
+        a.activity_type?.startsWith("cadence_")
+      );
+      const cadenceWon = cadenceActivities.filter((a: any) => a.activity_type === "cadence_won").length;
+      const cadenceLost = cadenceActivities.filter((a: any) => a.activity_type === "cadence_lost").length;
+      const cadenceNoAnswer = cadenceActivities.filter((a: any) => a.activity_type === "cadence_no_answer").length;
+      const cadenceCallback = cadenceActivities.filter((a: any) => a.activity_type === "cadence_callback").length;
+      const cadenceVoicemail = cadenceActivities.filter((a: any) => a.activity_type === "cadence_voicemail").length;
+      const cadenceWrongNumber = cadenceActivities.filter((a: any) => a.activity_type === "cadence_wrong_number").length;
+      const cadenceBusy = cadenceActivities.filter((a: any) => a.activity_type === "cadence_busy").length;
+      const cadenceGatekeeper = cadenceActivities.filter((a: any) => a.activity_type === "cadence_gatekeeper").length;
 
-      const totalCalls = callsList.length;
-      const connectedCalls = callsList.filter((c: any) => c.outcome === "connected").length;
-      const voicemails = callsList.filter((c: any) => c.outcome === "voicemail").length;
-      const skipped = callsList.filter((c: any) => c.outcome === "skipped").length;
-      const noAnswers = callsList.filter((c: any) => c.outcome === "no_answer").length;
+      // Combine: total call attempts = calls table rows + cadence activities (deduplicated by unique contact_ids would be ideal, but for now count all)
+      // Use max of calls table vs activity_log to avoid double-counting
+      const totalCalls = Math.max(callsTotal, cadenceActivities.length);
+      const connectedCalls = Math.max(callsConnected, cadenceWon);
+      const voicemails = Math.max(callsVoicemail, cadenceVoicemail);
+      const noAnswers = Math.max(callsNoAnswer, cadenceNoAnswer);
+      const skipped = callsSkipped;
+
       const actualAttempts = totalCalls - skipped;
 
       const totalTalkTime = callsList
         .filter((c: any) => c.outcome === "connected")
         .reduce((sum: number, c: any) => sum + (c.duration_seconds || 0), 0);
 
+      // Meetings: count from meetings table + cadence_won activities (take max to avoid double)
+      const meetingsBooked = Math.max(meetingsList.length, cadenceWon);
+
       return {
         totalCalls,
         connectedCalls,
-        meetingsBooked: meetingsList.length,
+        meetingsBooked,
         voicemails,
         skipped,
         noAnswers,
         answerRate: actualAttempts > 0 ? Math.round((connectedCalls / actualAttempts) * 100) : 0,
-        setRate: connectedCalls > 0 ? Math.round((meetingsList.length / connectedCalls) * 100) : 0,
+        setRate: connectedCalls > 0 ? Math.round((meetingsBooked / connectedCalls) * 100) : 0,
         totalTalkTime,
         avgCallDuration: connectedCalls > 0 ? Math.round(totalTalkTime / connectedCalls) : 0,
       };
@@ -183,29 +217,58 @@ export function useDailyStats(days: number = 14) {
   });
 }
 
-// Outcome breakdown for pie chart
+// Outcome breakdown for pie chart — merges calls table + activity_log
 export function useOutcomeBreakdown(range: DateRange = "this_week") {
     const { start, end } = getDateBounds(range);
 
   return useQuery({
     queryKey: ["outcome-breakdown", DEFAULT_USER_ID, range],
     queryFn: async (): Promise<OutcomeBreakdown[]> => {
-      const { data: calls, error } = await insforge.database
-        .from("calls")
-        .select("outcome")
-        .eq("user_id", DEFAULT_USER_ID)
-        .gte("started_at", start.toISOString())
-        .lte("started_at", end.toISOString())
-        .neq("outcome", "skipped");
+      const [callsRes, activityRes] = await Promise.all([
+        insforge.database
+          .from("calls")
+          .select("outcome")
+          .eq("user_id", DEFAULT_USER_ID)
+          .gte("started_at", start.toISOString())
+          .lte("started_at", end.toISOString())
+          .neq("outcome", "skipped"),
+        insforge.database
+          .from("activity_log")
+          .select("activity_type")
+          .eq("user_id", DEFAULT_USER_ID)
+          .gte("created_at", start.toISOString())
+          .lte("created_at", end.toISOString()),
+      ]);
 
-      if (error && error.code !== "42P01") throw error;
+      if (callsRes.error && callsRes.error.code !== "42P01") throw callsRes.error;
 
       const counts: Record<string, number> = {};
-      (calls || []).forEach((call: any) => {
+
+      // Count from calls table
+      (callsRes.data || []).forEach((call: any) => {
         counts[call.outcome] = (counts[call.outcome] || 0) + 1;
       });
 
-      const total = Object.values(counts).reduce((sum: number, c: any) => sum + c, 0);
+      // Also count from activity_log (cadence outcomes) and merge
+      const activityMap: Record<string, string> = {
+        cadence_won: "connected",
+        cadence_lost: "not_interested",
+        cadence_no_answer: "no_answer",
+        cadence_callback: "callback",
+        cadence_voicemail: "voicemail",
+        cadence_wrong_number: "wrong_number",
+        cadence_busy: "busy",
+        cadence_gatekeeper: "gatekeeper",
+      };
+
+      (activityRes.data || []).forEach((a: any) => {
+        const mapped = activityMap[a.activity_type];
+        if (mapped) {
+          counts[mapped] = (counts[mapped] || 0) + 1;
+        }
+      });
+
+      const total = Object.values(counts).reduce((sum: number, c: number) => sum + c, 0);
       const colors: Record<string, string> = {
         connected: "#22c55e",
         voicemail: "#f59e0b",
@@ -213,6 +276,8 @@ export function useOutcomeBreakdown(range: DateRange = "this_week") {
         busy: "#6366f1",
         gatekeeper: "#8b5cf6",
         wrong_number: "#ec4899",
+        callback: "#eab308",
+        not_interested: "#f97316",
       };
 
       return Object.entries(counts).map(([outcome, count]) => ({

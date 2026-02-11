@@ -4,8 +4,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { useContact, useUpdateContact, useDeleteContact } from "@/hooks/use-contacts";
 import { useTasks } from "@/hooks/use-tasks";
-import type { Task } from "@/types/database";
-import { useNotes } from "@/hooks/use-notes";
+import type { Task, Note } from "@/types/database";
+import { useNotes, useCreateNote, useDeleteNote } from "@/hooks/use-notes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,10 @@ import {
   MessageSquare,
   ExternalLink,
   Calendar,
+  Send,
+  Loader2,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -67,8 +70,14 @@ export default function ContactDetailPage() {
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
 
+  const { data: notesData } = useNotes({ contactId });
+  const notes = (notesData ?? []) as Note[];
+  const createNote = useCreateNote();
+  const deleteNote = useDeleteNote();
+
   const [editOpen, setEditOpen] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
+  const [newNoteText, setNewNoteText] = useState("");
   const userId = DEFAULT_USER_ID;
 
   const handleCopy = async (text: string, type: string) => {
@@ -317,10 +326,81 @@ export default function ContactDetailPage() {
               </TabsContent>
               <TabsContent value="notes" className="mt-4">
                 <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-muted-foreground text-center py-8">
-                      Notes coming soon
-                    </p>
+                  <CardContent className="pt-6 space-y-4">
+                    {/* Add note */}
+                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="Add a note..."
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                        rows={2}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        className="self-end"
+                        disabled={!newNoteText.trim() || createNote.isPending}
+                        onClick={async () => {
+                          try {
+                            await createNote.mutateAsync({
+                              user_id: userId,
+                              contact_id: contactId,
+                              content: newNoteText.trim(),
+                            });
+                            setNewNoteText("");
+                            toast.success("Note added");
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to add note");
+                          }
+                        }}
+                      >
+                        {createNote.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    {/* Notes list */}
+                    {notes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No notes yet. Add one above.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {notes.map((note) => (
+                          <div key={note.id} className="p-3 rounded-lg border bg-muted/30 group">
+                            <p className="text-sm whitespace-pre-wrap">{note.content}</p>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(note.created_at).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive"
+                                onClick={async () => {
+                                  try {
+                                    await deleteNote.mutateAsync(note.id);
+                                    toast.success("Note deleted");
+                                  } catch (err: any) {
+                                    toast.error(err.message || "Failed to delete note");
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
