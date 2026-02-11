@@ -388,105 +388,107 @@ export default function WorkQueuePage() {
                 ))}
               </div>
             ) : activeCadenceContacts.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Last Attempt</TableHead>
-                    <TableHead>Step</TableHead>
-                    <TableHead>Next Action</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleCadenceContacts.map((contact) => {
-                    const phone = getValidPhone(contact.phone, contact.mobile);
-                    return (
-                      <TableRow key={contact.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {contact.first_name} {contact.last_name}
-                            {contact.wrong_number_flag && (
-                              <WrongNumberFlag wrongNumberPhone={contact.wrong_number_phone} />
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Last Attempt</TableHead>
+                      <TableHead>Step</TableHead>
+                      <TableHead>Next Action</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleCadenceContacts.map((contact) => {
+                      const phone = getValidPhone(contact.phone, contact.mobile);
+                      return (
+                        <TableRow key={contact.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {contact.first_name} {contact.last_name}
+                              {contact.wrong_number_flag && (
+                                <WrongNumberFlag wrongNumberPhone={contact.wrong_number_phone} />
+                              )}
+                            </div>
+                            {contact.title && (
+                              <p className="text-sm text-muted-foreground">{contact.title}</p>
                             )}
-                          </div>
-                          {contact.title && (
-                            <p className="text-sm text-muted-foreground">{contact.title}</p>
-                          )}
-                        </TableCell>
-                        <TableCell>{contact.company_name}</TableCell>
-                        <TableCell>
-                          {phone ? (
-                            <span className="font-mono text-sm">{phone}</span>
-                          ) : (
-                            <span className="text-muted-foreground">No phone</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {contact.last_call_attempt_date && (
-                            <DaysAgoBadge lastCallAttemptDate={contact.last_call_attempt_date} />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {contact.cadence_step !== null
-                            ? STEP_NAMES[contact.cadence_step] || `Step ${contact.cadence_step}`
-                            : "—"}
-                        </TableCell>
-                        <TableCell>
-                          {contact.next_action_type && (
-                            <Badge 
-                              variant={contact.next_action_type === "email" ? "default" : "secondary"}
-                              className={contact.next_action_type === "email" ? "bg-blue-500" : "bg-orange-500"}
-                            >
-                              {contact.next_action_type === "email" ? "Email" : "Call"}
+                          </TableCell>
+                          <TableCell>{contact.company_name}</TableCell>
+                          <TableCell>
+                            {phone ? (
+                              <span className="font-mono text-sm">{phone}</span>
+                            ) : (
+                              <span className="text-muted-foreground">No phone</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {contact.last_call_attempt_date && (
+                              <DaysAgoBadge lastCallAttemptDate={contact.last_call_attempt_date} />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {contact.cadence_step !== null
+                              ? STEP_NAMES[contact.cadence_step] || `Step ${contact.cadence_step}`
+                              : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {contact.next_action_type && (
+                              <Badge
+                                variant={contact.next_action_type === "email" ? "default" : "secondary"}
+                                className={contact.next_action_type === "email" ? "bg-blue-500" : "bg-orange-500"}
+                              >
+                                {contact.next_action_type === "email" ? "Email" : "Call"}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={contact.priority_score >= 70 ? "default" : "secondary"}>
+                              {contact.priority_score || 0}
                             </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={contact.priority_score >= 70 ? "default" : "secondary"}>
-                            {contact.priority_score || 0}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => router.push(`/dialer?contact=${contact.id}`)}
-                          >
-                            <Phone className="h-4 w-4 mr-1" />
-                            Call
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              
-              {activeCadenceContacts.length > INITIAL_TABLE_ROWS && (
-                <div className="flex justify-center gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setVisibleCadenceRows((prev) => prev + INITIAL_TABLE_ROWS)}
-                    disabled={visibleCadenceRows >= activeCadenceContacts.length}
-                  >
-                    Extend to see more ({Math.min(activeCadenceRowsLeft(activeCadenceContacts.length, visibleCadenceRows), INITIAL_TABLE_ROWS)} more)
-                  </Button>
-                  {visibleCadenceRows > INITIAL_TABLE_ROWS && (
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => router.push(`/dialer?contact=${contact.id}`)}
+                            >
+                              <Phone className="h-4 w-4 mr-1" />
+                              Call
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+
+                {activeCadenceContacts.length > INITIAL_TABLE_ROWS && (
+                  <div className="flex justify-center gap-2 pt-4">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setVisibleCadenceRows(INITIAL_TABLE_ROWS)}
+                      onClick={() => setVisibleCadenceRows((prev) => prev + INITIAL_TABLE_ROWS)}
+                      disabled={visibleCadenceRows >= activeCadenceContacts.length}
                     >
-                      Show less
+                      Extend to see more ({Math.min(activeCadenceRowsLeft(activeCadenceContacts.length, visibleCadenceRows), INITIAL_TABLE_ROWS)} more)
                     </Button>
-                  )}
-                </div>
-              )}
+                    {visibleCadenceRows > INITIAL_TABLE_ROWS && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setVisibleCadenceRows(INITIAL_TABLE_ROWS)}
+                      >
+                        Show less
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 No active cadence contacts. Start a cadence from the bottom table.
@@ -715,102 +717,104 @@ export default function WorkQueuePage() {
                 ))}
               </div>
             ) : filteredAllContacts.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={visibleAllContacts.length > 0 && visibleAllContacts.every((c) => selectedContacts.has(c.id))}
-                        onCheckedChange={selectAllVisible}
-                      />
-                    </TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Industry</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Priority</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleAllContacts.map((contact) => {
-                    const phone = getValidPhone(contact.phone, contact.mobile);
-                    return (
-                      <TableRow key={contact.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedContacts.has(contact.id)}
-                            onCheckedChange={() => toggleContactSelection(contact.id)}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {contact.first_name} {contact.last_name}
-                          {contact.title && (
-                            <p className="text-sm text-muted-foreground">{contact.title}</p>
-                          )}
-                        </TableCell>
-                        <TableCell>{contact.company_name}</TableCell>
-                        <TableCell>
-                          {contact.industry && (
-                            <Badge variant="outline">{contact.industry}</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {contact.state ? (
-                            <span className="text-sm">{contact.state}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {contact.employee_count ? (
-                            <span>{contact.employee_count} employees</span>
-                          ) : contact.employee_range ? (
-                            <span>{contact.employee_range}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {phone ? (
-                            <span className="font-mono text-sm">{phone}</span>
-                          ) : (
-                            <span className="text-muted-foreground">No phone</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={contact.priority_score >= 70 ? "default" : "secondary"}>
-                            {contact.priority_score || 0}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={visibleAllContacts.length > 0 && visibleAllContacts.every((c) => selectedContacts.has(c.id))}
+                          onCheckedChange={selectAllVisible}
+                        />
+                      </TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Industry</TableHead>
+                      <TableHead>State</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Priority</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleAllContacts.map((contact) => {
+                      const phone = getValidPhone(contact.phone, contact.mobile);
+                      return (
+                        <TableRow key={contact.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedContacts.has(contact.id)}
+                              onCheckedChange={() => toggleContactSelection(contact.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {contact.first_name} {contact.last_name}
+                            {contact.title && (
+                              <p className="text-sm text-muted-foreground">{contact.title}</p>
+                            )}
+                          </TableCell>
+                          <TableCell>{contact.company_name}</TableCell>
+                          <TableCell>
+                            {contact.industry && (
+                              <Badge variant="outline">{contact.industry}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {contact.state ? (
+                              <span className="text-sm">{contact.state}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {contact.employee_count ? (
+                              <span>{contact.employee_count} employees</span>
+                            ) : contact.employee_range ? (
+                              <span>{contact.employee_range}</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {phone ? (
+                              <span className="font-mono text-sm">{phone}</span>
+                            ) : (
+                              <span className="text-muted-foreground">No phone</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={contact.priority_score >= 70 ? "default" : "secondary"}>
+                              {contact.priority_score || 0}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
 
-              {filteredAllContacts.length > INITIAL_TABLE_ROWS && (
-                <div className="flex justify-center gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setVisibleAllRows((prev) => prev + INITIAL_TABLE_ROWS)}
-                    disabled={visibleAllRows >= filteredAllContacts.length}
-                  >
-                    Extend to see more ({Math.min(activeCadenceRowsLeft(filteredAllContacts.length, visibleAllRows), INITIAL_TABLE_ROWS)} more)
-                  </Button>
-                  {visibleAllRows > INITIAL_TABLE_ROWS && (
+                {filteredAllContacts.length > INITIAL_TABLE_ROWS && (
+                  <div className="flex justify-center gap-2 pt-4">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setVisibleAllRows(INITIAL_TABLE_ROWS)}
+                      onClick={() => setVisibleAllRows((prev) => prev + INITIAL_TABLE_ROWS)}
+                      disabled={visibleAllRows >= filteredAllContacts.length}
                     >
-                      Show less
+                      Extend to see more ({Math.min(activeCadenceRowsLeft(filteredAllContacts.length, visibleAllRows), INITIAL_TABLE_ROWS)} more)
                     </Button>
-                  )}
-                </div>
-              )}
+                    {visibleAllRows > INITIAL_TABLE_ROWS && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setVisibleAllRows(INITIAL_TABLE_ROWS)}
+                      >
+                        Show less
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 No contacts found. {searchQuery && "Try adjusting your search."}
