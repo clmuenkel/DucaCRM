@@ -78,6 +78,7 @@ const EMPLOYEE_RANGES = [
   { value: "501-1000", label: "501–1,000", min: 501, max: 1000 },
   { value: "1001+", label: "1,000+", min: 1001, max: 999999 },
 ];
+const INITIAL_TABLE_ROWS = 5;
 
 export default function WorkQueuePage() {
   const router = useRouter();
@@ -95,6 +96,8 @@ export default function WorkQueuePage() {
   const [hasPhoneFilter, setHasPhoneFilter] = useState(false);
   const [hasEmailFilter, setHasEmailFilter] = useState(false);
   const [showLostFilter, setShowLostFilter] = useState(false);
+  const [visibleCadenceRows, setVisibleCadenceRows] = useState(INITIAL_TABLE_ROWS);
+  const [visibleAllRows, setVisibleAllRows] = useState(INITIAL_TABLE_ROWS);
 
   // Derive unique states and industries from loaded data
   const uniqueStates = useMemo(() => {
@@ -267,6 +270,24 @@ export default function WorkQueuePage() {
     return filtered;
   }, [allContacts, searchQuery, industryFilter, stateFilter, employeeSizeFilter, hasPhoneFilter, hasEmailFilter]);
 
+  const visibleCadenceContacts = useMemo(
+    () => activeCadenceContacts.slice(0, visibleCadenceRows),
+    [activeCadenceContacts, visibleCadenceRows]
+  );
+
+  const visibleAllContacts = useMemo(
+    () => filteredAllContacts.slice(0, visibleAllRows),
+    [filteredAllContacts, visibleAllRows]
+  );
+
+  useEffect(() => {
+    setVisibleCadenceRows((prev) => Math.min(Math.max(prev, INITIAL_TABLE_ROWS), Math.max(activeCadenceContacts.length, INITIAL_TABLE_ROWS)));
+  }, [activeCadenceContacts.length]);
+
+  useEffect(() => {
+    setVisibleAllRows((prev) => Math.min(Math.max(prev, INITIAL_TABLE_ROWS), Math.max(filteredAllContacts.length, INITIAL_TABLE_ROWS)));
+  }, [filteredAllContacts.length]);
+
   const handleStartCadence = async () => {
     if (selectedContacts.size === 0) {
       toast.error("Select contacts first");
@@ -334,7 +355,7 @@ export default function WorkQueuePage() {
   };
 
   const selectAllVisible = () => {
-    const allIds = filteredAllContacts.map((c) => c.id);
+    const allIds = visibleAllContacts.map((c) => c.id);
     const allSelected = allIds.every((id) => selectedContacts.has(id));
 
     if (allSelected) {
@@ -381,7 +402,7 @@ export default function WorkQueuePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {activeCadenceContacts.map((contact) => {
+                  {visibleCadenceContacts.map((contact) => {
                     const phone = getValidPhone(contact.phone, contact.mobile);
                     return (
                       <TableRow key={contact.id}>
@@ -444,6 +465,28 @@ export default function WorkQueuePage() {
                   })}
                 </TableBody>
               </Table>
+              
+              {activeCadenceContacts.length > INITIAL_TABLE_ROWS && (
+                <div className="flex justify-center gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setVisibleCadenceRows((prev) => prev + INITIAL_TABLE_ROWS)}
+                    disabled={visibleCadenceRows >= activeCadenceContacts.length}
+                  >
+                    Extend to see more ({Math.min(activeCadenceRowsLeft(activeCadenceContacts.length, visibleCadenceRows), INITIAL_TABLE_ROWS)} more)
+                  </Button>
+                  {visibleCadenceRows > INITIAL_TABLE_ROWS && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setVisibleCadenceRows(INITIAL_TABLE_ROWS)}
+                    >
+                      Show less
+                    </Button>
+                  )}
+                </div>
+              )}
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 No active cadence contacts. Start a cadence from the bottom table.
@@ -470,9 +513,10 @@ export default function WorkQueuePage() {
                   variant="outline"
                   size="sm"
                   onClick={selectAllVisible}
-                  disabled={filteredAllContacts.length === 0}
+                  disabled={visibleAllContacts.length === 0}
                 >
-                  {filteredAllContacts.every((c) => selectedContacts.has(c.id))
+                  {visibleAllContacts.length > 0 &&
+                  visibleAllContacts.every((c) => selectedContacts.has(c.id))
                     ? "Deselect All"
                     : "Select All"}
                 </Button>
@@ -676,7 +720,7 @@ export default function WorkQueuePage() {
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={filteredAllContacts.every((c) => selectedContacts.has(c.id))}
+                        checked={visibleAllContacts.length > 0 && visibleAllContacts.every((c) => selectedContacts.has(c.id))}
                         onCheckedChange={selectAllVisible}
                       />
                     </TableHead>
@@ -690,7 +734,7 @@ export default function WorkQueuePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAllContacts.map((contact) => {
+                  {visibleAllContacts.map((contact) => {
                     const phone = getValidPhone(contact.phone, contact.mobile);
                     return (
                       <TableRow key={contact.id}>
@@ -745,6 +789,28 @@ export default function WorkQueuePage() {
                   })}
                 </TableBody>
               </Table>
+
+              {filteredAllContacts.length > INITIAL_TABLE_ROWS && (
+                <div className="flex justify-center gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setVisibleAllRows((prev) => prev + INITIAL_TABLE_ROWS)}
+                    disabled={visibleAllRows >= filteredAllContacts.length}
+                  >
+                    Extend to see more ({Math.min(activeCadenceRowsLeft(filteredAllContacts.length, visibleAllRows), INITIAL_TABLE_ROWS)} more)
+                  </Button>
+                  {visibleAllRows > INITIAL_TABLE_ROWS && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setVisibleAllRows(INITIAL_TABLE_ROWS)}
+                    >
+                      Show less
+                    </Button>
+                  )}
+                </div>
+              )}
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 No contacts found. {searchQuery && "Try adjusting your search."}
@@ -776,4 +842,8 @@ export default function WorkQueuePage() {
       </div>
     </div>
   );
+}
+
+function activeCadenceRowsLeft(total: number, visible: number) {
+  return Math.max(total - visible, 0);
 }

@@ -68,6 +68,7 @@ interface DialerState {
   goToContact: (index: number) => void;
 
   moveCurrentToEnd: () => void;
+  removeCurrentContact: () => void;
   setNotes: (notes: string) => void;
   addTimestampedNote: (note: TimestampedNote) => void;
   updateTimestampedNote: (index: number, note: TimestampedNote) => void;
@@ -258,6 +259,32 @@ export const useDialerStore = create<DialerState>((set, get) => ({
       queue: newQueue,
       currentContact: newQueue[safeIndex] || null,
       currentIndex: safeIndex,
+    });
+    get().resetCallState();
+  },
+
+  removeCurrentContact: () => {
+    const { queue, currentIndex } = get();
+    if (queue.length === 0) return;
+
+    const newQueue = [...queue.slice(0, currentIndex), ...queue.slice(currentIndex + 1)];
+
+    if (newQueue.length === 0) {
+      set({
+        isActive: false,
+        queue: [],
+        currentIndex: 0,
+        currentContact: null,
+      });
+      get().resetCallState();
+      return;
+    }
+
+    const safeIndex = Math.min(currentIndex, newQueue.length - 1);
+    set({
+      queue: newQueue,
+      currentIndex: safeIndex,
+      currentContact: newQueue[safeIndex] || null,
     });
     get().resetCallState();
   },

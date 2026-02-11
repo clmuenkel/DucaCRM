@@ -60,6 +60,15 @@ export function PowerDialer() {
   useEffect(() => {
     const fetchCadenceContacts = async () => {
       setIsLoadingCadence(true);
+      const today = new Date().toISOString().split("T")[0];
+      const terminalOutcomes = new Set([
+        "won",
+        "lost",
+        "wrong_number",
+        "meeting_scheduled",
+        "replied",
+        "archived",
+      ]);
 
       // Get ALL active cadence contacts (regardless of next_action_type)
       // Note: .or() filters can fail silently with InsForge, so we filter client-side
@@ -75,9 +84,21 @@ export function PowerDialer() {
         console.error("Error fetching cadence contacts:", cadenceError);
       }
 
-      // Client-side filter: must have at least one phone number
+      // Client-side filter: must have at least one phone number, exclude wrong numbers,
+      // and keep callback contacts out of queue until callback date is due.
       const cadenceWithPhone = ((cadenceData as Contact[]) || []).filter(
-        c => c.phone || c.mobile
+        c => {
+          if (!c.phone && !c.mobile) return false;
+          if (c.wrong_number_flag) return false;
+          if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
+
+          if (c.cadence_outcome === "callback") {
+            const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
+            return !!callbackDate && callbackDate <= today;
+          }
+
+          return true;
+        }
       );
       setCadenceContacts(cadenceWithPhone);
 
@@ -92,7 +113,18 @@ export function PowerDialer() {
         .order("email_open_count", { ascending: false });
 
       const hotWithPhone = ((hotData as Contact[]) || []).filter(
-        c => c.phone || c.mobile
+        c => {
+          if (!c.phone && !c.mobile) return false;
+          if (c.wrong_number_flag) return false;
+          if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
+
+          if (c.cadence_outcome === "callback") {
+            const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
+            return !!callbackDate && callbackDate <= today;
+          }
+
+          return true;
+        }
       );
       setHotContacts(hotWithPhone);
       setIsLoadingCadence(false);

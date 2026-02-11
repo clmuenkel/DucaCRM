@@ -74,7 +74,7 @@ export function CallControlsHeader() {
     nextContact,
     previousContact,
     skipContact,
-    moveCurrentToEnd,
+    removeCurrentContact,
     endSession,
     telnyxClient,
     isConnecting,
@@ -126,13 +126,9 @@ export function CallControlsHeader() {
       // Refetch contacts
       await refetchContacts();
 
-      // For callbacks: move contact to end of queue so it comes back around
-      // For won/lost: just skip to next
-      if (outcomeType === "callback") {
-        moveCurrentToEnd();
-      } else {
-        nextContact();
-      }
+      // Remove processed contact from the active queue.
+      // Callback contacts will re-enter once their callback date is due.
+      removeCurrentContact();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -220,7 +216,7 @@ export function CallControlsHeader() {
         },
       });
       toast.info("Contact skipped");
-      nextContact();
+      removeCurrentContact();
     } catch (error: any) {
       // If logging fails, still skip to next contact
       console.error("Failed to log skip:", error);
@@ -253,7 +249,7 @@ export function CallControlsHeader() {
       });
 
       toast.success("Call saved!");
-      nextContact();
+      removeCurrentContact();
     } catch (error: any) {
       toast.error(error.message || "Failed to save call");
     }
@@ -629,7 +625,7 @@ export function CallControlsHeader() {
           onActionComplete={async () => {
             await refetchContacts();
           }}
-          onNextContact={nextContact}
+          onNextContact={removeCurrentContact}
         />
       )}
 
