@@ -391,12 +391,76 @@ export const useDialerStore = create<DialerState>((set, get) => ({
 
       client.on("telnyx.error", (error: any) => {
         console.error("Telnyx client error:", error);
-        set({ telnyxError: error.message || "Telnyx client error" });
+        const rawMessage =
+          error?.message ||
+          error?.error?.message ||
+          error?.error?.detail ||
+          error?.reason ||
+          "Telnyx client error";
+        const message = String(rawMessage);
+        const normalized = message.toLowerCase();
+        const { isConnecting, isCallActive } = get();
+
+        // Ignore noisy SDK teardown errors that can appear after hangup.
+        if (
+          !isConnecting &&
+          !isCallActive &&
+          (normalized.includes("bye") ||
+            normalized.includes("hangup") ||
+            normalized.includes("unexpected error occurred"))
+        ) {
+          console.warn("Ignoring non-blocking Telnyx SDK error:", message);
+          return;
+        }
+
+        set({
+          telnyxError:
+            message || "Call failed to connect. Please retry or switch phone number.",
+        });
       });
 
       client.on("telnyx.socket.error", (error: any) => {
         console.error("Telnyx socket error:", error);
         set({ telnyxError: "Connection error. Please try again." });
+      });
+
+      // Register once per client instance to avoid duplicate event handlers across calls.
+      client.on("telnyx.notification", (notification: any) => {
+        const callState = notification?.call?.state;
+        console.log("Telnyx call notification:", callState);
+
+        switch (callState) {
+          case "ringing":
+            console.log("Call ringing");
+            break;
+          case "active":
+            console.log("Call active");
+            set({
+              isConnecting: false,
+              isCallActive: true,
+              callStartTime: new Date(),
+              callDuration: 0,
+              telnyxError: null,
+            });
+            get().startCall();
+            break;
+          case "hangup":
+          case "destroy": {
+            console.log("Call ended");
+            const { callStartTime } = get();
+            const duration = callStartTime
+              ? Math.floor((new Date().getTime() - callStartTime.getTime()) / 1000)
+              : 0;
+            set({
+              isConnecting: false,
+              isCallActive: false,
+              callDuration: duration,
+              telnyxCall: null,
+            });
+            get().endCall();
+            break;
+          }
+        }
       });
 
       // Connect the client
@@ -472,44 +536,6 @@ export const useDialerStore = create<DialerState>((set, get) => ({
 
       // Normalize Telnyx number as well
       const normalizedTelnyxNumber = normalizeToE164(telnyxNumberUsed) || telnyxNumberUsed;
-
-      // Set up call notification handler on the CLIENT (Telnyx SDK sends
-      // notifications through the client, not individual call objects)
-      telnyxClient.on("telnyx.notification", (notification: any) => {
-        const callState = notification?.call?.state;
-        console.log("Telnyx call notification:", callState);
-
-        switch (callState) {
-          case "ringing":
-            console.log("Call ringing");
-            break;
-          case "active":
-            console.log("Call active");
-            set({
-              isConnecting: false,
-              isCallActive: true,
-              callStartTime: new Date(),
-              callDuration: 0,
-            });
-            get().startCall();
-            break;
-          case "hangup":
-          case "destroy":
-            console.log("Call ended");
-            const { callStartTime } = get();
-            const duration = callStartTime
-              ? Math.floor((new Date().getTime() - callStartTime.getTime()) / 1000)
-              : 0;
-            set({
-              isConnecting: false,
-              isCallActive: false,
-              callDuration: duration,
-              telnyxCall: null,
-            });
-            get().endCall();
-            break;
-        }
-      });
 
       // Create the call using Telnyx WebRTC SDK
       const call = telnyxClient.newCall({

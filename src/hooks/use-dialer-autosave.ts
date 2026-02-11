@@ -70,19 +70,43 @@ export function useSaveDialerDraft() {
       companyId?: string | null;
       payload: DialerDraftPayload;
     }) => {
-      const { data, error } = await insforge.database
+      // Neon schema currently lacks a unique constraint on (user_id, contact_id),
+      // so Supabase-style upsert(onConflict) fails. Do explicit find->update/insert.
+      const { data: existing, error: existingError } = await insforge.database
         .from("dialer_drafts")
-        .upsert(
-          {
-            user_id: userId,
-            contact_id: contactId,
+        .select("id")
+        .eq("user_id", userId)
+        .eq("contact_id", contactId)
+        .single();
+
+      if (existingError && existingError.code !== "PGRST116") {
+        throw existingError;
+      }
+
+      if (existing?.id) {
+        const { data, error } = await insforge.database
+          .from("dialer_drafts")
+          .update({
             company_id: companyId || null,
             payload: payload as unknown as Json,
-          },
-          {
-            onConflict: "user_id,contact_id",
-          }
-        )
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+
+      const { data, error } = await insforge.database
+        .from("dialer_drafts")
+        .insert({
+          user_id: userId,
+          contact_id: contactId,
+          company_id: companyId || null,
+          payload: payload as unknown as Json,
+        })
         .select()
         .single();
 
