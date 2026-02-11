@@ -92,12 +92,15 @@ export function PowerDialer() {
           if (c.wrong_number_flag) return false;
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
 
+          // Only show contacts that are actively in progress, or callbacks due now.
+          if (!c.cadence_outcome || c.cadence_outcome === "in_progress") return true;
+
           if (c.cadence_outcome === "callback") {
             const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
             return !!callbackDate && callbackDate <= today;
           }
 
-          return true;
+          return false;
         }
       );
       setCadenceContacts(cadenceWithPhone);
@@ -118,12 +121,14 @@ export function PowerDialer() {
           if (c.wrong_number_flag) return false;
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
 
+          if (!c.cadence_outcome || c.cadence_outcome === "in_progress") return true;
+
           if (c.cadence_outcome === "callback") {
             const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
             return !!callbackDate && callbackDate <= today;
           }
 
-          return true;
+          return false;
         }
       );
       setHotContacts(hotWithPhone);

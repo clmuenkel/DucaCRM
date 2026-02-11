@@ -215,6 +215,32 @@ export function CallControlsHeader() {
           phone_used: selectedPhoneType,
         },
       });
+      if (currentContact.cadence_status === "active") {
+        // Persist skip by snoozing to tomorrow so skipped contacts do not immediately
+        // reappear in the power dialer queue on refresh.
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const callbackDate = tomorrow.toISOString().split("T")[0];
+
+        const response = await fetch("/api/contacts/outcome", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactId: currentContact.id,
+            outcome: "callback",
+            callbackDate,
+            notes: "Skipped in power dialer - auto snoozed to tomorrow",
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to snooze skipped contact");
+        }
+
+        await refetchContacts();
+      }
+
       toast.info("Contact skipped");
       removeCurrentContact();
     } catch (error: any) {
