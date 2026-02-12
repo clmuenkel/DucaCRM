@@ -96,8 +96,19 @@ export function PowerDialer() {
         console.error("Error fetching cadence contacts:", cadenceError);
       }
 
-      // Client-side filter: must have at least one phone number, exclude wrong numbers,
-      // and keep callback contacts out of queue until callback date is due.
+      // Also get contacts called today via activity_log (covers quick-action buttons
+      // that don't write to calls table but DO write activity_log)
+      const { data: calledTodayData } = await insforge.database
+        .from("activity_log")
+        .select("contact_id")
+        .eq("user_id", userId)
+        .gte("created_at", todayStartIso);
+      const calledTodayIds = new Set(
+        ((calledTodayData as { contact_id: string }[]) || []).map((row) => row.contact_id)
+      );
+
+      // Client-side filter: must have phone, exclude wrong numbers,
+      // exclude already-called-today, and keep callbacks out until due.
       const cadenceWithPhone = ((cadenceData as Contact[]) || []).filter(
         c => {
           if (!c.phone && !c.mobile) return false;
@@ -105,12 +116,22 @@ export function PowerDialer() {
           if (skippedTodayIds.has(c.id)) return false;
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
 
+          // Exclude contacts already called/actioned today
+          // (covers quick-action buttons that don't update cadence_outcome)
+          if (calledTodayIds.has(c.id)) return false;
+          if (c.last_call_attempt_date === today) return false;
+
           // Only show contacts that are actively in progress, or callbacks due now.
           if (!c.cadence_outcome || c.cadence_outcome === "in_progress") return true;
 
           if (c.cadence_outcome === "callback") {
             const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
             return !!callbackDate && callbackDate <= today;
+          }
+
+          // no_answer, voicemail, busy, gatekeeper — only show if next_action_date is today or past
+          if (c.next_action_date) {
+            return c.next_action_date.slice(0, 10) <= today;
           }
 
           return false;

@@ -46,13 +46,16 @@ export async function POST(request: NextRequest) {
     const typedContact = contact as Contact;
     const today = new Date().toISOString().split("T")[0];
 
-    // Update contact
+    // Update contact — also set cadence_outcome so power dialer knows this
+    // contact was already actioned and won't show it again today
     const { error: updateError } = await insforge.database
       .from("contacts")
       .update({
         last_call_attempt_date: today,
         call_attempts: (typedContact.call_attempts || 0) + 1,
         last_contacted_at: new Date().toISOString(),
+        last_call_outcome: "no_answer",
+        cadence_outcome: typedContact.cadence_status === "active" ? "no_answer" : typedContact.cadence_outcome,
       })
       .eq("id", contactId);
 
