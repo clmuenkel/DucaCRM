@@ -91,9 +91,9 @@ export function CallControlsHeader() {
   const updateContact = useUpdateContact();
   const { refetch: refetchContacts } = useContacts({});
   
-  // Check if contact is in active cadence
-  const isInCadence = currentContact?.cadence_status === "active" && 
-                      currentContact?.cadence_outcome === "in_progress";
+  // Show cadence action buttons for any contact in active cadence
+  // (regardless of cadence_outcome — covers in_progress, null, callback, etc.)
+  const isInCadence = currentContact?.cadence_status === "active";
 
   // Handle cadence outcome (Won, Lost, No Answer, Callback)
   const handleCadenceOutcome = async (
