@@ -117,21 +117,31 @@ export function PowerDialer() {
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
 
           // Exclude contacts already called/actioned today
-          // (covers quick-action buttons that don't update cadence_outcome)
           if (calledTodayIds.has(c.id)) return false;
           if (c.last_call_attempt_date === today) return false;
 
-          // Only show contacts that are actively in progress, or callbacks due now.
+          // If contact was EVER called before (last_call_attempt_date is set),
+          // only show it if there's a scheduled follow-up that's due today or past.
+          // This prevents "already called yesterday" contacts from reappearing.
+          if (c.last_call_attempt_date) {
+            if (c.next_action_date) {
+              return c.next_action_date.slice(0, 10) <= today;
+            }
+            if (c.cadence_outcome === "callback" && (c.snooze_until || c.next_action_date)) {
+              const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
+              return !!callbackDate && callbackDate <= today;
+            }
+            // Was called before but has no follow-up scheduled — don't show
+            return false;
+          }
+
+          // Never-called contacts: show if in_progress or null outcome
           if (!c.cadence_outcome || c.cadence_outcome === "in_progress") return true;
 
+          // Callback due now
           if (c.cadence_outcome === "callback") {
             const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
             return !!callbackDate && callbackDate <= today;
-          }
-
-          // no_answer, voicemail, busy, gatekeeper — only show if next_action_date is today or past
-          if (c.next_action_date) {
-            return c.next_action_date.slice(0, 10) <= today;
           }
 
           return false;
