@@ -1,30 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { extractPersonMobile, findDecisionMaker } from "@/lib/apollo/client";
+import {
+  extractPersonMobile,
+  findDecisionMaker,
+  searchByIndustryKeyword,
+  INDUSTRY_KEYWORDS_MAP,
+  EMPLOYEE_SIZE_BUCKETS,
+  scoreDecisionMakerTitle,
+} from "@/lib/apollo/client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 const PLACES_API_BASE = "https://places.googleapis.com/v1/places:searchText";
 
-// Industry keywords for home services
-const INDUSTRY_KEYWORDS: Record<string, string[]> = {
+// Google Places keywords (used only for Places step, not Apollo)
+const PLACES_INDUSTRY_KEYWORDS: Record<string, string[]> = {
   hvac: ["HVAC contractor", "heating and cooling", "air conditioning repair"],
   plumbing: ["plumber", "plumbing contractor", "plumbing services"],
   roofing: ["roofing contractor", "roof repair", "roofing company"],
   electrical: ["electrician", "electrical contractor", "electrical services"],
   solar: ["solar installer", "solar panel installation", "solar contractor"],
   construction: ["general contractor", "home builder", "remodeling contractor"],
+  landscaping: ["landscaping company", "lawn care service", "landscape contractor"],
+  pest_control: ["pest control company", "exterminator", "pest management"],
 };
 
 interface PipelineRequest {
   industry: string;
-  location: string;
+  location?: string;
+  employee_range?: string;
   maxCompanies?: number;
   skipScrape?: boolean;
   enableFacebook?: boolean;
   enableBBB?: boolean;
   enableReviewExtraction?: boolean;
+  /** If true, run Apollo keyword search directly (no Google Places needed) */
+  apolloDirectSearch?: boolean;
 }
 
 interface PipelineProgress {
@@ -64,17 +76,11 @@ function extractDomain(url: string | undefined): string | null {
 function extractAddressComponents(components: PlaceResult["addressComponents"]) {
   const result = { city: "", state: "", zip: "", country: "US" };
   if (!components) return result;
-  
   for (const component of components) {
-    if (component.types.includes("locality")) {
-      result.city = component.longText;
-    } else if (component.types.includes("administrative_area_level_1")) {
-      result.state = component.shortText;
-    } else if (component.types.includes("postal_code")) {
-      result.zip = component.shortText;
-    } else if (component.types.includes("country")) {
-      result.country = component.shortText;
-    }
+    if (component.types.includes("locality")) result.city = component.longText;
+    else if (component.types.includes("administrative_area_level_1")) result.state = component.shortText;
+    else if (component.types.includes("postal_code")) result.zip = component.shortText;
+    else if (component.types.includes("country")) result.country = component.shortText;
   }
   return result;
 }
@@ -139,7 +145,7 @@ async function upsertContactToCRM(
   contact: {
     first_name: string | null;
     last_name: string | null;
-    email: string;
+    email: string | null;
     phone: string | null;
     phone_type: string | null;
     linkedin_url: string | null;
@@ -152,23 +158,44 @@ async function upsertContactToCRM(
     company_id: string | null;
     source: string;
     lead_score: number;
+    enrichment_status?: string;
   }
 ): Promise<"inserted" | "exists"> {
-  const { data: existing } = await insforge.database
-    .from("contacts")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("email", contact.email)
-    .maybeSingle();
+  if (contact.email) {
+    const { data: existing } = await insforge.database
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("email", contact.email)
+      .maybeSingle();
 
-  if (existing?.id) return "exists";
+    if (existing?.id) return "exists";
+  } else if (contact.linkedin_url) {
+    const { data: existingByLinkedin } = await insforge.database
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("linkedin_url", contact.linkedin_url)
+      .maybeSingle();
+    if (existingByLinkedin?.id) return "exists";
+  } else if (contact.company_id && (contact.first_name || contact.last_name)) {
+    const { data: existingByName } = await insforge.database
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("company_id", contact.company_id)
+      .eq("first_name", contact.first_name || "Owner")
+      .eq("last_name", contact.last_name)
+      .maybeSingle();
+    if (existingByName?.id) return "exists";
+  }
 
   const primaryPhone = contact.phone_type === "mobile" ? null : contact.phone;
   const mobilePhone = contact.phone_type === "mobile" ? contact.phone : null;
+  const resolvedEnrichmentStatus = contact.enrichment_status ?? (contact.email ? "enriched" : "no_email");
 
-  const { error } = await insforge.database
-    .from("contacts")
-    .insert([{
+  const { error } = await insforge.database.from("contacts").insert([
+    {
       user_id: userId,
       company_id: contact.company_id,
       first_name: contact.first_name || "Owner",
@@ -189,10 +216,11 @@ async function upsertContactToCRM(
       source: contact.source,
       source_list: `${contact.industry} - ${contact.city || ""}, ${contact.state || ""}`,
       lead_score: contact.lead_score,
-      enrichment_status: "enriched",
+      enrichment_status: resolvedEnrichmentStatus,
       enriched_at: new Date().toISOString(),
       cadence_status: "none",
-    }]);
+    },
+  ]);
 
   if (error) throw error;
   return "inserted";
@@ -210,62 +238,95 @@ function scoreTitle(title: string): number {
   return 40;
 }
 
-/**
- * Generate email patterns from a name and domain
- */
 function generateEmailPatterns(firstName: string, lastName: string, domain: string): string[] {
   const f = firstName.toLowerCase();
   const l = lastName.toLowerCase();
-  
   return [
-    `${f}@${domain}`,                    // john@domain.com (most common for small biz)
-    `${f}${l}@${domain}`,                // johnsmith@domain.com
-    `${f}.${l}@${domain}`,               // john.smith@domain.com
-    `${f[0]}${l}@${domain}`,             // jsmith@domain.com
-    `${f}${l[0]}@${domain}`,             // johns@domain.com
+    `${f}@${domain}`,
+    `${f}${l}@${domain}`,
+    `${f}.${l}@${domain}`,
+    `${f[0]}${l}@${domain}`,
+    `${f}${l[0]}@${domain}`,
   ];
 }
 
 /**
+ * Check outreach_lock before automated outreach.
+ * Returns true if outreach is allowed for this contact.
+ */
+function isOutreachAllowed(
+  contact: { outreach_lock?: string | null; allow_email_override?: boolean },
+  outreachType: "email" | "call"
+): boolean {
+  const lock = contact.outreach_lock;
+  if (!lock) return true;
+
+  if (lock === "meeting_booked") return false; // All outreach stops
+  if (lock === "email_replied" && outreachType === "email") return false;
+  if (lock === "call_connected" && outreachType === "email") {
+    // Email skipped unless manually overridden
+    return contact.allow_email_override === true;
+  }
+
+  return true;
+}
+
+/**
  * POST /api/leads/pipeline
- * Run the full lead generation pipeline with multi-source discovery
+ * Run the full lead generation pipeline.
+ * Supports apolloDirectSearch=true to skip Google Places and use Apollo keyword search directly.
  */
 export async function POST(request: NextRequest) {
   try {
     const body: PipelineRequest = await request.json();
-    const { 
-      industry, 
-      location, 
-      maxCompanies = 20, 
+    const {
+      industry,
+      location,
+      employee_range = "1,10",
+      maxCompanies = 20,
       skipScrape = false,
       enableFacebook = true,
       enableBBB = true,
       enableReviewExtraction = true,
+      apolloDirectSearch = false,
     } = body;
 
-    if (!industry || !location) {
+    // Validate industry
+    const validIndustries = [
+      ...Object.keys(INDUSTRY_KEYWORDS_MAP),
+      ...Object.keys(PLACES_INDUSTRY_KEYWORDS),
+    ];
+    if (!industry || !validIndustries.includes(industry)) {
       return NextResponse.json(
-        { error: "Industry and location are required" },
+        { error: `Invalid industry. Valid: ${Object.keys(INDUSTRY_KEYWORDS_MAP).join(", ")}` },
         { status: 400 }
       );
     }
 
-        const userId = DEFAULT_USER_ID;
+    // Location required only for Places-based search
+    if (!apolloDirectSearch && !location) {
+      return NextResponse.json(
+        { error: "Location is required (or set apolloDirectSearch=true)" },
+        { status: 400 }
+      );
+    }
+
+    // Validate employee_range
+    if (!EMPLOYEE_SIZE_BUCKETS.includes(employee_range)) {
+      return NextResponse.json(
+        { error: `Invalid employee_range. Valid: ${EMPLOYEE_SIZE_BUCKETS.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    const userId = DEFAULT_USER_ID;
     const baseUrl = request.nextUrl.origin;
 
-    // Get API keys
     const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
     const apolloApiKey = process.env.APOLLO_API_KEY;
     const openaiApiKey = process.env.OPENAI_API_KEY;
 
-    if (!googleApiKey) {
-      return NextResponse.json(
-        { error: "GOOGLE_PLACES_API_KEY not configured" },
-        { status: 400 }
-      );
-    }
-
-    // Also check user_settings for Apollo key
+    // Check user_settings for Apollo key
     let effectiveApolloKey = apolloApiKey;
     if (!effectiveApolloKey) {
       const { data: settings } = await insforge.database
@@ -285,6 +346,7 @@ export async function POST(request: NextRequest) {
       totalPeopleFound: 0,
       apolloMatches: 0,
       apolloOrgNameMatches: 0,
+      apolloDirectMatches: 0,
       scrapedPeople: 0,
       reviewExtractions: 0,
       facebookMatches: 0,
@@ -293,19 +355,156 @@ export async function POST(request: NextRequest) {
       failed: 0,
     };
 
+    const insertedCompanyIds: string[] = [];
+    const companyReviews: Map<string, string[]> = new Map();
+
     // ===========================================
-    // STEP 1: Google Places Search (with reviews)
+    // APOLLO DIRECT SEARCH (keyword-based, no Google Places needed)
     // ===========================================
+    if (apolloDirectSearch && effectiveApolloKey) {
+      progress.push({
+        step: "apollo_direct_search",
+        status: "running",
+        message: `Searching Apollo directly for ${industry} (${employee_range} employees)...`,
+      });
+
+      try {
+        const result = await searchByIndustryKeyword(
+          effectiveApolloKey,
+          industry,
+          employee_range,
+          { per_page: Math.min(maxCompanies, 25) }
+        );
+
+        const people = result.people || [];
+        console.log(`[Pipeline] Apollo direct search: ${people.length} people found`);
+
+        for (const person of people) {
+          const org = (person as any).organization || {};
+          const orgName = org.name || "Unknown";
+          const orgDomain = org.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") || null;
+          const city = org.city || person.city || null;
+          const state = org.state || person.state || null;
+          const hasEmailFlag = (person as any).has_email === true;
+          const resolvedEmailRaw = typeof person.email === "string" ? person.email.trim() : "";
+          const resolvedEmail = resolvedEmailRaw || null;
+          const enrichmentStatus: "enriched" | "pending" | "no_email" = resolvedEmail
+            ? "enriched"
+            : hasEmailFlag
+            ? "pending"
+            : "no_email";
+
+          if (!resolvedEmail && hasEmailFlag) {
+            console.log(`[Pipeline] Email locked for ${person.first_name || person.name || "unknown"} — storing as pending enrichment`);
+          }
+
+          finalStats.totalPeopleFound++;
+
+          let companyId: string | null = null;
+          try {
+            companyId = await upsertCompanyToCRM(insforge, userId, {
+              name: orgName,
+              domain: orgDomain,
+              website: org.website_url || null,
+              city,
+              state,
+              industry,
+              country: "US",
+            });
+          } catch (companyError: any) {
+            console.error(`[Pipeline] Failed to upsert company ${orgName}: ${companyError.message || companyError}`);
+            finalStats.failed++;
+            continue;
+          }
+
+          if (!companyId) continue;
+
+          if (!insertedCompanyIds.includes(companyId)) {
+            insertedCompanyIds.push(companyId);
+            finalStats.companiesFound++;
+          }
+
+          const phones = extractPersonMobile((person as any).phone_numbers);
+          const selectedPhone = phones.mobile || phones.direct || phones.any || null;
+          const phoneType = phones.mobile ? "mobile" : phones.direct ? "direct" : phones.any ? "other" : null;
+          const confidence = scoreTitle(person.title || "");
+
+          try {
+            const contactResult = await upsertContactToCRM(insforge, userId, {
+              first_name: person.first_name || null,
+              last_name: person.last_name || null,
+              email: resolvedEmail,
+              phone: selectedPhone,
+              phone_type: phoneType,
+              linkedin_url: person.linkedin_url || null,
+              title: person.title || "Owner",
+              company_name: orgName,
+              company_domain: orgDomain,
+              industry,
+              city,
+              state,
+              company_id: companyId,
+              source: "apollo_keyword",
+              lead_score: confidence,
+              enrichment_status: enrichmentStatus,
+            });
+
+            if (contactResult === "inserted") {
+              finalStats.contactsSaved++;
+              if (resolvedEmail) finalStats.companiesWithDM++;
+            }
+          } catch (contactError: any) {
+            console.error(`[Pipeline] Failed to upsert contact ${person.first_name || person.name || "Unknown"} (${resolvedEmail || "no email"}): ${contactError.message || contactError}`);
+            finalStats.failed++;
+          }
+
+          finalStats.apolloDirectMatches++;
+          await new Promise((r) => setTimeout(r, 300));
+        }
+
+        progress[progress.length - 1].status = "completed";
+        progress[progress.length - 1].message = `Apollo direct: ${finalStats.apolloDirectMatches} contacts found`;
+        progress[progress.length - 1].stats = { found: finalStats.apolloDirectMatches };
+      } catch (e: any) {
+        console.error(`[Pipeline] Apollo direct search error: ${e.message}`);
+        progress[progress.length - 1].status = "failed";
+        progress[progress.length - 1].message = `Apollo direct search failed: ${e.message}`;
+      }
+
+      // Skip Places-based flow if apolloDirectSearch
+      const dmRate = finalStats.companiesFound > 0
+        ? Math.round((finalStats.companiesWithDM / finalStats.companiesFound) * 100)
+        : 0;
+
+      return NextResponse.json({
+        success: true,
+        message: `Pipeline completed: ${finalStats.companiesFound} companies, ${finalStats.companiesWithDM} with verified DM (${dmRate}%), ${finalStats.contactsSaved} saved to CRM`,
+        progress,
+        stats: finalStats,
+        companyIds: insertedCompanyIds,
+      });
+    }
+
+    // ===========================================
+    // STEP 1: Google Places Search (with reviews) — legacy flow
+    // ===========================================
+    if (!googleApiKey) {
+      return NextResponse.json(
+        { error: "GOOGLE_PLACES_API_KEY not configured. Use apolloDirectSearch=true to skip Places." },
+        { status: 400 }
+      );
+    }
+
     progress.push({
       step: "places_search",
       status: "running",
       message: `Searching Google Places for ${industry} companies in ${location}...`,
     });
 
-    const keywords = INDUSTRY_KEYWORDS[industry];
+    const keywords = PLACES_INDUSTRY_KEYWORDS[industry];
     if (!keywords) {
       return NextResponse.json(
-        { error: `Unknown industry: ${industry}` },
+        { error: `No Places keywords for industry: ${industry}. Use apolloDirectSearch=true.` },
         { status: 400 }
       );
     }
@@ -317,17 +516,17 @@ export async function POST(request: NextRequest) {
 
     for (const keyword of keywords) {
       if (allPlaces.length >= maxCompanies) break;
-      
+
       const query = `${keyword} in ${location}`;
-      
+
       try {
         const response = await fetch(PLACES_API_BASE, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": googleApiKey,
-            // Include reviews for AI extraction
-            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.addressComponents,places.reviews",
+            "X-Goog-FieldMask":
+              "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.addressComponents,places.reviews",
           },
           body: JSON.stringify({
             textQuery: query,
@@ -337,9 +536,7 @@ export async function POST(request: NextRequest) {
 
         if (response.ok) {
           const data = await response.json();
-          const places = data.places || [];
-          
-          for (const place of places) {
+          for (const place of data.places || []) {
             if (!seenPlaceIds.has(place.id) && allPlaces.length < maxCompanies) {
               seenPlaceIds.add(place.id);
               allPlaces.push(place);
@@ -349,25 +546,18 @@ export async function POST(request: NextRequest) {
       } catch (e: any) {
         console.error(`[Pipeline] Places error for "${keyword}":`, e.message);
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 200));
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
     console.log(`[Pipeline] Found ${allPlaces.length} unique places`);
 
-    // Insert companies into database
-    const insertedCompanyIds: string[] = [];
-    const companyReviews: Map<string, string[]> = new Map();
-    
     for (const place of allPlaces) {
       const address = extractAddressComponents(place.addressComponents);
       const domain = extractDomain(place.websiteUri);
-      
-      // Collect review responses for later AI extraction
-      const reviewTexts = (place.reviews || [])
-        .filter(r => r.text?.text)
-        .map(r => r.text!.text);
-      
+
+      const reviewTexts = (place.reviews || []).filter((r) => r.text?.text).map((r) => r.text!.text);
+
       const companyData = {
         user_id: userId,
         place_id: place.id,
@@ -390,19 +580,14 @@ export async function POST(request: NextRequest) {
 
       const { data: inserted, error } = await insforge.database
         .from("lead_companies")
-        .upsert(companyData, {
-          onConflict: "user_id,place_id",
-          ignoreDuplicates: false,
-        })
+        .upsert(companyData, { onConflict: "user_id,place_id", ignoreDuplicates: false })
         .select("id")
         .single();
 
       if (!error && inserted) {
         insertedCompanyIds.push(inserted.id);
         finalStats.companiesFound++;
-        if (reviewTexts.length > 0) {
-          companyReviews.set(inserted.id, reviewTexts);
-        }
+        if (reviewTexts.length > 0) companyReviews.set(inserted.id, reviewTexts);
       }
     }
 
@@ -427,67 +612,70 @@ export async function POST(request: NextRequest) {
 
       for (const company of companies || []) {
         const c = company as any;
-        
-        try {
-          // Use the multi-method finder
-          const { person, source } = await findDecisionMaker(
-            effectiveApolloKey,
-            {
-              name: c.name,
-              domain: c.domain,
-              city: c.city,
-              state: c.state,
-            }
-          );
 
-          if (person && person.email) {
+        try {
+          const { person, source } = await findDecisionMaker(effectiveApolloKey, {
+            name: c.name,
+            domain: c.domain,
+            city: c.city,
+            state: c.state,
+          });
+
+          if (person) {
+            const hasEmailFlag = (person as any).has_email === true;
+            const resolvedEmailRaw = typeof person.email === "string" ? person.email.trim() : "";
+            const resolvedEmail = resolvedEmailRaw || null;
+            const personName = person.name || `${person.first_name || ""} ${person.last_name || ""}`.trim() || "Owner";
             const confidence = scoreTitle(person.title || "");
-            const personName = person.name || `${person.first_name} ${person.last_name}`.trim();
-            
-            console.log(`[Pipeline] Saving contact: ${personName} (${person.email}) for ${c.name}`);
-            
-            // Check if this person already exists for this company
-            const { data: existingPerson } = await insforge.database
+            const contactPhones = extractPersonMobile(person.phone_numbers);
+            const phoneValue = contactPhones.mobile || contactPhones.direct || contactPhones.any;
+            const phoneType = contactPhones.mobile ? "mobile" : contactPhones.direct ? "direct" : contactPhones.any ? "other" : null;
+            const enrichmentStatus: "enriched" | "pending" | "no_email" = resolvedEmail
+              ? "enriched"
+              : hasEmailFlag
+              ? "pending"
+              : "no_email";
+            const emailStatus = resolvedEmail ? "found" : hasEmailFlag ? "pending" : "unknown";
+
+            let leadPersonQuery = insforge.database
               .from("lead_people")
               .select("id")
               .eq("lead_company_id", c.id)
-              .eq("email", person.email)
-              .limit(1)
-              .single();
-            
+              .limit(1);
+
+            if (resolvedEmail) {
+              leadPersonQuery = leadPersonQuery.eq("email", resolvedEmail);
+            } else if (person.linkedin_url) {
+              leadPersonQuery = leadPersonQuery.eq("linkedin_url", person.linkedin_url);
+            } else {
+              leadPersonQuery = leadPersonQuery.eq("full_name", personName);
+            }
+
+            const { data: existingPerson } = await leadPersonQuery.maybeSingle();
+
             if (!existingPerson) {
-              const phones = extractPersonMobile(person.phone_numbers);
-              const { error: insertError } = await insforge.database
-                .from("lead_people")
-                .insert([{
+              await insforge.database.from("lead_people").insert([
+                {
                   user_id: userId,
                   lead_company_id: c.id,
                   full_name: personName,
-                  first_name: person.first_name,
-                  last_name: person.last_name,
+                  first_name: person.first_name || personName.split(" ")[0] || "Owner",
+                  last_name: person.last_name || personName.split(" ").slice(1).join(" ") || null,
                   title: person.title,
-                  email: person.email,
-                  email_status: "found",
-                  email_verified: true,
-                  phone: phones.mobile || phones.direct || phones.any,
-                  phone_type: phones.mobile ? "mobile" : (phones.direct ? "direct" : "other"),
+                  email: resolvedEmail,
+                  email_status: emailStatus,
+                  email_verified: !!resolvedEmail,
+                  phone: phoneValue,
+                  phone_type: phoneType,
                   linkedin_url: person.linkedin_url || null,
                   source: source,
                   confidence_score: confidence,
                   is_decision_maker: confidence >= 70,
                   is_primary_contact: true,
-                }]);
-              
-              if (insertError) {
-                console.error(`[Pipeline] Failed to save contact: ${insertError.message}`);
-              } else {
-                console.log(`[Pipeline] ✓ Saved ${personName} to lead_people`);
-              }
-            } else {
-              console.log(`[Pipeline] Contact ${personName} already exists, skipping`);
+                },
+              ]);
             }
 
-            // Direct injection into CRM contacts
             try {
               const companyId = await upsertCompanyToCRM(insforge, userId, {
                 name: c.name,
@@ -499,13 +687,12 @@ export async function POST(request: NextRequest) {
                 country: "US",
               });
 
-              const contactPhones = extractPersonMobile(person.phone_numbers);
               const result = await upsertContactToCRM(insforge, userId, {
                 first_name: person.first_name || personName.split(" ")[0] || null,
                 last_name: person.last_name || personName.split(" ").slice(1).join(" ") || null,
-                email: person.email,
-                phone: contactPhones.mobile || contactPhones.direct || contactPhones.any,
-                phone_type: contactPhones.mobile ? "mobile" : (contactPhones.direct ? "direct" : "other"),
+                email: resolvedEmail,
+                phone: phoneValue,
+                phone_type: phoneType,
                 linkedin_url: person.linkedin_url || null,
                 title: person.title || "Owner",
                 company_name: c.name,
@@ -516,44 +703,41 @@ export async function POST(request: NextRequest) {
                 company_id: companyId,
                 source,
                 lead_score: confidence,
+                enrichment_status: enrichmentStatus,
               });
 
               if (result === "inserted") {
                 finalStats.contactsSaved++;
+                if (resolvedEmail) finalStats.companiesWithDM++;
               }
             } catch (crmError: any) {
-              console.error(`[Pipeline] CRM insert error for ${person.email}: ${crmError.message}`);
+              console.error(`[Pipeline] CRM insert error for ${personName}: ${crmError.message}`);
             }
-            
+
+            const companyUpdate: Record<string, any> = {
+              enrichment_status: enrichmentStatus === "enriched" ? "enriched" : enrichmentStatus === "pending" ? "pending" : "no_match",
+              contact_type: enrichmentStatus === "enriched" ? "dm_verified" : enrichmentStatus === "pending" ? "pending" : "pending_scrape",
+            };
+            if (enrichmentStatus === "enriched") {
+              companyUpdate.enriched_at = new Date().toISOString();
+            }
+
             await insforge.database
               .from("lead_companies")
-              .update({
-                enrichment_status: "enriched",
-                enriched_at: new Date().toISOString(),
-                contact_type: "dm_verified",
-              })
+              .update(companyUpdate)
               .eq("id", c.id);
-            
+
             finalStats.totalPeopleFound++;
-            finalStats.companiesWithDM++;
-            
-            if (source === "apollo_domain") {
-              finalStats.apolloMatches++;
-            } else {
-              finalStats.apolloOrgNameMatches++;
-            }
+            if (source === "apollo_domain") finalStats.apolloMatches++;
+            else finalStats.apolloOrgNameMatches++;
           } else {
             await insforge.database
               .from("lead_companies")
-              .update({
-                enrichment_status: "no_match",
-                contact_type: "pending_scrape",
-              })
+              .update({ enrichment_status: "no_match", contact_type: "pending_scrape" })
               .eq("id", c.id);
           }
-          
-          await new Promise(resolve => setTimeout(resolve, 400));
-          
+
+          await new Promise((resolve) => setTimeout(resolve, 400));
         } catch (e) {
           console.error(`Apollo error for ${c.name}:`, e);
         }
@@ -571,7 +755,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ===========================================
-    // STEP 3: AI Review Extraction (for no-match)
+    // STEP 3: AI Review Extraction
     // ===========================================
     if (enableReviewExtraction && openaiApiKey) {
       progress.push({
@@ -586,18 +770,12 @@ export async function POST(request: NextRequest) {
         .in("id", insertedCompanyIds)
         .eq("contact_type", "pending_scrape");
 
-      console.log(`[Pipeline] Review extraction: ${noMatchCompanies?.length || 0} companies need review extraction`);
-      console.log(`[Pipeline] companyReviews map has ${companyReviews.size} entries`);
-
       for (const company of noMatchCompanies || []) {
         const c = company as any;
         const reviews = companyReviews.get(c.id) || [];
-        
-        console.log(`[Pipeline] Company ${c.name}: ${reviews.length} reviews`);
         if (reviews.length === 0) continue;
-        
+
         try {
-          // Call our extract-owner API with review text
           for (const reviewText of reviews) {
             const extractResponse = await fetch(`${baseUrl}/api/leads/extract-owner`, {
               method: "POST",
@@ -607,49 +785,40 @@ export async function POST(request: NextRequest) {
 
             if (extractResponse.ok) {
               const extractData = await extractResponse.json();
-              console.log(`[Pipeline] AI extracted for ${c.name}: ${JSON.stringify(extractData)}`);
-              
               if (extractData.success && extractData.ownerName && extractData.confidence >= 50) {
-                console.log(`[Pipeline] Found owner "${extractData.ownerName}" for ${c.name}`);
-                // We found an owner name! Generate email patterns
-                const emails = c.domain 
+                const emails = c.domain
                   ? generateEmailPatterns(
                       extractData.firstName || extractData.ownerName.split(" ")[0],
                       extractData.lastName || extractData.ownerName.split(" ").slice(-1)[0],
                       c.domain
                     )
                   : [];
-                
-                // If we have Apollo, try to verify this person
+
                 let verifiedEmail: string | null = null;
                 let verifiedPhone: string | null = null;
-                
+
                 if (effectiveApolloKey && extractData.firstName && extractData.lastName) {
                   const { person } = await findDecisionMaker(
                     effectiveApolloKey,
                     { name: c.name, domain: c.domain },
                     { first_name: extractData.firstName, last_name: extractData.lastName }
                   );
-                  
                   if (person?.email) {
                     verifiedEmail = person.email;
-                    const verifiedPhones = extractPersonMobile(person.phone_numbers);
-                    verifiedPhone = verifiedPhones.mobile || verifiedPhones.direct || verifiedPhones.any;
+                    const vPhones = extractPersonMobile(person.phone_numbers);
+                    verifiedPhone = vPhones.mobile || vPhones.direct || vPhones.any;
                   }
                 }
-                
-                // Check if this company already has a lead_person
+
                 const { data: existingPeople } = await insforge.database
                   .from("lead_people")
                   .select("id")
                   .eq("lead_company_id", c.id)
                   .limit(1);
-                
+
                 if (!existingPeople || existingPeople.length === 0) {
-                  // No existing person, insert new one
-                  const insertResult = await insforge.database
-                    .from("lead_people")
-                    .insert([{
+                  await insforge.database.from("lead_people").insert([
+                    {
                       user_id: userId,
                       lead_company_id: c.id,
                       full_name: extractData.ownerName,
@@ -657,24 +826,17 @@ export async function POST(request: NextRequest) {
                       last_name: extractData.lastName,
                       title: "Owner",
                       email: verifiedEmail || emails[0] || null,
-                      email_status: verifiedEmail ? "verified" : (emails[0] ? "guessed" : "unknown"),
+                      email_status: verifiedEmail ? "verified" : emails[0] ? "guessed" : "unknown",
                       email_verified: !!verifiedEmail,
                       phone: verifiedPhone,
                       source: "review_ai",
                       confidence_score: verifiedEmail ? 85 : extractData.confidence,
                       is_decision_maker: true,
                       is_primary_contact: true,
-                    }]);
-                    
-                  if (insertResult.error) {
-                    console.error(`[Pipeline] Failed to save AI extracted person: ${insertResult.error.message}`);
-                  } else {
-                    console.log(`[Pipeline] Saved AI extracted person "${extractData.ownerName}" for ${c.name}`);
-                  }
-                } else {
-                  console.log(`[Pipeline] Company ${c.name} already has a contact, skipping AI extraction save`);
+                    },
+                  ]);
                 }
-                
+
                 await insforge.database
                   .from("lead_companies")
                   .update({
@@ -682,12 +844,11 @@ export async function POST(request: NextRequest) {
                     contact_type: verifiedEmail ? "dm_verified" : "dm_guessed",
                   })
                   .eq("id", c.id);
-                
+
                 finalStats.reviewExtractions++;
                 finalStats.totalPeopleFound++;
                 if (verifiedEmail) finalStats.companiesWithDM++;
-                
-                break; // Found owner, move to next company
+                break;
               }
             }
           }
@@ -702,99 +863,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ===========================================
-    // STEP 4: Facebook Scraping (DISABLED - blocked by login wall)
-    // ===========================================
-    if (false && enableFacebook && !skipScrape) { // DISABLED - Facebook blocks scraping
-      progress.push({
-        step: "facebook_scrape",
-        status: "running",
-        message: "Searching Facebook for mobile numbers...",
-      });
-
-      const { data: pendingCompanies } = await insforge.database
-        .from("lead_companies")
-        .select("id, name, website")
-        .in("id", insertedCompanyIds)
-        .in("contact_type", ["pending_scrape", "dm_guessed"]);
-
-      for (const company of pendingCompanies || []) {
-        const c = company as any;
-        if (!c.website) continue;
-        
-        try {
-          const fbResponse = await fetch(`${baseUrl}/api/leads/facebook-scrape`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ websiteUrl: c.website, companyName: c.name }),
-          });
-
-          if (fbResponse.ok) {
-            const fbData = await fbResponse.json();
-            
-            if (fbData.success && (fbData.phone || fbData.ownerName)) {
-              // Update existing lead_person or create new one
-              const updates: any = {};
-              
-              if (fbData.phone) {
-                updates.phone = fbData.phone;
-                updates.phone_type = "mobile"; // Facebook phones are usually mobile
-              }
-              
-              if (fbData.ownerName) {
-                const nameParts = fbData.ownerName.split(" ");
-                updates.full_name = fbData.ownerName;
-                updates.first_name = nameParts[0];
-                updates.last_name = nameParts.slice(1).join(" ");
-                updates.title = "Owner";
-              }
-              
-              if (Object.keys(updates).length > 0) {
-                // Check if we have an existing person for this company
-                const { data: existingPerson } = await insforge.database
-                  .from("lead_people")
-                  .select("id")
-                  .eq("lead_company_id", c.id)
-                  .eq("is_primary_contact", true)
-                  .single();
-                
-                const personId = existingPerson?.id;
-                if (personId) {
-                  await insforge.database
-                    .from("lead_people")
-                    .update(updates)
-                    .eq("id", personId);
-                } else {
-                  await insforge.database
-                    .from("lead_people")
-                    .insert([{
-                      user_id: userId,
-                      lead_company_id: c.id,
-                      ...updates,
-                      source: "facebook",
-                      confidence_score: 70,
-                      is_decision_maker: !!fbData.ownerName,
-                      is_primary_contact: true,
-                    }]);
-                }
-                
-                finalStats.facebookMatches++;
-              }
-            }
-          }
-        } catch (e) {
-          console.error(`Facebook scrape error for ${c.name}:`, e);
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      progress[progress.length - 1].status = "completed";
-      progress[progress.length - 1].message = `Found ${finalStats.facebookMatches} contacts from Facebook`;
-      progress[progress.length - 1].stats = { found: finalStats.facebookMatches };
-    }
-
-    // ===========================================
-    // STEP 5: BBB Lookup
+    // STEP 4: BBB Lookup
     // ===========================================
     if (enableBBB && !skipScrape) {
       progress.push({
@@ -813,7 +882,6 @@ export async function POST(request: NextRequest) {
 
       for (const company of stillPending || []) {
         const c = company as any;
-        
         try {
           const bbbResponse = await fetch(`${baseUrl}/api/leads/bbb-lookup`, {
             method: "POST",
@@ -823,18 +891,15 @@ export async function POST(request: NextRequest) {
 
           if (bbbResponse.ok) {
             const bbbData = await bbbResponse.json();
-            
             if (bbbData.success && bbbData.ownerName) {
               const nameParts = bbbData.ownerName.split(" ");
-              
-              // Check if we have an existing person
               const { data: existingPerson } = await insforge.database
                 .from("lead_people")
                 .select("id")
                 .eq("lead_company_id", c.id)
                 .eq("is_primary_contact", true)
                 .single();
-              
+
               if (existingPerson?.id) {
                 await insforge.database
                   .from("lead_people")
@@ -847,9 +912,8 @@ export async function POST(request: NextRequest) {
                   })
                   .eq("id", existingPerson.id);
               } else {
-                await insforge.database
-                  .from("lead_people")
-                  .insert([{
+                await insforge.database.from("lead_people").insert([
+                  {
                     user_id: userId,
                     lead_company_id: c.id,
                     full_name: bbbData.ownerName,
@@ -861,17 +925,16 @@ export async function POST(request: NextRequest) {
                     confidence_score: 75,
                     is_decision_maker: true,
                     is_primary_contact: true,
-                  }]);
+                  },
+                ]);
               }
-              
               finalStats.bbbMatches++;
             }
           }
         } catch (e) {
           console.error(`BBB lookup error for ${c.name}:`, e);
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       progress[progress.length - 1].status = "completed";
@@ -880,7 +943,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ===========================================
-    // STEP 6: Website Scraping (remaining)
+    // STEP 5: Website Scraping (remaining)
     // ===========================================
     if (!skipScrape) {
       progress.push({
@@ -900,10 +963,7 @@ export async function POST(request: NextRequest) {
           const scrapeResponse = await fetch(`${baseUrl}/api/leads/scrape`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              companyIds: toScrape.map((c: any) => c.id),
-              limit: 50,
-            }),
+            body: JSON.stringify({ companyIds: toScrape.map((c: any) => c.id), limit: 50 }),
           });
 
           if (scrapeResponse.ok) {
@@ -923,7 +983,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ===========================================
-    // STEP 7: Ensure all companies have fallback
+    // STEP 6: Ensure all companies have fallback
     // ===========================================
     progress.push({
       step: "fallback_assignment",
@@ -939,7 +999,6 @@ export async function POST(request: NextRequest) {
 
     for (const company of pendingCompanies || []) {
       const c = company as any;
-      
       await insforge.database
         .from("lead_companies")
         .update({
@@ -949,7 +1008,6 @@ export async function POST(request: NextRequest) {
           fallback_phone: c.phone,
         })
         .eq("id", c.id);
-      
       finalStats.companiesWithFallback++;
     }
 
@@ -957,10 +1015,7 @@ export async function POST(request: NextRequest) {
     progress[progress.length - 1].message = `${finalStats.companiesWithFallback} companies using fallback`;
     progress[progress.length - 1].stats = { fallback: finalStats.companiesWithFallback };
 
-    // ===========================================
-    // FINAL SUMMARY
-    // ===========================================
-    const dmRate = finalStats.companiesFound > 0 
+    const dmRate = finalStats.companiesFound > 0
       ? Math.round((finalStats.companiesWithDM / finalStats.companiesFound) * 100)
       : 0;
 
@@ -971,25 +1026,19 @@ export async function POST(request: NextRequest) {
       stats: finalStats,
       companyIds: insertedCompanyIds,
     });
-
   } catch (error: any) {
     console.error("Pipeline error:", error);
-    return NextResponse.json(
-      { error: error.message || "Pipeline failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Pipeline failed" }, { status: 500 });
   }
 }
 
 /**
- * GET /api/leads/pipeline
- * Get pipeline status and stats
+ * GET /api/leads/pipeline — status and stats
  */
 export async function GET(request: NextRequest) {
   try {
-        const userId = DEFAULT_USER_ID;
+    const userId = DEFAULT_USER_ID;
 
-    // Get company counts by status
     const { data: companies } = await insforge.database
       .from("lead_companies")
       .select("enrichment_status, contact_type, industry_tag")
@@ -997,42 +1046,19 @@ export async function GET(request: NextRequest) {
 
     const stats = {
       total: 0,
-      byStatus: {
-        pending: 0,
-        enriched: 0,
-        scraped: 0,
-        no_match: 0,
-        no_dm: 0,
-        failed: 0,
-      },
-      byContactType: {
-        dm_verified: 0,
-        dm_guessed: 0,
-        fallback: 0,
-        pending: 0,
-        pending_scrape: 0,
-      },
+      byStatus: { pending: 0, enriched: 0, scraped: 0, no_match: 0, no_dm: 0, failed: 0 },
+      byContactType: { dm_verified: 0, dm_guessed: 0, fallback: 0, pending: 0, pending_scrape: 0 },
       byIndustry: {} as Record<string, number>,
     };
 
     for (const company of companies || []) {
       const c = company as any;
       stats.total++;
-      
-      if (c.enrichment_status in stats.byStatus) {
-        stats.byStatus[c.enrichment_status as keyof typeof stats.byStatus]++;
-      }
-      
-      if (c.contact_type in stats.byContactType) {
-        stats.byContactType[c.contact_type as keyof typeof stats.byContactType]++;
-      }
-      
-      if (c.industry_tag) {
-        stats.byIndustry[c.industry_tag] = (stats.byIndustry[c.industry_tag] || 0) + 1;
-      }
+      if (c.enrichment_status in stats.byStatus) stats.byStatus[c.enrichment_status as keyof typeof stats.byStatus]++;
+      if (c.contact_type in stats.byContactType) stats.byContactType[c.contact_type as keyof typeof stats.byContactType]++;
+      if (c.industry_tag) stats.byIndustry[c.industry_tag] = (stats.byIndustry[c.industry_tag] || 0) + 1;
     }
 
-    // Get people count by source
     const { data: people } = await insforge.database
       .from("lead_people")
       .select("source, email_status, email_verified")
@@ -1052,16 +1078,9 @@ export async function GET(request: NextRequest) {
       if (p.email_status === "guessed") peopleStats.guessed++;
     }
 
-    return NextResponse.json({
-      stats,
-      peopleStats,
-    });
-
+    return NextResponse.json({ stats, peopleStats });
   } catch (error: any) {
     console.error("Pipeline status error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to get status" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Failed to get status" }, { status: 500 });
   }
 }
