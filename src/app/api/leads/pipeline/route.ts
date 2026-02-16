@@ -8,7 +8,6 @@ import {
   INDUSTRY_KEYWORDS_MAP,
   EMPLOYEE_SIZE_BUCKETS,
   scoreDecisionMakerTitle,
-  enrichPersonById,
 } from "@/lib/apollo/client";
 
 export const dynamic = "force-dynamic";
@@ -381,34 +380,22 @@ export async function POST(request: NextRequest) {
         console.log(`[Pipeline] Apollo direct search: ${people.length} people found`);
 
         for (const person of people) {
-          if (!person.email && !person.id) {
-            console.warn(`[Pipeline] Skipping Apollo person without email & id: ${person.first_name || person.name || "unknown"}`);
-            continue;
-          }
-
           const org = (person as any).organization || {};
           const orgName = org.name || "Unknown";
           const orgDomain = org.website_url?.replace(/^https?:\/\//, "").replace(/\/$/, "") || null;
           const city = org.city || person.city || null;
           const state = org.state || person.state || null;
+          const hasEmailFlag = (person as any).has_email === true;
+          const resolvedEmailRaw = typeof person.email === "string" ? person.email.trim() : "";
+          const resolvedEmail = resolvedEmailRaw || null;
+          const enrichmentStatus: "enriched" | "pending" | "no_email" = resolvedEmail
+            ? "enriched"
+            : hasEmailFlag
+            ? "pending"
+            : "no_email";
 
-          let enrichedPerson = person;
-          let resolvedEmail = person.email || null;
-          let enrichmentStatus: "enriched" | "no_email" = resolvedEmail ? "enriched" : "no_email";
-
-          if (!resolvedEmail && person.id) {
-            try {
-              const enriched = await enrichPersonById(effectiveApolloKey, person.id);
-              if (enriched) {
-                enrichedPerson = { ...person, ...enriched } as typeof person;
-              }
-              if (enriched?.email) {
-                resolvedEmail = enriched.email;
-                enrichmentStatus = "enriched";
-              }
-            } catch (enrichError: any) {
-              console.error(`[Pipeline] enrichPersonById failed for ${person.id}: ${enrichError.message || enrichError}`);
-            }
+          if (!resolvedEmail && hasEmailFlag) {
+            console.log(`[Pipeline] Email locked for ${person.first_name || person.name || "unknown"} — storing as pending enrichment`);
           }
 
           finalStats.totalPeopleFound++;
@@ -437,20 +424,20 @@ export async function POST(request: NextRequest) {
             finalStats.companiesFound++;
           }
 
-          const phones = extractPersonMobile(enrichedPerson.phone_numbers);
+          const phones = extractPersonMobile((person as any).phone_numbers);
           const selectedPhone = phones.mobile || phones.direct || phones.any || null;
           const phoneType = phones.mobile ? "mobile" : phones.direct ? "direct" : phones.any ? "other" : null;
-          const confidence = scoreTitle(enrichedPerson.title || "");
+          const confidence = scoreTitle(person.title || "");
 
           try {
             const contactResult = await upsertContactToCRM(insforge, userId, {
-              first_name: enrichedPerson.first_name || null,
-              last_name: enrichedPerson.last_name || null,
+              first_name: person.first_name || null,
+              last_name: person.last_name || null,
               email: resolvedEmail,
               phone: selectedPhone,
               phone_type: phoneType,
-              linkedin_url: enrichedPerson.linkedin_url || null,
-              title: enrichedPerson.title || "Owner",
+              linkedin_url: person.linkedin_url || null,
+              title: person.title || "Owner",
               company_name: orgName,
               company_domain: orgDomain,
               industry,
@@ -467,7 +454,7 @@ export async function POST(request: NextRequest) {
               if (resolvedEmail) finalStats.companiesWithDM++;
             }
           } catch (contactError: any) {
-            console.error(`[Pipeline] Failed to upsert contact ${enrichedPerson.first_name || enrichedPerson.name || "Unknown"} (${resolvedEmail || "no email"}): ${contactError.message || contactError}`);
+            console.error(`[Pipeline] Failed to upsert contact ${person.first_name || person.name || "Unknown"} (${resolvedEmail || "no email"}): ${contactError.message || contactError}`);
             finalStats.failed++;
           }
 
@@ -634,33 +621,52 @@ export async function POST(request: NextRequest) {
             state: c.state,
           });
 
-          if (person && person.email) {
+          if (person) {
+            const hasEmailFlag = (person as any).has_email === true;
+            const resolvedEmailRaw = typeof person.email === "string" ? person.email.trim() : "";
+            const resolvedEmail = resolvedEmailRaw || null;
+            const personName = person.name || `${person.first_name || ""} ${person.last_name || ""}`.trim() || "Owner";
             const confidence = scoreTitle(person.title || "");
-            const personName = person.name || `${person.first_name} ${person.last_name}`.trim();
+            const contactPhones = extractPersonMobile(person.phone_numbers);
+            const phoneValue = contactPhones.mobile || contactPhones.direct || contactPhones.any;
+            const phoneType = contactPhones.mobile ? "mobile" : contactPhones.direct ? "direct" : contactPhones.any ? "other" : null;
+            const enrichmentStatus: "enriched" | "pending" | "no_email" = resolvedEmail
+              ? "enriched"
+              : hasEmailFlag
+              ? "pending"
+              : "no_email";
+            const emailStatus = resolvedEmail ? "found" : hasEmailFlag ? "pending" : "unknown";
 
-            const { data: existingPerson } = await insforge.database
+            let leadPersonQuery = insforge.database
               .from("lead_people")
               .select("id")
               .eq("lead_company_id", c.id)
-              .eq("email", person.email)
-              .limit(1)
-              .single();
+              .limit(1);
+
+            if (resolvedEmail) {
+              leadPersonQuery = leadPersonQuery.eq("email", resolvedEmail);
+            } else if (person.linkedin_url) {
+              leadPersonQuery = leadPersonQuery.eq("linkedin_url", person.linkedin_url);
+            } else {
+              leadPersonQuery = leadPersonQuery.eq("full_name", personName);
+            }
+
+            const { data: existingPerson } = await leadPersonQuery.maybeSingle();
 
             if (!existingPerson) {
-              const phones = extractPersonMobile(person.phone_numbers);
               await insforge.database.from("lead_people").insert([
                 {
                   user_id: userId,
                   lead_company_id: c.id,
                   full_name: personName,
-                  first_name: person.first_name,
-                  last_name: person.last_name,
+                  first_name: person.first_name || personName.split(" ")[0] || "Owner",
+                  last_name: person.last_name || personName.split(" ").slice(1).join(" ") || null,
                   title: person.title,
-                  email: person.email,
-                  email_status: "found",
-                  email_verified: true,
-                  phone: phones.mobile || phones.direct || phones.any,
-                  phone_type: phones.mobile ? "mobile" : phones.direct ? "direct" : "other",
+                  email: resolvedEmail,
+                  email_status: emailStatus,
+                  email_verified: !!resolvedEmail,
+                  phone: phoneValue,
+                  phone_type: phoneType,
                   linkedin_url: person.linkedin_url || null,
                   source: source,
                   confidence_score: confidence,
@@ -681,13 +687,12 @@ export async function POST(request: NextRequest) {
                 country: "US",
               });
 
-              const contactPhones = extractPersonMobile(person.phone_numbers);
               const result = await upsertContactToCRM(insforge, userId, {
                 first_name: person.first_name || personName.split(" ")[0] || null,
                 last_name: person.last_name || personName.split(" ").slice(1).join(" ") || null,
-                email: person.email,
-                phone: contactPhones.mobile || contactPhones.direct || contactPhones.any,
-                phone_type: contactPhones.mobile ? "mobile" : contactPhones.direct ? "direct" : "other",
+                email: resolvedEmail,
+                phone: phoneValue,
+                phone_type: phoneType,
                 linkedin_url: person.linkedin_url || null,
                 title: person.title || "Owner",
                 company_name: c.name,
@@ -698,20 +703,31 @@ export async function POST(request: NextRequest) {
                 company_id: companyId,
                 source,
                 lead_score: confidence,
+                enrichment_status: enrichmentStatus,
               });
 
-              if (result === "inserted") finalStats.contactsSaved++;
+              if (result === "inserted") {
+                finalStats.contactsSaved++;
+                if (resolvedEmail) finalStats.companiesWithDM++;
+              }
             } catch (crmError: any) {
-              console.error(`[Pipeline] CRM insert error for ${person.email}: ${crmError.message}`);
+              console.error(`[Pipeline] CRM insert error for ${personName}: ${crmError.message}`);
+            }
+
+            const companyUpdate: Record<string, any> = {
+              enrichment_status: enrichmentStatus === "enriched" ? "enriched" : enrichmentStatus === "pending" ? "pending" : "no_match",
+              contact_type: enrichmentStatus === "enriched" ? "dm_verified" : enrichmentStatus === "pending" ? "pending" : "pending_scrape",
+            };
+            if (enrichmentStatus === "enriched") {
+              companyUpdate.enriched_at = new Date().toISOString();
             }
 
             await insforge.database
               .from("lead_companies")
-              .update({ enrichment_status: "enriched", enriched_at: new Date().toISOString(), contact_type: "dm_verified" })
+              .update(companyUpdate)
               .eq("id", c.id);
 
             finalStats.totalPeopleFound++;
-            finalStats.companiesWithDM++;
             if (source === "apollo_domain") finalStats.apolloMatches++;
             else finalStats.apolloOrgNameMatches++;
           } else {

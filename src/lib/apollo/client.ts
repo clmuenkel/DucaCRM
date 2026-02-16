@@ -15,6 +15,19 @@ export const INDUSTRY_KEYWORDS_MAP: Record<string, string[]> = {
   pest_control: ["pest control", "exterminator", "pest management"],
 };
 
+// Legacy industry ID mapping for backward compatibility 
+// (kept for existing imports, but keyword search is now preferred)
+export const APOLLO_INDUSTRIES = {
+  hvac: "5407d4ff6966620008b500bd",
+  plumbing: "5407d4ff6966620008b500be", 
+  roofing: "5407d4ff6966620008b500bf",
+  electrical: "5407d4ff6966620008b500c0",
+  solar: "5407d4ff6966620008b500c1",
+  construction: "5407d4ff6966620008b500c2",
+  landscaping: "5407d4ff6966620008b500c3",
+  pest_control: "5407d4ff6966620008b500c4"
+};
+
 // Valid employee size buckets for Apollo search
 export const EMPLOYEE_SIZE_BUCKETS = ["1,10", "11,20", "21,50", "51,200"];
 
@@ -331,6 +344,62 @@ async function requestPhoneReveal(
 /**
  * Search Apollo for people by organization name (not domain)
  */
+function mapSearchResultToApolloPerson(
+  candidate: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    title: string;
+    has_email: boolean;
+    organization_name: string;
+    linkedin_url?: string;
+    email?: string;
+  },
+  company: { name: string; domain?: string | null; city?: string | null; state?: string | null }
+): ApolloPerson {
+  const name = `${candidate.first_name || ""} ${candidate.last_name || ""}`.trim() || candidate.first_name || candidate.last_name || company.name;
+  const email = candidate.email?.trim() || "";
+  const orgName = candidate.organization_name || company.name;
+  const websiteUrl = company.domain ? `https://${company.domain}` : "";
+  const city = company.city || "";
+  const state = company.state || "";
+  const country = "US";
+
+  const mapped: ApolloPerson = {
+    id: candidate.id,
+    first_name: candidate.first_name || "",
+    last_name: candidate.last_name || "",
+    name,
+    title: candidate.title || "",
+    email,
+    email_status: email ? "revealed" : candidate.has_email ? "pending" : "unavailable",
+    phone_numbers: [],
+    linkedin_url: candidate.linkedin_url || "",
+    organization: {
+      id: "",
+      name: orgName,
+      website_url: websiteUrl,
+      linkedin_url: "",
+      industry: "",
+      estimated_num_employees: 0,
+      annual_revenue: 0,
+      annual_revenue_printed: "",
+      city,
+      state,
+      country,
+      technologies: [],
+    },
+    seniority: "",
+    departments: [],
+    city,
+    state,
+    country,
+  };
+
+  (mapped as any).has_email = candidate.has_email === true;
+  return mapped;
+}
+
 export async function searchByOrganizationName(
   apiKey: string,
   params: {
@@ -420,14 +489,12 @@ export async function findDecisionMaker(
   console.log(`[Apollo] Finding decision maker for: ${company.name}`);
 
   try {
-    // Step 1: Search with owner titles first
     let searchResults = await searchByOrganizationName(apiKey, {
       organization_name: company.name,
       domain: company.domain,
       person_titles: OWNER_TITLES,
     });
 
-    // Step 2: If zero results, broaden
     if (searchResults.length === 0) {
       console.log(`[Apollo] No owners found, trying broader search...`);
       searchResults = await searchByOrganizationName(apiKey, {
@@ -438,41 +505,19 @@ export async function findDecisionMaker(
 
     if (searchResults.length > 0) {
       const ranked = searchResults
-        .filter((p) => p.has_email)
-        .sort((a, b) => scoreDecisionMakerTitle(b.title) - scoreDecisionMakerTitle(a.title));
+        .map((p) => ({ ...p, titleScore: scoreDecisionMakerTitle(p.title) }))
+        .sort((a, b) => b.titleScore - a.titleScore);
 
-      if (ranked.length > 0) {
-        const bestMatch = ranked[0];
-        console.log(`[Apollo] Best match: ${bestMatch.first_name} (${bestMatch.title}) - enriching...`);
-
-        const enrichedPerson = await enrichPersonById(apiKey, bestMatch.id);
-
-        if (enrichedPerson && enrichedPerson.email) {
-          console.log(`[Apollo] ✓ Got contact: ${enrichedPerson.email}`);
-          return { person: enrichedPerson, source: "apollo_enriched" };
-        }
+      const bestMatch = ranked[0];
+      if (bestMatch) {
+        console.log(`[Apollo] Best match (raw search): ${bestMatch.first_name} ${bestMatch.last_name} - ${bestMatch.title}`);
+        const mappedPerson = mapSearchResultToApolloPerson(bestMatch, company);
+        const sourceTag = company.domain ? "apollo_domain" : "apollo_org_name";
+        return { person: mappedPerson, source: sourceTag };
       }
     }
   } catch (e) {
     console.error("Apollo search error:", e);
-  }
-
-  // Fallback: Try people/match with scraped name
-  if (scrapedPerson?.first_name && scrapedPerson?.last_name) {
-    try {
-      console.log(`[Apollo] Trying match for: ${scrapedPerson.first_name} ${scrapedPerson.last_name}`);
-      const person = await enrichApolloContact(apiKey, {
-        first_name: scrapedPerson.first_name,
-        last_name: scrapedPerson.last_name,
-        organization_name: company.name,
-      });
-
-      if (person && person.email) {
-        return { person, source: "apollo_match" };
-      }
-    } catch (e) {
-      console.error("Apollo match error:", e);
-    }
   }
 
   return { person: null, source: "none" };
@@ -493,7 +538,7 @@ export async function findTopDecisionMakers(
     const searchResults = await searchByOrganizationName(apiKey, {
       organization_name: company.name,
       domain: company.domain,
-      per_page: 25,
+      per_page: Math.max(limit * 3, 25),
     });
 
     if (searchResults.length === 0) {
@@ -501,48 +546,17 @@ export async function findTopDecisionMakers(
       return { people: [], source: "none", creditsUsed: 0 };
     }
 
-    console.log(`[Apollo] Found ${searchResults.length} people, filtering and ranking...`);
-
     const ranked = searchResults
-      .filter((p) => p.has_email)
       .map((p) => ({ ...p, titleScore: scoreDecisionMakerTitle(p.title) }))
       .sort((a, b) => b.titleScore - a.titleScore);
 
-    if (ranked.length === 0) {
-      return { people: [], source: "none", creditsUsed: 0 };
-    }
-
     const topN = ranked.slice(0, limit);
-    console.log(`[Apollo] Top ${topN.length} candidates:`);
     topN.forEach((p, i) => console.log(`  ${i + 1}. ${p.first_name} - ${p.title} (score: ${p.titleScore})`));
 
-    const enrichedPeople: ApolloPerson[] = [];
-    let creditsUsed = 0;
+    const mappedPeople = topN.map((candidate) => mapSearchResultToApolloPerson(candidate, company));
+    const sourceTag = company.domain ? "apollo_domain" : "apollo_org_name";
 
-    for (const person of topN) {
-      const enriched = await enrichPersonById(
-        apiKey,
-        person.id,
-        {
-          first_name: person.first_name,
-          last_name: person.last_name,
-          organization_name: person.organization_name,
-          linkedin_url: person.linkedin_url,
-          domain: company.domain || undefined,
-        },
-        webhookUrl
-      );
-      creditsUsed++;
-
-      if (enriched && enriched.email) {
-        enrichedPeople.push(enriched);
-      }
-
-      await new Promise((r) => setTimeout(r, 200));
-    }
-
-    console.log(`[Apollo] Enriched ${enrichedPeople.length}/${topN.length} people, used ${creditsUsed} credits`);
-    return { people: enrichedPeople, source: "apollo_top3", creditsUsed };
+    return { people: mappedPeople, source: sourceTag, creditsUsed: 0 };
   } catch (e) {
     console.error("[Apollo] Error finding top decision makers:", e);
     return { people: [], source: "error", creditsUsed: 0 };
