@@ -146,7 +146,7 @@ async function upsertContactToCRM(
   contact: {
     first_name: string | null;
     last_name: string | null;
-    email: string;
+    email: string | null;
     phone: string | null;
     phone_type: string | null;
     linkedin_url: string | null;
@@ -159,19 +159,41 @@ async function upsertContactToCRM(
     company_id: string | null;
     source: string;
     lead_score: number;
+    enrichment_status?: string;
   }
 ): Promise<"inserted" | "exists"> {
-  const { data: existing } = await insforge.database
-    .from("contacts")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("email", contact.email)
-    .maybeSingle();
+  if (contact.email) {
+    const { data: existing } = await insforge.database
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("email", contact.email)
+      .maybeSingle();
 
-  if (existing?.id) return "exists";
+    if (existing?.id) return "exists";
+  } else if (contact.linkedin_url) {
+    const { data: existingByLinkedin } = await insforge.database
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("linkedin_url", contact.linkedin_url)
+      .maybeSingle();
+    if (existingByLinkedin?.id) return "exists";
+  } else if (contact.company_id && (contact.first_name || contact.last_name)) {
+    const { data: existingByName } = await insforge.database
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("company_id", contact.company_id)
+      .eq("first_name", contact.first_name || "Owner")
+      .eq("last_name", contact.last_name)
+      .maybeSingle();
+    if (existingByName?.id) return "exists";
+  }
 
   const primaryPhone = contact.phone_type === "mobile" ? null : contact.phone;
   const mobilePhone = contact.phone_type === "mobile" ? contact.phone : null;
+  const resolvedEnrichmentStatus = contact.enrichment_status ?? (contact.email ? "enriched" : "no_email");
 
   const { error } = await insforge.database.from("contacts").insert([
     {
@@ -195,7 +217,7 @@ async function upsertContactToCRM(
       source: contact.source,
       source_list: `${contact.industry} - ${contact.city || ""}, ${contact.state || ""}`,
       lead_score: contact.lead_score,
-      enrichment_status: "enriched",
+      enrichment_status: resolvedEnrichmentStatus,
       enriched_at: new Date().toISOString(),
       cadence_status: "none",
     },
@@ -359,7 +381,10 @@ export async function POST(request: NextRequest) {
         console.log(`[Pipeline] Apollo direct search: ${people.length} people found`);
 
         for (const person of people) {
-          if (!person.email && !person.id) continue;
+          if (!person.email && !person.id) {
+            console.warn(`[Pipeline] Skipping Apollo person without email & id: ${person.first_name || person.name || "unknown"}`);
+            continue;
+          }
 
           const org = (person as any).organization || {};
           const orgName = org.name || "Unknown";
@@ -367,17 +392,30 @@ export async function POST(request: NextRequest) {
           const city = org.city || person.city || null;
           const state = org.state || person.state || null;
 
-          try {
-            // Enrich to get full contact details
-            let enrichedPerson = person;
-            if (!person.email && person.id) {
-              const enriched = await enrichPersonById(effectiveApolloKey, person.id);
-              if (!enriched?.email) continue;
-              enrichedPerson = enriched;
-            }
+          let enrichedPerson = person;
+          let resolvedEmail = person.email || null;
+          let enrichmentStatus: "enriched" | "no_email" = resolvedEmail ? "enriched" : "no_email";
 
-            // Upsert company
-            const companyId = await upsertCompanyToCRM(insforge, userId, {
+          if (!resolvedEmail && person.id) {
+            try {
+              const enriched = await enrichPersonById(effectiveApolloKey, person.id);
+              if (enriched) {
+                enrichedPerson = { ...person, ...enriched } as typeof person;
+              }
+              if (enriched?.email) {
+                resolvedEmail = enriched.email;
+                enrichmentStatus = "enriched";
+              }
+            } catch (enrichError: any) {
+              console.error(`[Pipeline] enrichPersonById failed for ${person.id}: ${enrichError.message || enrichError}`);
+            }
+          }
+
+          finalStats.totalPeopleFound++;
+
+          let companyId: string | null = null;
+          try {
+            companyId = await upsertCompanyToCRM(insforge, userId, {
               name: orgName,
               domain: orgDomain,
               website: org.website_url || null,
@@ -386,21 +424,31 @@ export async function POST(request: NextRequest) {
               industry,
               country: "US",
             });
+          } catch (companyError: any) {
+            console.error(`[Pipeline] Failed to upsert company ${orgName}: ${companyError.message || companyError}`);
+            finalStats.failed++;
+            continue;
+          }
 
-            if (!insertedCompanyIds.includes(companyId)) {
-              insertedCompanyIds.push(companyId);
-              finalStats.companiesFound++;
-            }
+          if (!companyId) continue;
 
-            const phones = extractPersonMobile(enrichedPerson.phone_numbers);
-            const confidence = scoreTitle(enrichedPerson.title || "");
+          if (!insertedCompanyIds.includes(companyId)) {
+            insertedCompanyIds.push(companyId);
+            finalStats.companiesFound++;
+          }
 
+          const phones = extractPersonMobile(enrichedPerson.phone_numbers);
+          const selectedPhone = phones.mobile || phones.direct || phones.any || null;
+          const phoneType = phones.mobile ? "mobile" : phones.direct ? "direct" : phones.any ? "other" : null;
+          const confidence = scoreTitle(enrichedPerson.title || "");
+
+          try {
             const contactResult = await upsertContactToCRM(insforge, userId, {
               first_name: enrichedPerson.first_name || null,
               last_name: enrichedPerson.last_name || null,
-              email: enrichedPerson.email!,
-              phone: phones.mobile || phones.direct || phones.any,
-              phone_type: phones.mobile ? "mobile" : phones.direct ? "direct" : "other",
+              email: resolvedEmail,
+              phone: selectedPhone,
+              phone_type: phoneType,
               linkedin_url: enrichedPerson.linkedin_url || null,
               title: enrichedPerson.title || "Owner",
               company_name: orgName,
@@ -411,19 +459,19 @@ export async function POST(request: NextRequest) {
               company_id: companyId,
               source: "apollo_keyword",
               lead_score: confidence,
+              enrichment_status: enrichmentStatus,
             });
 
             if (contactResult === "inserted") {
               finalStats.contactsSaved++;
-              finalStats.companiesWithDM++;
+              if (resolvedEmail) finalStats.companiesWithDM++;
             }
-            finalStats.apolloDirectMatches++;
-            finalStats.totalPeopleFound++;
-          } catch (e: any) {
-            console.error(`[Pipeline] Error processing Apollo person: ${e.message}`);
+          } catch (contactError: any) {
+            console.error(`[Pipeline] Failed to upsert contact ${enrichedPerson.first_name || enrichedPerson.name || "Unknown"} (${resolvedEmail || "no email"}): ${contactError.message || contactError}`);
             finalStats.failed++;
           }
 
+          finalStats.apolloDirectMatches++;
           await new Promise((r) => setTimeout(r, 300));
         }
 
