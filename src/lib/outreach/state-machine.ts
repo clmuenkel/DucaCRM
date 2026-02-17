@@ -14,13 +14,13 @@ export type OutreachState = (typeof OUTREACH_STATES)[number];
 
 const TRANSITION_MAP: Record<OutreachState, OutreachState[]> = {
   fresh: ["emailed", "called_no_answer", "call_connected", "dead"],
-  emailed: ["email_follow_up", "called_no_answer", "call_connected", "dead"],
-  email_follow_up: ["called_no_answer", "call_connected", "dead"],
-  called_no_answer: ["call_connected", "emailed", "dead"],
+  emailed: ["email_follow_up", "called_no_answer", "call_connected", "email_replied", "dead"],
+  email_follow_up: ["called_no_answer", "call_connected", "email_replied", "dead"],
+  called_no_answer: ["call_connected", "emailed", "email_follow_up", "dead"],
   call_connected: ["call_back_scheduled", "meeting_booked", "dead"],
   call_back_scheduled: ["call_connected", "dead"],
   meeting_booked: [],
-  email_replied: ["call_connected", "meeting_booked", "dead"],
+  email_replied: ["call_connected", "meeting_booked", "email_follow_up", "dead"],
   dead: [],
 };
 

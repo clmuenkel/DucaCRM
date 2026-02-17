@@ -9,6 +9,7 @@ import {
   EMPLOYEE_SIZE_BUCKETS,
   scoreDecisionMakerTitle,
 } from "@/lib/apollo/client";
+import { logInfo, logError, logWarn, logDebug } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,11 @@ const PLACES_INDUSTRY_KEYWORDS: Record<string, string[]> = {
   construction: ["general contractor", "home builder", "remodeling contractor"],
   landscaping: ["landscaping company", "lawn care service", "landscape contractor"],
   pest_control: ["pest control company", "exterminator", "pest management"],
+  general_contractor: ["general contractor", "home builder", "construction contractor", "remodeling contractor"],
+  painting: ["painting contractor", "house painter", "commercial painter", "painting services"],
+  cleaning: ["cleaning services", "commercial cleaning", "janitorial services", "office cleaning"],
+  garage_door: ["garage door repair", "garage door installation", "overhead door"],
+  fencing: ["fencing contractor", "fence installation", "fence repair", "fence company"],
 };
 
 interface PipelineRequest {
@@ -319,6 +325,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate maxCompanies is reasonable
+    if (maxCompanies > 200) {
+      return NextResponse.json(
+        { error: "maxCompanies cannot exceed 200 to prevent excessive API usage" },
+        { status: 400 }
+      );
+    }
+
     const userId = DEFAULT_USER_ID;
     const baseUrl = request.nextUrl.origin;
 
@@ -377,7 +391,7 @@ export async function POST(request: NextRequest) {
         );
 
         const people = result.people || [];
-        console.log(`[Pipeline] Apollo direct search: ${people.length} people found`);
+        logInfo("Pipeline Apollo direct search completed", { peopleFound: people.length, industry });
 
         for (const person of people) {
           const org = (person as any).organization || {};

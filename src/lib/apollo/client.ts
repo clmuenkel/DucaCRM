@@ -1,5 +1,7 @@
 import type { ApolloSearchParams, ApolloSearchResponse, ApolloPerson } from "@/types/apollo";
 import { getTimezoneFromLocation } from "@/lib/timezone";
+import { APOLLO_MAX_RETRIES, APOLLO_RATE_LIMIT_BACKOFF_MS, DEFAULT_PAGE_SIZE } from "@/lib/constants";
+import { logDebug, logInfo, logWarn, logError } from "@/lib/logger";
 
 const APOLLO_API_BASE = "https://api.apollo.io/v1";
 
@@ -8,11 +10,16 @@ const APOLLO_API_BASE = "https://api.apollo.io/v1";
 // Industry tag IDs return ZERO results — use keywords instead.
 // ============================================================
 export const INDUSTRY_KEYWORDS_MAP: Record<string, string[]> = {
-  plumbing: ["plumbing", "plumbing services"],
-  hvac: ["hvac", "heating and cooling", "air conditioning"],
-  roofing: ["roofing", "roof repair"],
-  landscaping: ["landscaping", "lawn care", "landscape"],
-  pest_control: ["pest control", "exterminator", "pest management"],
+  plumbing: ["plumbing", "plumbing services", "pipe repair", "plumbing contractor", "water heater"],
+  hvac: ["hvac", "heating and cooling", "air conditioning", "hvac contractor", "heating contractor", "ac repair"],
+  roofing: ["roofing", "roof repair", "roofing contractor", "roof replacement", "roofing services"],
+  landscaping: ["landscaping", "lawn care", "landscape", "landscape contractor", "lawn service", "tree service"],
+  pest_control: ["pest control", "exterminator", "pest management", "pest control services", "exterminating"],
+  general_contractor: ["general contractor", "home builder", "construction contractor", "remodeling contractor", "home improvement"],
+  painting: ["painting contractor", "house painter", "commercial painter", "painting services", "interior painting", "exterior painting"],
+  cleaning: ["cleaning services", "commercial cleaning", "janitorial services", "office cleaning", "house cleaning", "maid service"],
+  garage_door: ["garage door", "garage door repair", "garage door installation", "overhead door", "garage door contractor"],
+  fencing: ["fencing contractor", "fence installation", "fence repair", "fence company", "fencing services", "vinyl fencing"],
 };
 
 // Legacy industry ID mapping for backward compatibility 
@@ -68,7 +75,7 @@ export interface EnhancedSearchParams extends ApolloSearchParams {
 async function fetchWithRetry(
   url: string,
   init: RequestInit,
-  maxRetries = 3
+  maxRetries = APOLLO_MAX_RETRIES
 ): Promise<Response> {
   let lastResponse: Response | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -77,8 +84,8 @@ async function fetchWithRetry(
       return response;
     }
     lastResponse = response;
-    const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
-    console.log(`[Apollo] 429 rate-limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+    const delay = APOLLO_RATE_LIMIT_BACKOFF_MS * Math.pow(2, attempt); // 2s, 4s, 8s
+    logWarn("Apollo rate-limited, retrying", { delayMs: delay, attempt: attempt + 1, maxRetries });
     await new Promise((r) => setTimeout(r, delay));
   }
   return lastResponse!;
@@ -94,7 +101,7 @@ export async function searchApolloContacts(
   const searchParams: Record<string, any> = {
     person_locations: params.person_locations || ["United States"],
     page: params.page || 1,
-    per_page: params.per_page || 25,
+    per_page: params.per_page || DEFAULT_PAGE_SIZE,
   };
 
   // Use keyword tags instead of industry tag IDs
@@ -172,7 +179,7 @@ export async function searchByIndustryKeyword(
   }
 
   // Step 2: Broaden to all decision-maker titles
-  console.log(`[Apollo] Zero results with ${titles.length} titles, broadening search...`);
+  logInfo("Apollo search broadening titles", { originalTitleCount: titles.length, industry, employeeRange });
   return searchApolloContacts(apiKey, {
     q_organization_keyword_tags: keywords,
     organization_num_employees_ranges: [employeeRange],
@@ -224,7 +231,7 @@ export async function enrichPersonById(
   webhookUrl?: string
 ): Promise<ApolloPerson | null> {
   try {
-    console.log(`[Apollo] Match by ID: ${personId}`);
+    logDebug("Apollo matching person by ID", { personId });
 
     const matchPayload: Record<string, any> = {
       id: personId,
@@ -242,10 +249,10 @@ export async function enrichPersonById(
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[Apollo] Match failed (${response.status}): ${errorBody.substring(0, 200)}`);
+      logError("Apollo match failed", null, { status: response.status, errorPreview: errorBody.substring(0, 200) });
 
       if (personDetails?.first_name && personDetails?.organization_name) {
-        console.log(`[Apollo] Trying fallback: name + org match...`);
+        logDebug("Apollo trying fallback match", { firstName: personDetails.first_name, organization: personDetails.organization_name });
         const fallbackPayload: Record<string, any> = {
           reveal_personal_emails: true,
           first_name: personDetails.first_name,
@@ -264,7 +271,7 @@ export async function enrichPersonById(
         if (fallbackResp.ok) {
           const fallbackData = await fallbackResp.json();
           if (fallbackData.person?.email) {
-            console.log(`[Apollo] ✓ Fallback match: ${fallbackData.person.email}`);
+            logInfo("Apollo fallback match successful", { email: fallbackData.person.email });
             const fallbackPerson = fallbackData.person;
             const fallbackPhones = fallbackPerson.phone_numbers || [];
             const hasMobile = fallbackPhones.some((p: any) => p.type === "mobile");
@@ -282,7 +289,7 @@ export async function enrichPersonById(
     const person = data.person;
 
     if (!person?.email) {
-      console.log(`[Apollo] ✗ No email revealed for ID ${personId}`);
+      logWarn("Apollo no email revealed", { personId });
       return null;
     }
 
@@ -291,9 +298,9 @@ export async function enrichPersonById(
 
     if (phoneNumbers.length > 0) {
       const types = phoneNumbers.map((p: any) => `${p.type}:${p.sanitized_number || p.raw_number}`).join(", ");
-      console.log(`[Apollo] ✓ Got: ${person.email}, phones: [${types}]`);
+      logInfo("Apollo person enriched with phone", { email: person.email, phones: types });
     } else {
-      console.log(`[Apollo] ✓ Got: ${person.email}, no phones available`);
+      logInfo("Apollo person enriched", { email: person.email, phoneCount: 0 });
     }
 
     if (!hasMobile && webhookUrl) {
@@ -303,7 +310,7 @@ export async function enrichPersonById(
 
     return person;
   } catch (e) {
-    console.error("[Apollo] Enrich error:", e);
+    logError("Apollo enrich failed", e, { personId });
     return null;
   }
 }
@@ -329,7 +336,7 @@ async function requestPhoneReveal(
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[Apollo] Phone reveal request failed: ${errorBody.substring(0, 100)}`);
+      logError("Apollo phone reveal request failed", null, { errorPreview: errorBody.substring(0, 100) });
       return false;
     }
 

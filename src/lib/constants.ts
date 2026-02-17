@@ -56,6 +56,13 @@ export const INDUSTRIES = [
   { value: "electrical", label: "Electrical" },
   { value: "solar", label: "Solar" },
   { value: "construction", label: "General Contractor" },
+  { value: "landscaping", label: "Landscaping" },
+  { value: "pest_control", label: "Pest Control" },
+  { value: "general_contractor", label: "General Contractor" },
+  { value: "painting", label: "Painting" },
+  { value: "cleaning", label: "Cleaning Services" },
+  { value: "garage_door", label: "Garage Door" },
+  { value: "fencing", label: "Fencing" },
   { value: "swag", label: "Swag" },
   { value: "not_found", label: "Not Found" },
 ] as const;
@@ -246,3 +253,26 @@ export const REFERRAL_CONTEXT_TYPES = [
     description: "You're adding a custom opener reference" 
   },
 ] as const;
+
+// ============================================
+// API RATE LIMITS AND TIMEOUTS
+// ============================================
+export const APOLLO_RATE_LIMIT_DELAY_MS = 220; // ~4.5 req/sec
+export const APOLLO_RATE_LIMIT_BACKOFF_MS = 2000; // Apollo requires 2s on 429
+export const APOLLO_MAX_RETRIES = 3;
+export const APOLLO_MAX_MATCH_ATTEMPTS = 3;
+
+export const DEFAULT_PAGE_SIZE = 25;
+export const MAX_BATCH_SIZE = 500;
+
+// ============================================
+// ENRICHMENT STATUSES
+// ============================================
+export const ENRICHMENT_STATUSES = [
+  "pending",
+  "enriched", 
+  "no_email",
+  "no_match"
+] as const;
+
+export const NEEDS_ENRICHMENT_STATUSES = ["no_email", "pending"] as const;

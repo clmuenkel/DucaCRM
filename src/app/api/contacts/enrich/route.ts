@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import { 
+  APOLLO_RATE_LIMIT_DELAY_MS, 
+  APOLLO_RATE_LIMIT_BACKOFF_MS, 
+  APOLLO_MAX_MATCH_ATTEMPTS, 
+  NEEDS_ENRICHMENT_STATUSES,
+  MAX_BATCH_SIZE
+} from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 const APOLLO_API_BASE = "https://api.apollo.io/v1";
 const MATCH_ENDPOINT = `${APOLLO_API_BASE}/people/match`;
-const NEEDS_ENRICHMENT_STATUSES = ["no_email", "pending"] as const;
-const RATE_LIMIT_DELAY_MS = 220; // ~4.5 req/sec
-const MAX_MATCH_ATTEMPTS = 3;
-const RATE_LIMIT_BACKOFF_MS = 2000; // required 2s on 429
 
 interface EnrichRequestBody {
   contact_ids?: string[];
@@ -64,14 +67,18 @@ function buildMatchPayload(contact: ContactRecord) {
     reveal_personal_emails: true,
   };
 
-  if (contact.first_name) {
-    payload.first_name = contact.first_name;
+  if (!contact.first_name?.trim()) {
+    throw new Error(`Contact ${contact.id} missing required first_name for enrichment`);
   }
-  if (contact.last_name) {
-    payload.last_name = contact.last_name;
+  if (!contact.company_name?.trim()) {
+    throw new Error(`Contact ${contact.id} missing required company_name for enrichment`);
   }
-  if (contact.company_name) {
-    payload.organization_name = contact.company_name;
+
+  payload.first_name = contact.first_name.trim();
+  payload.organization_name = contact.company_name.trim();
+  
+  if (contact.last_name?.trim()) {
+    payload.last_name = contact.last_name.trim();
   }
 
   return payload;
@@ -104,7 +111,7 @@ async function matchContact(
     throw new Error("Contact is missing first_name or organization_name");
   }
 
-  for (let attempt = 0; attempt < MAX_MATCH_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < APOLLO_MAX_MATCH_ATTEMPTS; attempt++) {
     const response = await fetch(MATCH_ENDPOINT, {
       method: "POST",
       headers: {
@@ -116,10 +123,10 @@ async function matchContact(
     });
 
     if (response.status === 429) {
-      if (attempt === MAX_MATCH_ATTEMPTS - 1) {
+      if (attempt === APOLLO_MAX_MATCH_ATTEMPTS - 1) {
         throw new Error("Apollo rate limit reached (429)");
       }
-      await delay(RATE_LIMIT_BACKOFF_MS);
+      await delay(APOLLO_RATE_LIMIT_BACKOFF_MS);
       continue;
     }
 
@@ -137,7 +144,7 @@ async function matchContact(
 
 function normalizeLimit(value: unknown, fallback: number): number {
   if (typeof value !== "number" || Number.isNaN(value)) return fallback;
-  return Math.min(Math.max(Math.floor(value), 1), 500);
+  return Math.min(Math.max(Math.floor(value), 1), MAX_BATCH_SIZE);
 }
 
 function formatName(contact: ContactRecord): string {
@@ -155,26 +162,58 @@ export async function POST(request: NextRequest) {
     const contactIds = (body.contact_ids || body.contactIds || []) as string[];
 
     if (dryRun) {
-      const { data, error } = await insforge.database
+      // Build the same query as the actual processing to accurately reflect what would happen
+      let query = insforge.database
         .from("contacts")
         .select("id, first_name, last_name, company_name, enrichment_status")
-        .eq("user_id", DEFAULT_USER_ID)
-        .in("enrichment_status", [...NEEDS_ENRICHMENT_STATUSES])
-        .order("updated_at", { ascending: true })
-        .limit(limit);
+        .eq("user_id", DEFAULT_USER_ID);
+
+      if (contactIds.length > 0) {
+        query = query.in("id", contactIds);
+      } else if (batch) {
+        query = query
+          .in("enrichment_status", [...NEEDS_ENRICHMENT_STATUSES])
+          .order("updated_at", { ascending: true })
+          .limit(limit);
+      } else {
+        // If no contact_ids and no batch, return helpful error
+        return NextResponse.json({ 
+          error: "Dry run: Provide contact_ids or enable batch mode to see what would be processed",
+          dry_run: true 
+        }, { status: 400 });
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      const preview = (data || []).map((contact: ContactPreview) => ({
+      // Filter to only show contacts that can actually be enriched
+      const enrichableContacts = (data || []).filter((contact: ContactPreview) => {
+        const c = contact as ContactRecord;
+        return Boolean(c.first_name && c.company_name);
+      });
+
+      const preview = enrichableContacts.map((contact: ContactPreview) => ({
         id: contact.id,
         name: formatName(contact as ContactRecord),
         company: contact.company_name,
         status: contact.enrichment_status,
+        enrichable: true,
       }));
 
-      return NextResponse.json({ dry_run: true, preview });
+      const skipped = (data || []).length - enrichableContacts.length;
+
+      return NextResponse.json({ 
+        dry_run: true, 
+        preview, 
+        summary: {
+          would_process: enrichableContacts.length,
+          would_skip: skipped,
+          total_found: (data || []).length
+        }
+      });
     }
 
     const apiKey = await getApolloApiKey();
@@ -230,8 +269,14 @@ export async function POST(request: NextRequest) {
 
     for (const contact of contacts as ContactRecord[]) {
       try {
-        const canEnrich = Boolean(contact.first_name && contact.company_name);
-        if (!canEnrich) {
+        // Validate contact has required fields for enrichment
+        if (!contact.first_name?.trim()) {
+          console.warn(`Skipping contact ${contact.id}: missing first_name`);
+          stats.errors += 1;
+          continue;
+        }
+        if (!contact.company_name?.trim()) {
+          console.warn(`Skipping contact ${contact.id}: missing company_name`);
           stats.errors += 1;
           continue;
         }
@@ -279,7 +324,7 @@ export async function POST(request: NextRequest) {
         stats.errors += 1;
       }
 
-      await delay(RATE_LIMIT_DELAY_MS);
+      await delay(APOLLO_RATE_LIMIT_DELAY_MS);
     }
 
     return NextResponse.json(stats);
