@@ -12,6 +12,8 @@ const INDUSTRY_KEYWORDS: Record<string, string[]> = {
   hvac: ["HVAC contractor", "heating and cooling", "air conditioning repair"],
   plumbing: ["plumber", "plumbing contractor", "plumbing services"],
   roofing: ["roofing contractor", "roof repair", "roofing company"],
+  landscaping: ["landscaping company", "lawn care service", "landscape contractor"],
+  pest_control: ["pest control company", "exterminator", "pest management"],
   electrical: ["electrician", "electrical contractor", "electrical services"],
   solar: ["solar installer", "solar panel installation", "solar contractor"],
   construction: ["general contractor", "home builder", "remodeling contractor"],
