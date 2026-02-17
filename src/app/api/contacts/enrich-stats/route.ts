@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
+import { query } from "@/lib/neon/sql";
 
 export const dynamic = "force-dynamic";
 
@@ -10,15 +10,13 @@ type EnrichmentStatus = (typeof KNOWN_STATUSES)[number];
 
 export async function GET() {
   try {
-    const { data, error } = await insforge.database
-      .from("contacts")
-      .select("enrichment_status, count:count(*)")
-      .eq("user_id", DEFAULT_USER_ID)
-      .group("enrichment_status");
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const rows = await query(
+      `SELECT enrichment_status, count(*)::int AS count
+       FROM contacts
+       WHERE user_id = $1
+       GROUP BY enrichment_status`,
+      [DEFAULT_USER_ID]
+    );
 
     const counts: Record<EnrichmentStatus | "total", number> = {
       total: 0,
@@ -28,7 +26,7 @@ export async function GET() {
       no_match: 0,
     };
 
-    for (const row of data || []) {
+    for (const row of rows || []) {
       const typedRow = row as { enrichment_status: string | null; count: number };
       const status = typedRow.enrichment_status as EnrichmentStatus | null;
       const countValue = Number(typedRow.count) || 0;

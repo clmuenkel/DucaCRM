@@ -31,6 +31,11 @@ interface ContactRecord {
   enrichment_status: string | null;
 }
 
+type ContactPreview = Pick<
+  ContactRecord,
+  "id" | "first_name" | "last_name" | "company_name" | "enrichment_status"
+>;
+
 interface EnrichmentStats {
   enriched: number;
   no_match: number;
@@ -154,7 +159,7 @@ export async function POST(request: NextRequest) {
         .from("contacts")
         .select("id, first_name, last_name, company_name, enrichment_status")
         .eq("user_id", DEFAULT_USER_ID)
-        .in("enrichment_status", NEEDS_ENRICHMENT_STATUSES)
+        .in("enrichment_status", [...NEEDS_ENRICHMENT_STATUSES])
         .order("updated_at", { ascending: true })
         .limit(limit);
 
@@ -162,7 +167,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      const preview = (data || []).map((contact) => ({
+      const preview = (data || []).map((contact: ContactPreview) => ({
         id: contact.id,
         name: formatName(contact as ContactRecord),
         company: contact.company_name,
@@ -198,7 +203,7 @@ export async function POST(request: NextRequest) {
       query = query.in("id", contactIds);
     } else if (batch) {
       query = query
-        .in("enrichment_status", NEEDS_ENRICHMENT_STATUSES)
+        .in("enrichment_status", [...NEEDS_ENRICHMENT_STATUSES])
         .order("updated_at", { ascending: true })
         .limit(limit);
     }

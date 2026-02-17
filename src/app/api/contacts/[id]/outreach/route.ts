@@ -165,7 +165,6 @@ export async function POST(
     }
 
     return NextResponse.json({
-      contact_id: id,
       previous_state: currentState,
       new_state: updatedContact.outreach_lock ?? "fresh",
       ...buildContactPayload(updatedContact),
