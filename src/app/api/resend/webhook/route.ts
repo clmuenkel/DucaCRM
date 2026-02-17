@@ -113,6 +113,51 @@ export async function POST(request: NextRequest) {
         break;
     }
 
+    // Also update email_sends table if tracking automation emails
+    if (emailId) {
+      const sendUpdates: any = {};
+      if (type === "email.opened") sendUpdates.opened_at = new Date().toISOString();
+      if (type === "email.replied") sendUpdates.replied_at = new Date().toISOString();
+      if (type === "email.bounced") sendUpdates.bounced_at = new Date().toISOString();
+      if (type === "email.opened" || type === "email.replied" || type === "email.bounced") {
+        sendUpdates.status = type === "email.bounced" ? "bounced" : type === "email.replied" ? "replied" : "opened";
+      }
+      if (Object.keys(sendUpdates).length > 0) {
+        try {
+          await insforge.database
+            .from("email_sends")
+            .update(sendUpdates)
+            .eq("resend_email_id", emailId);
+        } catch { /* email_sends table may not exist yet */ }
+      }
+
+      // Update campaign counters
+      if (type === "email.opened" || type === "email.replied") {
+        try {
+          const { data: send } = await insforge.database
+            .from("email_sends")
+            .select("campaign_id")
+            .eq("resend_email_id", emailId)
+            .maybeSingle();
+          if (send && (send as any).campaign_id) {
+            const field = type === "email.opened" ? "total_opened" : "total_replied";
+            // Simple increment — read then write
+            const { data: campaign } = await insforge.database
+              .from("email_campaigns")
+              .select(field)
+              .eq("id", (send as any).campaign_id)
+              .maybeSingle();
+            if (campaign) {
+              await insforge.database
+                .from("email_campaigns")
+                .update({ [field]: ((campaign as any)[field] || 0) + 1 })
+                .eq("id", (send as any).campaign_id);
+            }
+          }
+        } catch { /* best effort */ }
+      }
+    }
+
     if (Object.keys(updates).length > 0) {
       await insforge.database
         .from("contacts")

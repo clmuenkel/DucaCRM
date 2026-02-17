@@ -16,6 +16,8 @@ const FK_MAP: Record<string, Record<string, { fk: string; pk: string }>> = {
   call_list_items: { contacts: { fk: "contact_id", pk: "id" } },
   emails: { contacts: { fk: "contact_id", pk: "id" } },
   telnyx_calls: { contacts: { fk: "contact_id", pk: "id" } },
+  email_sends: { contacts: { fk: "contact_id", pk: "id" }, email_campaigns: { fk: "campaign_id", pk: "id" } },
+  cold_calling_queue: { contacts: { fk: "contact_id", pk: "id" } },
 };
 
 // ────────────────────────────────────────────────────────────
