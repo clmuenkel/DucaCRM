@@ -219,10 +219,14 @@ export default function LeadGenPage() {
     const jobId = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const startTime = Date.now();
 
-    setProgressEvents(prev => [
-      { id: jobId, label: `Queued ${TARGET_LEADS} leads`, state: "running", timestamp: startTime },
-      ...prev,
-    ].slice(0, 5));
+    const initialEvent: ProgressEvent = {
+      id: jobId,
+      label: `Queued ${TARGET_LEADS} leads`,
+      state: "running",
+      timestamp: startTime,
+    };
+
+    setProgressEvents(prev => [initialEvent, ...prev].slice(0, 5));
 
     const companiesTarget = Math.ceil(TARGET_LEADS / CONTACTS_PER_COMPANY);
 
