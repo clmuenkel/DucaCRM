@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         const typedContact = contact as Contact;
 
         // Update cadence status in call-only mode.
+        // Reset all call tracking fields so the contact appears fresh in the power dialer.
         const { error: updateError } = await insforge.database
           .from("contacts")
           .update({
@@ -63,12 +64,16 @@ export async function POST(request: NextRequest) {
             cadence_day_started: today,
             cadence_outcome: "in_progress",
             next_action_date: today,
-            next_action_type: "call", // Immediately ready for calling queue
+            next_action_type: "call",
             cadence_started_at: new Date().toISOString(),
             stage: "fresh",
             email_opened: false,
             email_replied: false,
             call_attempts: 0,
+            last_call_attempt_date: null,
+            last_call_outcome: null,
+            wrong_number_flag: false,
+            wrong_number_phone: null,
           })
           .eq("id", contactId);
 

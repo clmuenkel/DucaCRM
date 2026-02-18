@@ -186,13 +186,21 @@ export default function WorkQueuePage() {
         new Map(combinedData.map(c => [c.id, c])).values()
       );
 
-      // Filter out lost contacts if showLostFilter is false
-      let filteredData = uniqueContacts;
-      if (!showLostFilter) {
-        filteredData = uniqueContacts.filter(
-          c => !c.cadence_outcome || c.cadence_outcome !== "lost"
-        );
-      }
+      // Terminal outcomes that should be hidden from the work queue by default
+      const terminalOutcomes = new Set(["won", "lost", "wrong_number", "meeting_scheduled"]);
+
+      // Filter out contacts that have been fully processed
+      let filteredData = uniqueContacts.filter(c => {
+        // Always exclude wrong number contacts
+        if (c.wrong_number_flag) return false;
+
+        // Exclude terminal outcomes unless showLostFilter is on
+        if (!showLostFilter && c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) {
+          return false;
+        }
+
+        return true;
+      });
 
       // Sort by industry and employee_count
       filteredData.sort((a, b) => {
@@ -762,6 +770,7 @@ export default function WorkQueuePage() {
                       <TableHead>Size</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Priority</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -814,6 +823,18 @@ export default function WorkQueuePage() {
                             <Badge variant={contact.priority_score >= 70 ? "default" : "secondary"}>
                               {contact.priority_score || 0}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {phone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => router.push(`/dialer?contact=${contact.id}`)}
+                              >
+                                <Phone className="h-4 w-4 mr-1" />
+                                Call
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );

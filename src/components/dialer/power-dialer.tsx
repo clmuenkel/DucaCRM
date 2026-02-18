@@ -71,19 +71,18 @@ export function PowerDialer() {
         "archived",
       ]);
 
-      // Exclude contacts the user already skipped today for a true clean slate.
-      const { data: skippedTodayData } = await insforge.database
+      // Get all calls made today (any outcome including skipped) from the calls table.
+      // This is the single source of truth for "already called today".
+      const { data: callsTodayData } = await insforge.database
         .from("calls")
         .select("contact_id")
         .eq("user_id", userId)
-        .eq("outcome", "skipped")
         .gte("started_at", todayStartIso);
-      const skippedTodayIds = new Set(
-        ((skippedTodayData as { contact_id: string }[]) || []).map((row) => row.contact_id)
+      const calledTodayIds = new Set(
+        ((callsTodayData as { contact_id: string }[]) || []).map((row) => row.contact_id)
       );
 
       // Get ALL active cadence contacts (regardless of next_action_type)
-      // Note: .or() filters can fail silently with InsForge, so we filter client-side
       const { data: cadenceData, error: cadenceError } = await insforge.database
         .from("contacts")
         .select("*")
@@ -96,55 +95,31 @@ export function PowerDialer() {
         console.error("Error fetching cadence contacts:", cadenceError);
       }
 
-      // Also get contacts called today via activity_log (covers quick-action buttons
-      // that don't write to calls table but DO write activity_log)
-      const { data: calledTodayData } = await insforge.database
-        .from("activity_log")
-        .select("contact_id")
-        .eq("user_id", userId)
-        .gte("created_at", todayStartIso);
-      const calledTodayIds = new Set(
-        ((calledTodayData as { contact_id: string }[]) || []).map((row) => row.contact_id)
-      );
-
       // Client-side filter: must have phone, exclude wrong numbers,
       // exclude already-called-today, and keep callbacks out until due.
       const cadenceWithPhone = ((cadenceData as Contact[]) || []).filter(
         c => {
           if (!c.phone && !c.mobile) return false;
           if (c.wrong_number_flag) return false;
-          if (skippedTodayIds.has(c.id)) return false;
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
 
-          // Exclude contacts already called/actioned today
+          // Exclude contacts actually called/skipped today (from calls table only)
           if (calledTodayIds.has(c.id)) return false;
-          if (c.last_call_attempt_date === today) return false;
 
-          // If contact was EVER called before (last_call_attempt_date is set),
-          // only show it if there's a scheduled follow-up that's due today or past.
-          // This prevents "already called yesterday" contacts from reappearing.
-          if (c.last_call_attempt_date) {
-            if (c.next_action_date) {
-              return c.next_action_date.slice(0, 10) <= today;
-            }
-            if (c.cadence_outcome === "callback" && (c.snooze_until || c.next_action_date)) {
-              const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
-              return !!callbackDate && callbackDate <= today;
-            }
-            // Was called before but has no follow-up scheduled — don't show
-            return false;
-          }
-
-          // Never-called contacts: show if in_progress or null outcome
-          if (!c.cadence_outcome || c.cadence_outcome === "in_progress") return true;
-
-          // Callback due now
+          // Callback contacts: only show when their callback date is due
           if (c.cadence_outcome === "callback") {
             const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
             return !!callbackDate && callbackDate <= today;
           }
 
-          return false;
+          // All other active cadence contacts (in_progress, no_answer, voicemail, etc.):
+          // Show them if their next_action_date is today or past (or not set)
+          if (c.next_action_date) {
+            return c.next_action_date.slice(0, 10) <= today;
+          }
+
+          // No next_action_date set — show by default (newly added to cadence)
+          return true;
         }
       );
       setCadenceContacts(cadenceWithPhone);
@@ -163,27 +138,35 @@ export function PowerDialer() {
         c => {
           if (!c.phone && !c.mobile) return false;
           if (c.wrong_number_flag) return false;
-          if (skippedTodayIds.has(c.id)) return false;
           if (c.cadence_outcome && terminalOutcomes.has(c.cadence_outcome)) return false;
-
-          if (!c.cadence_outcome || c.cadence_outcome === "in_progress") return true;
+          if (calledTodayIds.has(c.id)) return false;
 
           if (c.cadence_outcome === "callback") {
             const callbackDate = (c.snooze_until || c.next_action_date || "").slice(0, 10);
             return !!callbackDate && callbackDate <= today;
           }
 
-          return false;
+          return true;
         }
       );
       setHotContacts(hotWithPhone);
       setIsLoadingCadence(false);
 
-      // If initial contact ID provided, start session with that contact
-      if (initialContactId && cadenceWithPhone) {
+      // If initial contact ID provided, find it in cadence or fetch directly
+      if (initialContactId) {
         const targetContact = cadenceWithPhone.find((c: any) => c.id === initialContactId);
         if (targetContact) {
           startSession([targetContact as Contact]);
+        } else {
+          // Contact not in cadence — fetch it directly so we can call from anywhere
+          const { data: directContact } = await insforge.database
+            .from("contacts")
+            .select("*")
+            .eq("id", initialContactId)
+            .single();
+          if (directContact && (directContact.phone || directContact.mobile)) {
+            startSession([directContact as Contact]);
+          }
         }
       }
     };
