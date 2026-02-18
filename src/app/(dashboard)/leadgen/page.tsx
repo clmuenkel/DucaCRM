@@ -299,7 +299,7 @@ export default function LeadGenPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <Header title="Apollo Lead Generation" description="Spin up 500 verified home-service decision makers with one click" />
+      <Header title="Apollo Lead Generation" showSearch={false} />
       <div className="flex-1 space-y-6 overflow-auto p-6">
         <Card className="bg-gradient-to-br from-primary/10 via-background to-background">
           <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
