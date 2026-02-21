@@ -224,12 +224,23 @@ export async function enrichApolloContact(
 /**
  * Enrich a person by their Apollo ID
  */
+// Apollo credit costs (per their pricing page)
+const CREDITS_PER_EMAIL_REVEAL = 1;
+const CREDITS_PER_PHONE_REVEAL = 5;
+
+export interface EnrichResult {
+  person: ApolloPerson | null;
+  creditsUsed: number;
+}
+
 export async function enrichPersonById(
   apiKey: string,
   personId: string,
   personDetails?: { first_name?: string; last_name?: string; organization_name?: string; linkedin_url?: string; domain?: string },
   webhookUrl?: string
-): Promise<ApolloPerson | null> {
+): Promise<EnrichResult> {
+  let creditsUsed = 0;
+
   try {
     logDebug("Apollo matching person by ID", { personId });
 
@@ -272,17 +283,21 @@ export async function enrichPersonById(
           const fallbackData = await fallbackResp.json();
           if (fallbackData.person?.email) {
             logInfo("Apollo fallback match successful", { email: fallbackData.person.email });
+            creditsUsed += CREDITS_PER_EMAIL_REVEAL;
             const fallbackPerson = fallbackData.person;
             const fallbackPhones = fallbackPerson.phone_numbers || [];
             const hasMobile = fallbackPhones.some((p: any) => p.type === "mobile");
-            if (!hasMobile && webhookUrl && fallbackPerson.id) {
-              await requestPhoneReveal(apiKey, fallbackPerson.id, webhookUrl);
+            if (hasMobile) {
+              creditsUsed += CREDITS_PER_PHONE_REVEAL;
+            } else if (webhookUrl && fallbackPerson.id) {
+              const revealed = await requestPhoneReveal(apiKey, fallbackPerson.id, webhookUrl);
+              if (revealed) creditsUsed += CREDITS_PER_PHONE_REVEAL;
             }
-            return fallbackPerson;
+            return { person: fallbackPerson, creditsUsed };
           }
         }
       }
-      return null;
+      return { person: null, creditsUsed };
     }
 
     const data = await response.json();
@@ -290,8 +305,10 @@ export async function enrichPersonById(
 
     if (!person?.email) {
       logWarn("Apollo no email revealed", { personId });
-      return null;
+      return { person: null, creditsUsed };
     }
+
+    creditsUsed += CREDITS_PER_EMAIL_REVEAL;
 
     const phoneNumbers = person.phone_numbers || [];
     const hasMobile = phoneNumbers.some((p: any) => p.type === "mobile");
@@ -303,15 +320,18 @@ export async function enrichPersonById(
       logInfo("Apollo person enriched", { email: person.email, phoneCount: 0 });
     }
 
-    if (!hasMobile && webhookUrl) {
+    if (hasMobile) {
+      creditsUsed += CREDITS_PER_PHONE_REVEAL;
+    } else if (webhookUrl) {
       console.log(`[Apollo] No mobile found, requesting phone reveal via webhook...`);
-      await requestPhoneReveal(apiKey, personId, webhookUrl);
+      const revealed = await requestPhoneReveal(apiKey, personId, webhookUrl);
+      if (revealed) creditsUsed += CREDITS_PER_PHONE_REVEAL;
     }
 
-    return person;
+    return { person, creditsUsed };
   } catch (e) {
     logError("Apollo enrich failed", e, { personId });
-    return null;
+    return { person: null, creditsUsed };
   }
 }
 

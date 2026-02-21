@@ -42,7 +42,8 @@ async function lookupByEmail(apiKey: string, email: string): Promise<any | null>
     const personId = data.person?.id;
     if (!personId) return null;
 
-    return await enrichPersonById(apiKey, personId);
+    const { person: enriched } = await enrichPersonById(apiKey, personId);
+    return enriched;
   } catch {
     return null;
   }
@@ -107,8 +108,9 @@ export async function POST(request: NextRequest) {
 
         // Method 1: Try by apollo_id if available
         if (contact.apollo_id) {
-          person = await enrichPersonById(apiKey, contact.apollo_id);
-          if (person) {
+          const { person: enriched } = await enrichPersonById(apiKey, contact.apollo_id);
+          if (enriched) {
+            person = enriched;
             method = "apollo_id";
             stats.byApolloId++;
           }

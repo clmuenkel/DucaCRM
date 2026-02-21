@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { insforge } from "@/lib/neon/server";
 import { DEFAULT_USER_ID } from "@/lib/default-user";
-import { extractPersonMobile, findTopDecisionMakers, scoreDecisionMakerTitle } from "@/lib/apollo/client";
+import { extractPersonMobile, findTopDecisionMakers, enrichPersonById, scoreDecisionMakerTitle } from "@/lib/apollo/client";
 
 export const dynamic = 'force-dynamic';
 
@@ -385,41 +385,60 @@ export async function POST(request: NextRequest) {
         
         for (const person of people) {
           if (stats.contactsSaved >= maxContacts) break;
-          if (!person.email) continue;
+
+          // Apollo search results don't include emails — enrich each person to reveal them
+          let enrichedPerson = person;
+          if (!person.email && person.id) {
+            console.log(`[Bulk] Enriching ${person.first_name} ${person.last_name} (${person.id}) to reveal email...`);
+            const { person: revealed, creditsUsed: enrichCredits } = await enrichPersonById(
+              apolloKey,
+              person.id,
+              { first_name: person.first_name, last_name: person.last_name, organization_name: company.name, domain: company.domain || undefined },
+              webhookUrl
+            );
+            stats.creditsUsed += enrichCredits;
+            if (revealed) {
+              enrichedPerson = { ...person, ...revealed, phone_numbers: revealed.phone_numbers || person.phone_numbers };
+            }
+            await new Promise(resolve => setTimeout(resolve, 150));
+          }
+
+          if (!enrichedPerson.email) {
+            console.log(`[Bulk] Skipping ${person.first_name} ${person.last_name} — no email after enrichment`);
+            continue;
+          }
 
           // Check if contact already exists by email
           const { data: existingContact } = await insforge.database
             .from("contacts")
             .select("id")
             .eq("user_id", userId)
-            .eq("email", person.email)
+            .eq("email", enrichedPerson.email)
             .maybeSingle();
 
           if (!existingContact) {
-            const personName = person.name || `${person.first_name} ${person.last_name}`.trim();
-            const phones = extractPersonMobile(person.phone_numbers);
-            const titleScore = scoreDecisionMakerTitle(person.title);
+            const personName = enrichedPerson.name || `${enrichedPerson.first_name} ${enrichedPerson.last_name}`.trim();
+            const phones = extractPersonMobile(enrichedPerson.phone_numbers);
+            const titleScore = scoreDecisionMakerTitle(enrichedPerson.title);
             
-            // Use company phone from Google Places as fallback if no personal phone
             const companyPhone = company.phone;
             const bestPhone = phones.mobile || phones.direct || phones.any || companyPhone;
 
-            // Log the apollo_id we're saving - this is critical for webhook matching
-            console.log(`[Bulk] Inserting contact: email=${person.email}, apollo_id=${person.id}, title=${person.title}, score=${titleScore}`);
+            console.log(`[Bulk] Inserting contact: email=${enrichedPerson.email}, apollo_id=${enrichedPerson.id}, title=${enrichedPerson.title}, score=${titleScore}`);
 
             const { data: insertedContact, error: contactError } = await insforge.database
               .from("contacts")
               .insert([{
                 user_id: userId,
                 company_id: companyId,
-                apollo_id: person.id, // CRITICAL: This must match what Apollo sends in webhook
-                first_name: person.first_name || personName.split(" ")[0] || "Owner",
-                last_name: person.last_name || personName.split(" ").slice(1).join(" ") || null,
-                email: person.email,
-                phone: bestPhone, // Use best available phone
+                apollo_id: enrichedPerson.id,
+                first_name: enrichedPerson.first_name || personName.split(" ")[0] || "Owner",
+                last_name: enrichedPerson.last_name || personName.split(" ").slice(1).join(" ") || null,
+                email: enrichedPerson.email,
+                phone: bestPhone,
                 mobile: phones.mobile || null,
-                linkedin_url: person.linkedin_url || null,
-                title: person.title || "Decision Maker",
+                linkedin_url: enrichedPerson.linkedin_url || null,
+                title: enrichedPerson.title || "Decision Maker",
                 company_name: company.name,
                 company_domain: company.domain || null,
                 industry: company.industry,
@@ -431,12 +450,12 @@ export async function POST(request: NextRequest) {
                 source: `bulk_${source}`,
                 source_list: `${company.industry} - ${company.city}, ${company.state}`,
                 lead_score: 90,
-                priority_score: titleScore, // Score based on title
+                priority_score: titleScore,
                 enrichment_status: "enriched",
                 enriched_at: new Date().toISOString(),
                 cadence_status: "none",
               }])
-              .select("id, apollo_id, email"); // Select to verify what was saved
+              .select("id, apollo_id, email");
 
             if (contactError) {
               console.error(`[Bulk] Contact insert error: ${contactError.message}`);
@@ -444,47 +463,34 @@ export async function POST(request: NextRequest) {
               continue;
             }
 
-            // Verify what was saved
             if (insertedContact && insertedContact.length > 0) {
               const saved = insertedContact[0];
-              console.log(`[Bulk] ✓ Contact inserted: id=${saved.id}, apollo_id=${saved.apollo_id}, email=${saved.email}`);
-              
-              // Verify apollo_id was saved correctly
-              if (saved.apollo_id !== person.id) {
-                console.error(`[Bulk] ⚠️ apollo_id MISMATCH! Expected ${person.id}, got ${saved.apollo_id}`);
-              }
-            } else {
-              console.log(`[Bulk] ✓ Contact inserted but no select data returned`);
+              console.log(`[Bulk] Contact saved: id=${saved.id}, apollo_id=${saved.apollo_id}, email=${saved.email}`);
             }
 
             stats.contactsSaved++;
             contactsSavedForThisCompany++;
             
-            // Track if we got a mobile number
             if (phones.mobile) {
-              stats.phoneRevealsPending++; // Re-using this stat for "mobiles found"
+              stats.phoneRevealsPending++;
             }
             
             savedContacts.push({
               name: personName,
-              email: person.email,
-              title: person.title || "Decision Maker",
+              email: enrichedPerson.email,
+              title: enrichedPerson.title || "Decision Maker",
               company: company.name,
               city: company.city,
             });
 
-            // Log with phone details
-            let phoneStatus: string;
-            if (phones.mobile) {
-              phoneStatus = `MOBILE: ${phones.mobile}`;
-            } else if (webhookUrl) {
-              phoneStatus = `phone: ${bestPhone || 'none'} (mobile pending via webhook)`;
-            } else {
-              phoneStatus = bestPhone ? `phone: ${bestPhone} (company line)` : 'NO PHONE';
-            }
-            console.log(`[Bulk] ✓ Saved: ${personName} (${person.email}) ${phoneStatus} - ${person.title} at ${company.name}`);
+            const phoneStatus = phones.mobile
+              ? `MOBILE: ${phones.mobile}`
+              : webhookUrl
+                ? `phone: ${bestPhone || 'none'} (mobile pending via webhook)`
+                : bestPhone ? `phone: ${bestPhone} (company line)` : 'NO PHONE';
+            console.log(`[Bulk] Saved: ${personName} (${enrichedPerson.email}) ${phoneStatus} - ${enrichedPerson.title} at ${company.name}`);
           } else {
-            console.log(`[Bulk] Contact ${person.email} already exists, skipping`);
+            console.log(`[Bulk] Contact ${enrichedPerson.email} already exists, skipping`);
           }
         }
 

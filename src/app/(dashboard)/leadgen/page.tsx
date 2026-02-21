@@ -150,7 +150,8 @@ export default function LeadGenPage() {
 
   const estimatedCredits = useMemo(() => {
     if (!useCredits) return 0;
-    return dataType === "email_phone" ? TARGET_LEADS : Math.round(TARGET_LEADS * 0.25);
+    // Apollo: 1 credit per email reveal + 5 credits per phone reveal
+    return dataType === "email_phone" ? TARGET_LEADS * 6 : TARGET_LEADS;
   }, [useCredits, dataType]);
 
   const estimatedMinutes = useMemo(() => {

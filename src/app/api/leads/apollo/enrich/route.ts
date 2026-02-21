@@ -319,7 +319,7 @@ export async function POST(request: NextRequest) {
         const isPrimary = !isPrimarySet && confidence >= 70;
         let personWithPhones = person;
         if (isPrimary && person.id) {
-          const enriched = await enrichPersonById(apiKey, person.id);
+          const { person: enriched } = await enrichPersonById(apiKey, person.id);
           if (enriched) {
             personWithPhones = enriched as any;
           }
